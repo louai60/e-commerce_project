@@ -1,0 +1,11 @@
+linters:
+  enable:
+    - gofmt
+    - golint
+    - govet
+    - errcheck
+    - staticcheck
+    - gosimple
+
+run:
+  timeout: 5m

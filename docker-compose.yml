@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  product-service:
+    build: ./backend/product-service
+    ports:
+      - "50051:50051"
+    environment:
+      - ENV=development
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: nexcart

@@ -1,0 +1,15 @@
+environment: development
+
+services:
+  product:
+    port: 50051
+    database:
+      host: postgres
+      port: 5432
+      name: nexcart
+      user: user
+      password: password
+
+logging:
+  level: debug
+  format: json
