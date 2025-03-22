@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 
-	"github.com/louai60/e-commerce/product-service/models"
-	"github.com/louai60/e-commerce/product-service/repository"
+	"github.com/louai60/e-commerce_project/backend/product-service/models"
+	"github.com/louai60/e-commerce_project/backend/product-service/repository"
 )
 
 // ProductService handles business logic for products

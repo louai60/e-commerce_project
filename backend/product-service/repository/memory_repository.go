@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/louai60/e-commerce/product-service/models"
+	"github.com/louai60/e-commerce_project/backend/product-service/models"
 )
 
 // MemoryRepository implements ProductRepository with an in-memory store

@@ -1,4 +1,4 @@
-module github.com/louai60/e-commerce/product-service
+module github.com/louai60/e-commerce_project/backend/product-service
 
 go 1.24.0
 

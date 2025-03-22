@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package product;
 
-option go_package = "github.com/louai60/e-commerce/product-service/proto";
+option go_package = "github.com/louai60/e-commerce_project/backend/product-service/proto";
 
 service ProductService {
   rpc GetProduct(GetProductRequest) returns (ProductResponse) {}

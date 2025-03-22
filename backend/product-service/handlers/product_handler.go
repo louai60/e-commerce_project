@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/louai60/e-commerce/product-service/models"
-	pb "github.com/louai60/e-commerce/product-service/proto"
-	"github.com/louai60/e-commerce/product-service/service"
+	"github.com/louai60/e-commerce_project/backend/product-service/models"
+	pb "github.com/louai60/e-commerce_project/backend/product-service/proto"
+	"github.com/louai60/e-commerce_project/backend/product-service/service"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

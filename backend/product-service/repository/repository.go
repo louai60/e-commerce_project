@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	"github.com/louai60/e-commerce/product-service/models"
+	"github.com/louai60/e-commerce_project/backend/product-service/models"
 )
 
 // ProductRepository defines the interface for product data operations
