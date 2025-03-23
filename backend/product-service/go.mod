@@ -4,11 +4,14 @@ go 1.24.0
 
 require (
 	github.com/google/uuid v1.6.0
+	github.com/louai60/e-commerce_project/backend/common v0.0.0
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/zap v1.27.0
 	google.golang.org/grpc v1.71.0
 	google.golang.org/protobuf v1.36.5
 )
+
+replace github.com/louai60/e-commerce_project/backend/common => ../common
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect

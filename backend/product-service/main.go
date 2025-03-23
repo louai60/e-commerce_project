@@ -1,9 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"net"
 
+	"go.uber.org/zap"
 	"github.com/louai60/e-commerce_project/backend/common/logger"
 	"github.com/louai60/e-commerce_project/backend/product-service/handlers"
 	"github.com/louai60/e-commerce_project/backend/product-service/repository"

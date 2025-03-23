@@ -15,11 +15,11 @@ import (
 // ProductHandler handles gRPC requests for products
 type ProductHandler struct {
 	pb.UnimplementedProductServiceServer
-	productService *service.ProductService
+	productService service.ProductServiceInterface
 }
 
 // NewProductHandler creates a new product handler
-func NewProductHandler(productService *service.ProductService) *ProductHandler {
+func NewProductHandler(productService service.ProductServiceInterface) *ProductHandler {
 	return &ProductHandler{
 		productService: productService,
 	}
