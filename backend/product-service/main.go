@@ -41,7 +41,7 @@ func main() {
 	}
 
 	// Initialize service
-	productService := service.NewProductService(repo)
+	productService := service.NewProductService(repo, log)
 
 	// Initialize handler
 	productHandler := handlers.NewProductHandler(productService)

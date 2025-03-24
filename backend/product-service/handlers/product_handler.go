@@ -10,8 +10,8 @@ import (
 	"github.com/louai60/e-commerce_project/backend/product-service/service"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-    "go.uber.org/zap"
-    "github.com/louai60/e-commerce_project/backend/common/logger"
+	"go.uber.org/zap"
+	"github.com/louai60/e-commerce_project/backend/common/logger"
 )
 
 // ProductHandler handles gRPC requests for products
@@ -45,15 +45,17 @@ func (h *ProductHandler) GetProduct(ctx context.Context, req *pb.GetProductReque
 	return convertProductToProto(product), nil
 }
 
-// ListProducts returns all products
+// ListProducts returns paginated products with total count
 func (h *ProductHandler) ListProducts(ctx context.Context, req *pb.ListProductsRequest) (*pb.ListProductsResponse, error) {
-	products, err := h.productService.ListProducts(ctx)
+	products, totalCount, err := h.productService.ListProducts(ctx, req.Page, req.Limit)
 	if err != nil {
+		h.log.Error("Failed to list products", zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to list products: %v", err)
 	}
 
 	response := &pb.ListProductsResponse{
-		Products: make([]*pb.ProductResponse, 0, len(products)),
+		Products:   make([]*pb.ProductResponse, 0, len(products)),
+		TotalCount: totalCount,
 	}
 
 	for _, product := range products {
