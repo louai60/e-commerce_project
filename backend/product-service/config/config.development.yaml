@@ -1,0 +1,14 @@
+server:
+  port: "50051"
+  environment: "development"
+  serviceName: "product-service"
+  logLevel: "debug"
+  allowOrigins: "*"
+
+database:
+  host: "ep-young-wind-a5a307fe-pooler.us-east-2.aws.neon.tech"
+  port: "5432"
+  name: "product-service"
+  user: "product-service_owner"
+  password: "npg_KMmrpkJl5Fo2"
+  sslMode: "require"

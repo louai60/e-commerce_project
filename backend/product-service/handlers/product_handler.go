@@ -10,26 +10,36 @@ import (
 	"github.com/louai60/e-commerce_project/backend/product-service/service"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+    "go.uber.org/zap"
+    "github.com/louai60/e-commerce_project/backend/common/logger"
 )
 
 // ProductHandler handles gRPC requests for products
 type ProductHandler struct {
 	pb.UnimplementedProductServiceServer
 	productService service.ProductServiceInterface
+	log            *zap.Logger
 }
 
 // NewProductHandler creates a new product handler
 func NewProductHandler(productService service.ProductServiceInterface) *ProductHandler {
 	return &ProductHandler{
 		productService: productService,
+		log:            logger.GetLogger(),
 	}
 }
 
 // GetProduct retrieves a product by ID
 func (h *ProductHandler) GetProduct(ctx context.Context, req *pb.GetProductRequest) (*pb.ProductResponse, error) {
+	if req.Id == "" {
+		h.log.Warn("Empty product ID in request")
+		return nil, status.Error(codes.InvalidArgument, "product ID is required")
+	}
+
 	product, err := h.productService.GetProduct(ctx, req.Id)
 	if err != nil {
-		return nil, status.Errorf(codes.NotFound, "product not found: %v", err)
+		h.log.Error("Failed to get product", zap.String("product_id", req.Id), zap.Error(err))
+		return nil, status.Errorf(codes.NotFound, "failed to get product: %v", err)
 	}
 
 	return convertProductToProto(product), nil
@@ -55,6 +65,11 @@ func (h *ProductHandler) ListProducts(ctx context.Context, req *pb.ListProductsR
 
 // CreateProduct adds a new product
 func (h *ProductHandler) CreateProduct(ctx context.Context, req *pb.CreateProductRequest) (*pb.ProductResponse, error) {
+	if req.Name == "" || req.Price <= 0 {
+		h.log.Warn("Invalid create product request", zap.Any("request", req))
+		return nil, status.Error(codes.InvalidArgument, "name and positive price are required")
+	}
+
 	product := &models.Product{
 		ID:          uuid.New().String(),
 		Name:        req.Name,
@@ -67,6 +82,7 @@ func (h *ProductHandler) CreateProduct(ctx context.Context, req *pb.CreateProduc
 
 	err := h.productService.CreateProduct(ctx, product)
 	if err != nil {
+		h.log.Error("Failed to create product", zap.Any("request", req), zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to create product: %v", err)
 	}
 

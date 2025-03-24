@@ -43,6 +43,12 @@ func (m *MockRepository) DeleteProduct(ctx context.Context, id string) error {
     return args.Error(0)
 }
 
+// Add to MockRepository struct
+func (m *MockRepository) Ping(ctx context.Context) error {
+    args := m.Called(ctx)
+    return args.Error(0)
+}
+
 func TestGetProduct(t *testing.T) {
     mockRepo := new(MockRepository)
     service := NewProductService(mockRepo)

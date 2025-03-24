@@ -10,6 +10,8 @@ service ProductService {
   rpc CreateProduct(CreateProductRequest) returns (ProductResponse) {}
   rpc UpdateProduct(UpdateProductRequest) returns (ProductResponse) {}
   rpc DeleteProduct(DeleteProductRequest) returns (DeleteProductResponse) {}
+  // Add HealthCheck RPC method
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse) {}
 }
 
 message GetProductRequest {
@@ -63,4 +65,17 @@ message ListProductsResponse {
 
 message DeleteProductResponse {
   bool success = 1;
+}
+
+// Add HealthCheckRequest message
+message HealthCheckRequest {}
+
+// Add HealthCheckResponse message
+message HealthCheckResponse {
+  enum ServingStatus {
+    UNKNOWN = 0;
+    SERVING = 1;
+    NOT_SERVING = 2;
+  }
+  ServingStatus status = 1;
 }

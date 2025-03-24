@@ -49,6 +49,12 @@ func (m *MockProductService) DeleteProduct(ctx context.Context, id string) error
     return args.Error(0)
 }
 
+// Add to MockProductService struct
+func (m *MockProductService) HealthCheck(ctx context.Context) error {
+    args := m.Called(ctx)
+    return args.Error(0)
+}
+
 func TestCreateProduct(t *testing.T) {
     mockService := new(MockProductService)
     handler := NewProductHandler(mockService)

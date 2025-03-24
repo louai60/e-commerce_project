@@ -1,0 +1,13 @@
+server:
+  port: "50051"
+  environment: "production"
+  serviceName: "product-service"
+  logLevel: "info"
+  allowOrigins: "https://api.nexcart.com"
+
+database:
+  host: "product-db.internal"
+  port: "5432"
+  name: "nexcart_product"
+  user: "product_service"
+  sslMode: "verify-full"

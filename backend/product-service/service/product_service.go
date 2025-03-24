@@ -71,6 +71,11 @@ func (s *ProductService) DeleteProduct(ctx context.Context, id string) error {
 	return s.repo.DeleteProduct(ctx, id)
 }
 
+// HealthCheck verifies the service is healthy by checking database connectivity
+func (s *ProductService) HealthCheck(ctx context.Context) error {
+	// Perform a simple database ping or lightweight query
+	return s.repo.Ping(ctx)
+}
 
 // ProductServiceInterface defines the methods for product service
 type ProductServiceInterface interface {
@@ -79,6 +84,7 @@ type ProductServiceInterface interface {
 	CreateProduct(ctx context.Context, product *models.Product) error
 	UpdateProduct(ctx context.Context, product *models.Product) error
 	DeleteProduct(ctx context.Context, id string) error
+	HealthCheck(ctx context.Context) error
 }
 
 // Ensure ProductService implements ProductServiceInterface

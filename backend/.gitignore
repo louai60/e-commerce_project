@@ -1,0 +1,17 @@
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# IDE files
+.idea/
+.vscode/
+
+# Secrets
+*.pem
+*.key
+*.crt
+
+# Build artifacts
+bin/
+dist/
