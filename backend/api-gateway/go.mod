@@ -5,12 +5,17 @@ go 1.24.0
 require (
 	github.com/gin-gonic/gin v1.10.0
 	github.com/louai60/e-commerce_project/backend/product-service v0.0.0
+	github.com/louai60/e-commerce_project/backend/user-service v0.0.0
 	github.com/spf13/viper v1.20.0
 	go.uber.org/zap v1.27.0
 	google.golang.org/grpc v1.71.0
 )
 
+require github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
+
 replace github.com/louai60/e-commerce_project/backend/product-service => ../product-service
+
+replace github.com/louai60/e-commerce_project/backend/user-service => ../user-service
 
 require (
 	github.com/bytedance/sonic v1.12.6 // indirect

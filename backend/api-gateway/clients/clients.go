@@ -7,6 +7,8 @@ import (
     "google.golang.org/grpc/credentials/insecure"
 
     "github.com/louai60/e-commerce_project/backend/api-gateway/config"
+    userpb "github.com/louai60/e-commerce_project/backend/user-service/proto"
+
     // Import service protos
     productpb "github.com/louai60/e-commerce_project/backend/product-service/proto"
     // userpb "github.com/louai60/e-commerce_project/backend/user-service/proto"
@@ -17,7 +19,7 @@ import (
 
 type ServiceClients struct {
     ProductClient       productpb.ProductServiceClient
-    // UserClient         userpb.UserServiceClient
+    UserClient         userpb.UserServiceClient
     // OrderClient        orderpb.OrderServiceClient
     // CartClient         cartpb.CartServiceClient
     // Add other service clients

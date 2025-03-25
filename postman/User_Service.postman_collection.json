@@ -1,0 +1,183 @@
+{
+    "info": {
+        "_postman_id": "your-postman-id",
+        "name": "User Service",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+        {
+            "name": "Register User",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": {
+                        "email": "louai@example.com",
+                        "username": "loaui60",
+                        "password": "password123",
+                        "first_name": "lou",
+                        "last_name": "sa"
+                    }
+                },
+                "url": {
+                    "raw": "{{base_url}}/api/v1/users/register",
+                    "host": ["{{base_url}}"],
+                    "path": ["api", "v1", "users", "register"]
+                }
+            }
+        },
+        {
+            "name": "Login",
+            "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                    "mode": "raw",
+                    "raw": {
+                        "email": "louai@example.com",
+                        "password": "password123"
+                    },
+                    "options": {
+                        "raw": {
+                            "language": "json"
+                        }
+                    }
+                },
+                "url": {
+                    "raw": "{{base_url}}/api/v1/users/login",
+                    "host": ["{{base_url}}"],
+                    "path": ["api", "v1", "users", "login"]
+                }
+            }
+        },
+        {
+            "name": "Get Profile",
+            "request": {
+                "method": "GET",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{token}}",
+                        "type": "text"
+                    }
+                ],
+                "url": {
+                    "raw": "{{base_url}}/api/v1/users/profile",
+                    "host": ["{{base_url}}"],
+                    "path": ["api", "v1", "users", "profile"]
+                }
+            }
+        },
+        {
+            "name": "Update Profile",
+            "request": {
+                "method": "PUT",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{token}}",
+                        "type": "text"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"firstName\": \"Updated\",\n    \"lastName\": \"Name\"\n}",
+                    "options": {
+                        "raw": {
+                            "language": "json"
+                        }
+                    }
+                },
+                "url": {
+                    "raw": "{{base_url}}/api/v1/users/profile",
+                    "host": ["{{base_url}}"],
+                    "path": ["api", "v1", "users", "profile"]
+                }
+            }
+        },
+        {
+            "name": "List Users",
+            "request": {
+                "method": "GET",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{token}}",
+                        "type": "text"
+                    }
+                ],
+                "url": {
+                    "raw": "{{base_url}}/api/v1/users?page=1&limit=10",
+                    "host": ["{{base_url}}"],
+                    "path": ["api", "v1", "users"],
+                    "query": [
+                        {
+                            "key": "page",
+                            "value": "1"
+                        },
+                        {
+                            "key": "limit",
+                            "value": "10"
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "name": "Get User by ID",
+            "request": {
+                "method": "GET",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{token}}",
+                        "type": "text"
+                    }
+                ],
+                "url": {
+                    "raw": "{{base_url}}/api/v1/users/{{user_id}}",
+                    "host": ["{{base_url}}"],
+                    "path": ["api", "v1", "users", "{{user_id}}"]
+                }
+            }
+        },
+        {
+            "name": "Delete User",
+            "request": {
+                "method": "DELETE",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{token}}",
+                        "type": "text"
+                    }
+                ],
+                "url": {
+                    "raw": "{{base_url}}/api/v1/users/{{user_id}}",
+                    "host": ["{{base_url}}"],
+                    "path": ["api", "v1", "users", "{{user_id}}"]
+                }
+            }
+        }
+    ],
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://localhost:8080"
+        },
+        {
+            "key": "token",
+            "value": "your_jwt_token_here"
+        },
+        {
+            "key": "user_id",
+            "value": "user_id_here"
+        }
+    ]
+}
