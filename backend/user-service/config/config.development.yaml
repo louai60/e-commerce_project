@@ -1,0 +1,26 @@
+server:
+  port: "50052"
+  environment: "development"
+  serviceName: "user-service"
+  logLevel: "debug"
+  gracefulShutdownTimeout: "30s"
+
+database:
+  host: "localhost"
+  port: "5432"
+  name: "nexcart_user"
+  user: "postgres"
+  sslMode: "disable"
+  maxOpenConns: 25
+  maxIdleConns: 25
+  connMaxLifetime: "15m"
+  connMaxIdleTime: "15m"
+
+auth:
+  accessTokenDuration: "1h"
+  refreshTokenDuration: "24h"
+
+rateLimiter:
+  attempts: 5
+  duration: "1m"
+

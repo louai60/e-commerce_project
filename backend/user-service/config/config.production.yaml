@@ -1,0 +1,29 @@
+server:
+  port: "${APP_PORT}"
+  environment: "production"
+  serviceName: "user-service"
+  logLevel: "info"
+  gracefulShutdownTimeout: "30s"
+  tls:
+    certPath: "${SSL_CERT_PATH}"
+    keyPath: "${SSL_KEY_PATH}"
+
+database:
+  host: "${DB_HOST}"
+  port: "${DB_PORT}"
+  name: "${DB_NAME}"
+  user: "${DB_USER}"
+  sslMode: "verify-full"
+  maxOpenConns: 100
+  maxIdleConns: 25
+  connMaxLifetime: "15m"
+  connMaxIdleTime: "15m"
+
+auth:
+  secretKey: "${JWT_SECRET_KEY}"
+  accessTokenDuration: "${JWT_ACCESS_TOKEN_DURATION}"
+  refreshTokenDuration: "${JWT_REFRESH_TOKEN_DURATION}"
+
+rateLimiter:
+  attempts: "${RATE_LIMIT_ATTEMPTS}"
+  duration: "${RATE_LIMIT_DURATION}"
