@@ -4,6 +4,7 @@ import (
     "net/http"
     "time"
     "context"
+    "os"
 
     "strconv"
 
@@ -211,8 +212,61 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
     c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully"})
 }
 
+func (h *UserHandler) CreateAdmin(c *gin.Context) {
+    var req struct {
+        Email     string `json:"email" binding:"required,email"`
+        Username  string `json:"username" binding:"required,min=3,max=50"`
+        Password  string `json:"password" binding:"required,min=8"`
+        FirstName string `json:"first_name" binding:"required"`
+        LastName  string `json:"last_name" binding:"required"`
+        AdminKey  string `json:"admin_key" binding:"required"`
+    }
 
+    if err := c.ShouldBindJSON(&req); err != nil {
+        h.logger.Error("Invalid request payload", zap.Error(err))
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
 
+    // Debug logging
+    expectedAdminKey := os.Getenv("ADMIN_CREATE_KEY")
+    h.logger.Debug("Admin creation attempt",
+        zap.String("provided_key", req.AdminKey),
+        zap.String("expected_key", expectedAdminKey))
+
+    if req.AdminKey != expectedAdminKey {
+        h.logger.Error("Invalid admin key provided",
+            zap.String("provided_key", req.AdminKey),
+            zap.String("expected_key", expectedAdminKey))
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid admin key"})
+        return
+    }
+
+    ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+    defer cancel()
+
+    grpcReq := &pb.CreateUserRequest{
+        Email:     req.Email,
+        Username:  req.Username,
+        Password:  req.Password,
+        FirstName: req.FirstName,
+        LastName:  req.LastName,
+        Role:      "admin",  // Explicitly set the role to "admin"
+    }
+
+    resp, err := h.client.CreateUser(ctx, grpcReq)
+    if err != nil {
+        st := status.Convert(err)
+        h.logger.Error("Failed to create admin user",
+            zap.Error(err),
+            zap.String("code", st.Code().String()),
+        )
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create admin user"})
+        return
+    }
+
+    c.JSON(http.StatusCreated, resp)
+}
 
 
 

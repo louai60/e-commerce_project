@@ -10,9 +10,15 @@ import (
     "github.com/louai60/e-commerce_project/backend/api-gateway/handlers"
     "github.com/louai60/e-commerce_project/backend/api-gateway/middleware"
     productpb "github.com/louai60/e-commerce_project/backend/product-service/proto"
+    "github.com/joho/godotenv"
 )
 
 func main() {
+    // Load .env file before anything else
+    if err := godotenv.Load(); err != nil {
+        log.Fatal("Error loading .env file")
+    }
+
     // Initialize logger
     logger, err := zap.NewProduction()
     if err != nil {
@@ -64,6 +70,7 @@ func main() {
         {
             users.POST("/register", userHandler.Register)
             users.POST("/login", userHandler.Login)
+            users.POST("/admin/create", userHandler.CreateAdmin) // New admin creation endpoint
             users.GET("/profile", middleware.AuthRequired(), userHandler.GetProfile)
             users.PUT("/profile", middleware.AuthRequired(), userHandler.UpdateProfile)
             users.GET("", middleware.AuthRequired(), middleware.AdminRequired(), userHandler.ListUsers)
@@ -79,5 +86,7 @@ func main() {
         logger.Fatal("Failed to start server", zap.Error(err))
     }
 }
+
+
 
 

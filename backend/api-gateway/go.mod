@@ -11,7 +11,10 @@ require (
 	google.golang.org/grpc v1.71.0
 )
 
-require github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
+require (
+	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
+	github.com/joho/godotenv v1.5.1 // indirect
+)
 
 replace github.com/louai60/e-commerce_project/backend/product-service => ../product-service
 
