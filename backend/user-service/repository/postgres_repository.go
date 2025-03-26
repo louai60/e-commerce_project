@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -112,7 +113,7 @@ func (r *PostgresRepository) GetUserByEmail(ctx context.Context, email string) (
 		SELECT id, email, username, password, first_name, last_name, role, 
 			   created_at, updated_at, last_login, is_active, is_verified
 		FROM users 
-		WHERE email = $1 AND is_active = true`
+		WHERE LOWER(email) = LOWER($1)`
 
 	user := &models.User{}
 	err := r.db.QueryRowContext(ctx, query, email).Scan(
@@ -126,7 +127,7 @@ func (r *PostgresRepository) GetUserByEmail(ctx context.Context, email string) (
 		return nil, fmt.Errorf("user not found: %w", err)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("error getting user by email: %w", err)
+		return nil, fmt.Errorf("error getting user: %w", err)
 	}
 
 	return user, nil
@@ -180,22 +181,52 @@ func (r *PostgresRepository) ListUsers(ctx context.Context, page, limit int32) (
 
 // CreateUser inserts a new user into the database
 func (r *PostgresRepository) CreateUser(ctx context.Context, user *models.User) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback() // Will be ignored if transaction is committed
+
 	query := `
 		INSERT INTO users (
 			id, email, username, password, first_name, last_name, role,
 			created_at, updated_at, is_active, is_verified
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
-		)`
+			$1, LOWER($2), $3, $4, $5, $6, $7, $8, $9, $10, $11
+		) RETURNING id`
 
-	_, err := r.db.ExecContext(ctx, query,
+	var returnedID string
+	err = tx.QueryRowContext(ctx, query,
 		user.ID, user.Email, user.Username, user.Password,
 		user.FirstName, user.LastName, user.Role,
 		user.CreatedAt, user.UpdatedAt, user.IsActive, user.IsVerified,
-	)
+	).Scan(&returnedID)
 
 	if err != nil {
+		if strings.Contains(err.Error(), "unique constraint") {
+			if strings.Contains(err.Error(), "email") {
+				return fmt.Errorf("email already exists")
+			}
+			if strings.Contains(err.Error(), "username") {
+				return fmt.Errorf("username already exists")
+			}
+		}
 		return fmt.Errorf("error creating user: %w", err)
+	}
+
+	// Verify the user exists in the same transaction
+	verifyQuery := `
+		SELECT id FROM users 
+		WHERE id = $1 AND LOWER(email) = LOWER($2)`
+	
+	var verifyID string
+	err = tx.QueryRowContext(ctx, verifyQuery, returnedID, user.Email).Scan(&verifyID)
+	if err != nil {
+		return fmt.Errorf("user creation verification failed: %w", err)
+	}
+
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return nil
@@ -257,3 +288,6 @@ func (r *PostgresRepository) Ping(ctx context.Context) error {
 	}
 	return nil
 }
+
+
+

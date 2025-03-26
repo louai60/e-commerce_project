@@ -24,7 +24,8 @@ type RegisterRequest struct {
     Username  string `json:"username" validate:"required,min=3,max=50"`
     Password  string `json:"password" validate:"required,min=8"`
     FirstName string `json:"first_name" validate:"required"`
-    LastName  string `json:"last_name" validate:"required"`
+    LastName  string `json:"last_name" validate:"required"` 
+    Role      string `json:"role"`
 }
 
 type LoginCredentials struct {

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"go.uber.org/zap"
 
 	"github.com/louai60/e-commerce_project/backend/user-service/models"
@@ -60,6 +61,7 @@ func (h *UserHandler) CreateUser(ctx context.Context, req *pb.CreateUserRequest)
 		Password:  req.Password,
 		FirstName: req.FirstName,
 		LastName:  req.LastName,
+		Role:      req.Role, // Make sure we pass the role from the request
 	}
 
 	user, err := h.service.CreateUser(ctx, registerReq)
@@ -134,6 +136,14 @@ func (h *UserHandler) HealthCheck(ctx context.Context, req *pb.HealthCheckReques
 	return &pb.HealthCheckResponse{Status: "healthy"}, nil
 }
 
+func (h *UserHandler) DebugUserExists(ctx context.Context, req *pb.GetUserByEmailRequest) (*pb.UserResponse, error) {
+	user, err := h.service.GetUserByEmail(ctx, req.Email)
+	if err != nil {
+		return nil, status.Error(codes.NotFound, fmt.Sprintf("user not found: %v", err))
+	}
+	return convertUserToProto(user), nil
+}
+
 func convertUserToProto(user *models.User) *pb.UserResponse {
 	return &pb.UserResponse{
 		Id:        user.ID,
@@ -146,5 +156,7 @@ func convertUserToProto(user *models.User) *pb.UserResponse {
 		UpdatedAt: user.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 }
+
+
 
 
