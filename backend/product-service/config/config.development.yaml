@@ -6,9 +6,10 @@ server:
   allowOrigins: "*"
 
 database:
-  host: "ep-young-wind-a5a307fe-pooler.us-east-2.aws.neon.tech"
+  # host: "ep-young-wind-a5a307fe-pooler.us-east-2.aws.neon.tech"
+  host: "localhost"
   port: "5432"
-  name: "product-service"
-  user: "product-service_owner"
-  password: "npg_KMmrpkJl5Fo2"
-  sslMode: "require"
+  name: "nexcart_product"
+  user: "postgres"
+  # password: "root"
+  sslMode: "disable"

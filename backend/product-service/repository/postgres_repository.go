@@ -14,7 +14,41 @@ func NewPostgresRepository(connStr string) (*PostgresRepository, error) {
 		return nil, err
 	}
 
-	return &PostgresRepository{db: db}, nil
+	// Check connection
+	if err := db.Ping(); err != nil {
+		return nil, err
+	}
+
+	// Create repository instance
+	repo := &PostgresRepository{db: db}
+	
+	// Initialize database schema
+	if err := repo.initializeSchema(); err != nil {
+		return nil, err
+	}
+
+	return repo, nil
+}
+
+// initializeSchema creates the products table if it doesn't exist
+func (r *PostgresRepository) initializeSchema() error {
+	query := `
+		CREATE TABLE IF NOT EXISTS products (
+			id VARCHAR(36) PRIMARY KEY,
+			name VARCHAR(255) NOT NULL,
+			description TEXT,
+			price DECIMAL(10, 2) NOT NULL,
+			image_url TEXT,
+			category_id VARCHAR(36),
+			stock INT NOT NULL DEFAULT 0,
+			created_at TIMESTAMP NOT NULL,
+			updated_at TIMESTAMP NOT NULL,
+			deleted_at TIMESTAMP
+		)
+	`
+	
+	_, err := r.db.Exec(query)
+	return err
 }
 
 func (r *PostgresRepository) CreateProduct(ctx context.Context, product *models.Product) error {
