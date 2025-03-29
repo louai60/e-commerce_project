@@ -20,10 +20,12 @@ func NewJWTManager(secretKey string, tokenDuration time.Duration) *JWTManager {
 
 func (m *JWTManager) GenerateTokenPair(user *models.User) (string, string, error) {
     claims := jwt.MapClaims{
-        "user_id":  user.ID,
-        "email":    user.Email,
-        "role":     user.Role,
-        "exp":      time.Now().Add(m.tokenDuration).Unix(),
+        "user_id":   user.UserID,
+        "email":     user.Email,
+        "username":  user.Username,
+        "user_type": user.UserType,
+        "role":      user.Role,
+        "exp":       time.Now().Add(m.tokenDuration).Unix(),
     }
 
     token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -36,7 +38,7 @@ func (m *JWTManager) GenerateTokenPair(user *models.User) (string, string, error
 
     // Generate refresh token with longer expiration
     refreshClaims := jwt.MapClaims{
-        "user_id": user.ID,
+        "user_id": user.UserID,
         "exp":     time.Now().Add(m.tokenDuration * 24 * 7).Unix(), // 7 days
     }
     refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
@@ -63,8 +65,10 @@ func (m *JWTManager) ValidateToken(tokenString string) (*models.User, error) {
     }
 
     return &models.User{
-        ID:    claims["user_id"].(string),
-        Email: claims["email"].(string),
-        Role:  claims["role"].(string),
+        UserID:   int64(claims["user_id"].(float64)),
+        Email:    claims["email"].(string),
+        Username: claims["username"].(string),
+        UserType: claims["user_type"].(string),
+        Role:     claims["role"].(string),
     }, nil
 }

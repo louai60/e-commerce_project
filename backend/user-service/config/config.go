@@ -33,22 +33,19 @@ type TLSConfig struct {
 }
 
 type DatabaseConfig struct {
-	Host            string        `mapstructure:"host"`
-	Port            string        `mapstructure:"port"`
-	Name            string        `mapstructure:"name"`
-	User            string        `mapstructure:"user"`
-	Password        string        `mapstructure:"-"` // Loaded from env
-	SSLMode         string        `mapstructure:"sslMode"`
-	MaxOpenConns    int           `mapstructure:"maxOpenConns"`
-	MaxIdleConns    int           `mapstructure:"maxIdleConns"`
-	ConnMaxLifetime time.Duration `mapstructure:"connMaxLifetime"`
-	ConnMaxIdleTime time.Duration `mapstructure:"connMaxIdleTime"`
+	Host     string
+	Port     string
+	Name     string
+	User     string
+	Password string
+	SSLMode  string
 }
 
 type AuthConfig struct {
 	SecretKey            string        `mapstructure:"secretKey"`
 	AccessTokenDuration  time.Duration `mapstructure:"accessTokenDuration"`
 	RefreshTokenDuration time.Duration `mapstructure:"refreshTokenDuration"`
+	TokenDuration        time.Duration `mapstructure:"tokenDuration"`
 }
 
 type RateLimiter struct {
@@ -203,6 +200,7 @@ func validateConfig(config *Config) error {
 
 	return nil
 }
+
 
 
 

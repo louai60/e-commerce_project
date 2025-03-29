@@ -1,0 +1,108 @@
+{
+    "info": {
+        "name": "User Service Extended",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+        {
+            "name": "Address Management",
+            "item": [
+                {
+                    "name": "Add Address",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": {
+                                "address_type": "HOME",
+                                "street_address1": "123 Main St",
+                                "street_address2": "Apt 4B",
+                                "city": "New York",
+                                "state": "NY",
+                                "postal_code": "10001",
+                                "country": "USA",
+                                "is_default": true
+                            },
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/users/addresses",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "users", "addresses"]
+                        },
+                        "description": "Add a new address for the authenticated user"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Payment Methods",
+            "item": [
+                {
+                    "name": "Add Payment Method",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": {
+                                "payment_type": "CREDIT_CARD",
+                                "card_last_four": "4242",
+                                "card_brand": "Visa",
+                                "expiration_month": 12,
+                                "expiration_year": 2025,
+                                "is_default": true,
+                                "token": "tok_visa_testcard"
+                            },
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/users/payment-methods",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "users", "payment-methods"]
+                        },
+                        "description": "Add a new payment method for the authenticated user"
+                    }
+                }
+            ]
+        }
+    ],
+    "event": [
+        {
+            "listen": "prerequest",
+            "script": {
+                "type": "text/javascript",
+                "exec": [
+                    "// You can add pre-request scripts here if needed"
+                ]
+            }
+        }
+    ],
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://localhost:8080"
+        }
+    ]
+}

@@ -1,15 +1,14 @@
+// postgres_repository.go
 package repository
 
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
-	_ "github.com/lib/pq"
-	"github.com/louai60/e-commerce_project/backend/user-service/config"
+	"github.com/lib/pq"
 	"github.com/louai60/e-commerce_project/backend/user-service/models"
 )
 
@@ -17,143 +16,230 @@ type PostgresRepository struct {
 	db *sql.DB
 }
 
-// NewPostgresRepository creates a new PostgreSQL repository with connection pooling
-func NewPostgresRepository(cfg *config.DatabaseConfig) (*PostgresRepository, error) {
-	db, err := sql.Open("postgres", cfg.DSN())
-	if err != nil {
-		return nil, fmt.Errorf("error opening database: %w", err)
+func NewPostgresRepository(db *sql.DB) *PostgresRepository {
+	return &PostgresRepository{
+		db: db,
 	}
-
-	// Configure connection pool
-	db.SetMaxOpenConns(cfg.MaxOpenConns)
-	db.SetMaxIdleConns(cfg.MaxIdleConns)
-	db.SetConnMaxLifetime(cfg.ConnMaxLifetime)
-	db.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
-
-	// Verify connection
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := db.PingContext(ctx); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("error connecting to database: %w", err)
-	}
-
-	// Run migrations
-	if err := RunMigrations(db); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("error running migrations: %w", err)
-	}
-
-	return &PostgresRepository{db: db}, nil
 }
 
-// Close releases database resources
-func (r *PostgresRepository) Close() error {
-	return r.db.Close()
+func (r *PostgresRepository) Ping(ctx context.Context) error {
+	return r.db.PingContext(ctx)
 }
 
-// WithTransaction executes a function within a database transaction
-func (r *PostgresRepository) WithTransaction(ctx context.Context, fn func(*sql.Tx) error) error {
-	tx, err := r.db.BeginTx(ctx, nil)
+// User operations
+
+func (r *PostgresRepository) CreateUser(ctx context.Context, user *models.User) error {
+	query := `
+		INSERT INTO users (
+			username, email, password_hash, first_name, last_name, 
+			phone_number, user_type, role, account_status, 
+			email_verified, phone_verified
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		RETURNING user_id, created_at, updated_at`
+
+	err := r.db.QueryRowContext(ctx, query,
+		user.Username,
+		user.Email,
+		user.PasswordHash,
+		user.FirstName,
+		user.LastName,
+		user.PhoneNumber,
+		user.UserType,
+		user.Role,
+		user.AccountStatus,
+		user.EmailVerified,
+		user.PhoneVerified,
+	).Scan(&user.UserID, &user.CreatedAt, &user.UpdatedAt)
+
 	if err != nil {
-		return fmt.Errorf("error beginning transaction: %w", err)
-	}
-
-	defer func() {
-		if p := recover(); p != nil {
-			tx.Rollback()
-			panic(p)
+		if pqErr, ok := err.(*pq.Error); ok {
+			switch pqErr.Code.Name() {
+			case "unique_violation":
+				if strings.Contains(pqErr.Constraint, "users_email_key") {
+					return fmt.Errorf("email already exists")
+				}
+				if strings.Contains(pqErr.Constraint, "users_username_key") {
+					return fmt.Errorf("username already exists")
+				}
+			}
 		}
-	}()
-
-	if err := fn(tx); err != nil {
-		if rbErr := tx.Rollback(); rbErr != nil {
-			return fmt.Errorf("error rolling back transaction: %w (original error: %v)", rbErr, err)
-		}
-		return err
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("error committing transaction: %w", err)
+		return fmt.Errorf("failed to create user: %w", err)
 	}
 
 	return nil
 }
 
-// GetUser retrieves a single user by ID
-func (r *PostgresRepository) GetUser(ctx context.Context, id string) (*models.User, error) {
+func (r *PostgresRepository) GetUser(ctx context.Context, userID int64) (*models.User, error) {
 	query := `
-		SELECT id, email, username, password, first_name, last_name, role, 
-			   created_at, updated_at, last_login, is_active, is_verified
-		FROM users 
-		WHERE id = $1 AND is_active = true`
+		SELECT user_id, username, email, password_hash, first_name, last_name, 
+			   phone_number, user_type, role, account_status, email_verified, 
+			   phone_verified, created_at, updated_at, last_login
+		FROM users
+		WHERE user_id = $1`
 
 	user := &models.User{}
-	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&user.ID, &user.Email, &user.Username, &user.Password,
-		&user.FirstName, &user.LastName, &user.Role,
-		&user.CreatedAt, &user.UpdatedAt, &user.LastLogin,
-		&user.IsActive, &user.IsVerified,
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(
+		&user.UserID,
+		&user.Username,
+		&user.Email,
+		&user.PasswordHash,
+		&user.FirstName,
+		&user.LastName,
+		&user.PhoneNumber,
+		&user.UserType,
+		&user.Role,
+		&user.AccountStatus,
+		&user.EmailVerified,
+		&user.PhoneVerified,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+		&user.LastLogin,
 	)
 
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, fmt.Errorf("user not found: %w", err)
-	}
 	if err != nil {
-		return nil, fmt.Errorf("error getting user: %w", err)
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("user not found")
+		}
+		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
 	return user, nil
 }
 
-// GetUserByEmail retrieves a single user by email
+func (r *PostgresRepository) UpdateUser(ctx context.Context, user *models.User) error {
+	query := `
+		UPDATE users
+		SET username = $1, email = $2, first_name = $3, last_name = $4,
+			phone_number = $5, user_type = $6, role = $7, account_status = $8,
+			email_verified = $9, phone_verified = $10, updated_at = $11
+		WHERE user_id = $12
+		RETURNING updated_at`
+
+	return r.db.QueryRowContext(ctx, query,
+		user.Username,
+		user.Email,
+		user.FirstName,
+		user.LastName,
+		user.PhoneNumber,
+		user.UserType,
+		user.Role,
+		user.AccountStatus,
+		user.EmailVerified,
+		user.PhoneVerified,
+		time.Now(),
+		user.UserID,
+	).Scan(&user.UpdatedAt)
+}
+
+func (r *PostgresRepository) DeleteUser(ctx context.Context, userID int64) error {
+	query := `DELETE FROM users WHERE user_id = $1`
+	result, err := r.db.ExecContext(ctx, query, userID)
+	if err != nil {
+		return fmt.Errorf("failed to delete user: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("user not found")
+	}
+
+	return nil
+}
+
 func (r *PostgresRepository) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
 	query := `
-		SELECT id, email, username, password, first_name, last_name, role, 
-			   created_at, updated_at, last_login, is_active, is_verified
-		FROM users 
-		WHERE LOWER(email) = LOWER($1)`
+		SELECT user_id, username, email, password_hash, first_name, last_name, 
+			   phone_number, user_type, role, account_status, email_verified, 
+			   phone_verified, created_at, updated_at, last_login
+		FROM users
+		WHERE email = $1`
 
 	user := &models.User{}
 	err := r.db.QueryRowContext(ctx, query, email).Scan(
-		&user.ID, &user.Email, &user.Username, &user.Password,
-		&user.FirstName, &user.LastName, &user.Role,
-		&user.CreatedAt, &user.UpdatedAt, &user.LastLogin,
-		&user.IsActive, &user.IsVerified,
+		&user.UserID,
+		&user.Username,
+		&user.Email,
+		&user.PasswordHash,
+		&user.FirstName,
+		&user.LastName,
+		&user.PhoneNumber,
+		&user.UserType,
+		&user.Role,
+		&user.AccountStatus,
+		&user.EmailVerified,
+		&user.PhoneVerified,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+		&user.LastLogin,
 	)
 
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, fmt.Errorf("user not found: %w", err)
-	}
 	if err != nil {
-		return nil, fmt.Errorf("error getting user: %w", err)
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("user not found")
+		}
+		return nil, fmt.Errorf("failed to get user by email: %w", err)
 	}
 
 	return user, nil
 }
 
-// ListUsers retrieves a paginated list of users
-func (r *PostgresRepository) ListUsers(ctx context.Context, page, limit int32) ([]*models.User, int64, error) {
-	offset := (page - 1) * limit
+func (r *PostgresRepository) GetUserByUsername(ctx context.Context, username string) (*models.User, error) {
+	query := `
+		SELECT user_id, username, email, password_hash, first_name, last_name, 
+			   phone_number, user_type, role, account_status, email_verified, 
+			   phone_verified, created_at, updated_at, last_login
+		FROM users
+		WHERE username = $1`
 
-	countQuery := `SELECT COUNT(*) FROM users WHERE is_active = true`
-	var total int64
-	if err := r.db.QueryRowContext(ctx, countQuery).Scan(&total); err != nil {
-		return nil, 0, fmt.Errorf("error counting users: %w", err)
+	user := &models.User{}
+	err := r.db.QueryRowContext(ctx, query, username).Scan(
+		&user.UserID,
+		&user.Username,
+		&user.Email,
+		&user.PasswordHash,
+		&user.FirstName,
+		&user.LastName,
+		&user.PhoneNumber,
+		&user.UserType,
+		&user.Role,
+		&user.AccountStatus,
+		&user.EmailVerified,
+		&user.PhoneVerified,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+		&user.LastLogin,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("user not found")
+		}
+		return nil, fmt.Errorf("failed to get user by username: %w", err)
 	}
 
-	query := `
-		SELECT id, email, username, password, first_name, last_name, role, 
-			   created_at, updated_at, last_login, is_active, is_verified
-		FROM users 
-		WHERE is_active = true
-		ORDER BY created_at DESC
-		LIMIT $1 OFFSET $2`
+	return user, nil
+}
 
-	rows, err := r.db.QueryContext(ctx, query, limit, offset)
+func (r *PostgresRepository) ListUsers(ctx context.Context, page, limit int, where string, args ...interface{}) ([]*models.User, error) {
+	offset := (page - 1) * limit
+	query := `
+		SELECT user_id, username, email, first_name, last_name, phone_number, 
+			   user_type, role, account_status, created_at, updated_at, last_login
+		FROM users
+	`
+	if where != "" {
+		query += " " + where
+	}
+	query += fmt.Sprintf(" LIMIT %d OFFSET %d", limit, offset)
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, 0, fmt.Errorf("error querying users: %w", err)
+		return nil, fmt.Errorf("failed to query users: %w", err)
 	}
 	defer rows.Close()
 
@@ -161,132 +247,392 @@ func (r *PostgresRepository) ListUsers(ctx context.Context, page, limit int32) (
 	for rows.Next() {
 		user := &models.User{}
 		err := rows.Scan(
-			&user.ID, &user.Email, &user.Username, &user.Password,
-			&user.FirstName, &user.LastName, &user.Role,
-			&user.CreatedAt, &user.UpdatedAt, &user.LastLogin,
-			&user.IsActive, &user.IsVerified,
+			&user.UserID,
+			&user.Username,
+			&user.Email,
+			&user.FirstName,
+			&user.LastName,
+			&user.PhoneNumber,
+			&user.UserType,
+			&user.Role,
+			&user.AccountStatus,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+			&user.LastLogin,
 		)
 		if err != nil {
-			return nil, 0, fmt.Errorf("error scanning user: %w", err)
+			return nil, fmt.Errorf("failed to scan user: %w", err)
 		}
 		users = append(users, user)
 	}
 
-	if err := rows.Err(); err != nil {
-		return nil, 0, fmt.Errorf("error after row iteration: %w", err)
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating users rows: %w", err)
 	}
 
-	return users, total, nil
+	return users, nil
 }
 
-// CreateUser inserts a new user into the database
-func (r *PostgresRepository) CreateUser(ctx context.Context, user *models.User) error {
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
+func (r *PostgresRepository) CountUsers(ctx context.Context, where string, args ...interface{}) (int64, error) {
+	query := "SELECT COUNT(*) FROM users"
+	if where != "" {
+		query += " " + where
 	}
-	defer tx.Rollback() // Will be ignored if transaction is committed
 
-	query := `
-		INSERT INTO users (
-			id, email, username, password, first_name, last_name, role,
-			created_at, updated_at, is_active, is_verified
-		) VALUES (
-			$1, LOWER($2), $3, $4, $5, $6, $7, $8, $9, $10, $11
-		) RETURNING id`
-
-	var returnedID string
-	err = tx.QueryRowContext(ctx, query,
-		user.ID, user.Email, user.Username, user.Password,
-		user.FirstName, user.LastName, user.Role,
-		user.CreatedAt, user.UpdatedAt, user.IsActive, user.IsVerified,
-	).Scan(&returnedID)
-
+	var count int64
+	err := r.db.QueryRowContext(ctx, query, args...).Scan(&count)
 	if err != nil {
-		if strings.Contains(err.Error(), "unique constraint") {
-			if strings.Contains(err.Error(), "email") {
-				return fmt.Errorf("email already exists")
-			}
-			if strings.Contains(err.Error(), "username") {
-				return fmt.Errorf("username already exists")
-			}
+		return 0, fmt.Errorf("failed to count users: %w", err)
+	}
+
+	return count, nil
+}
+
+// Address operations
+
+func (r *PostgresRepository) CreateAddress(ctx context.Context, address *models.UserAddress) error {
+	query := `
+		INSERT INTO user_addresses (user_id, address_type, street_address1, 
+								  street_address2, city, state, postal_code, 
+								  country, is_default)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		RETURNING address_id, created_at, updated_at`
+
+	return r.db.QueryRowContext(ctx, query,
+		address.UserID, address.AddressType, address.StreetAddress1,
+		address.StreetAddress2, address.City, address.State,
+		address.PostalCode, address.Country, address.IsDefault,
+	).Scan(&address.AddressID, &address.CreatedAt, &address.UpdatedAt)
+}
+
+func (r *PostgresRepository) GetAddresses(ctx context.Context, userID int64) ([]models.UserAddress, error) {
+	query := `
+		SELECT address_id, user_id, address_type, street_address1, street_address2,
+			   city, state, postal_code, country, is_default, created_at, updated_at
+		FROM user_addresses
+		WHERE user_id = $1`
+
+	rows, err := r.db.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query addresses: %w", err)
+	}
+	defer rows.Close()
+
+	var addresses []models.UserAddress
+	for rows.Next() {
+		var address models.UserAddress
+		err := rows.Scan(
+			&address.AddressID,
+			&address.UserID,
+			&address.AddressType,
+			&address.StreetAddress1,
+			&address.StreetAddress2,
+			&address.City,
+			&address.State,
+			&address.PostalCode,
+			&address.Country,
+			&address.IsDefault,
+			&address.CreatedAt,
+			&address.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan address: %w", err)
 		}
-		return fmt.Errorf("error creating user: %w", err)
+		addresses = append(addresses, address)
 	}
 
-	// Verify the user exists in the same transaction
-	verifyQuery := `
-		SELECT id FROM users 
-		WHERE id = $1 AND LOWER(email) = LOWER($2)`
-	
-	var verifyID string
-	err = tx.QueryRowContext(ctx, verifyQuery, returnedID, user.Email).Scan(&verifyID)
-	if err != nil {
-		return fmt.Errorf("user creation verification failed: %w", err)
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating addresses rows: %w", err)
 	}
 
-	if err = tx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	return nil
+	return addresses, nil
 }
 
-// UpdateUser updates an existing user's information
-func (r *PostgresRepository) UpdateUser(ctx context.Context, user *models.User) error {
+func (r *PostgresRepository) UpdateAddress(ctx context.Context, address *models.UserAddress) error {
 	query := `
-		UPDATE users 
-		SET email = $1, username = $2, first_name = $3, last_name = $4,
-			role = $5, updated_at = $6
-		WHERE id = $7 AND is_active = true`
+		UPDATE user_addresses
+		SET address_type = $1, street_address1 = $2, street_address2 = $3,
+			city = $4, state = $5, postal_code = $6, country = $7, is_default = $8,
+			updated_at = $9
+		WHERE address_id = $10 AND user_id = $11
+		RETURNING updated_at`
 
-	result, err := r.db.ExecContext(ctx, query,
-		user.Email, user.Username, user.FirstName, user.LastName,
-		user.Role, time.Now(), user.ID,
+	return r.db.QueryRowContext(ctx, query,
+		address.AddressType,
+		address.StreetAddress1,
+		address.StreetAddress2,
+		address.City,
+		address.State,
+		address.PostalCode,
+		address.Country,
+		address.IsDefault,
+		time.Now(),
+		address.AddressID,
+		address.UserID,
+	).Scan(&address.UpdatedAt)
+}
+
+func (r *PostgresRepository) DeleteAddress(ctx context.Context, addressID, userID int64) error {
+	query := `DELETE FROM user_addresses WHERE address_id = $1 AND user_id = $2`
+	result, err := r.db.ExecContext(ctx, query, addressID, userID)
+	if err != nil {
+		return fmt.Errorf("failed to delete address: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("address not found or not owned by user")
+	}
+
+	return nil
+}
+
+func (r *PostgresRepository) GetDefaultAddress(ctx context.Context, userID int64) (*models.UserAddress, error) {
+	query := `
+		SELECT address_id, user_id, address_type, street_address1, street_address2,
+			   city, state, postal_code, country, is_default, created_at, updated_at
+		FROM user_addresses
+		WHERE user_id = $1 AND is_default = true
+		LIMIT 1`
+
+	address := &models.UserAddress{}
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(
+		&address.AddressID,
+		&address.UserID,
+		&address.AddressType,
+		&address.StreetAddress1,
+		&address.StreetAddress2,
+		&address.City,
+		&address.State,
+		&address.PostalCode,
+		&address.Country,
+		&address.IsDefault,
+		&address.CreatedAt,
+		&address.UpdatedAt,
 	)
+
 	if err != nil {
-		return fmt.Errorf("error updating user: %w", err)
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("default address not found")
+		}
+		return nil, fmt.Errorf("failed to get default address: %w", err)
 	}
 
-	rows, err := result.RowsAffected()
+	return address, nil
+}
+
+// Payment method operations
+
+func (r *PostgresRepository) CreatePaymentMethod(ctx context.Context, payment *models.PaymentMethod) error {
+	query := `
+		INSERT INTO payment_methods (user_id, payment_type, card_last_four, 
+								   card_brand, expiration_month, expiration_year,
+								   is_default, billing_address_id, token)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		RETURNING payment_method_id, created_at, updated_at`
+
+	return r.db.QueryRowContext(ctx, query,
+		payment.UserID, payment.PaymentType, payment.CardLastFour,
+		payment.CardBrand, payment.ExpirationMonth, payment.ExpirationYear,
+		payment.IsDefault, payment.BillingAddressID, payment.Token,
+	).Scan(&payment.PaymentMethodID, &payment.CreatedAt, &payment.UpdatedAt)
+}
+
+func (r *PostgresRepository) GetPaymentMethods(ctx context.Context, userID int64) ([]models.PaymentMethod, error) {
+	query := `
+		SELECT payment_method_id, user_id, payment_type, card_last_four, 
+			   card_brand, expiration_month, expiration_year, is_default,
+			   billing_address_id, token, created_at, updated_at
+		FROM payment_methods
+		WHERE user_id = $1`
+
+	rows, err := r.db.QueryContext(ctx, query, userID)
 	if err != nil {
-		return fmt.Errorf("error checking rows affected: %w", err)
+		return nil, fmt.Errorf("failed to query payment methods: %w", err)
+	}
+	defer rows.Close()
+
+	var methods []models.PaymentMethod
+	for rows.Next() {
+		var method models.PaymentMethod
+		err := rows.Scan(
+			&method.PaymentMethodID,
+			&method.UserID,
+			&method.PaymentType,
+			&method.CardLastFour,
+			&method.CardBrand,
+			&method.ExpirationMonth,
+			&method.ExpirationYear,
+			&method.IsDefault,
+			&method.BillingAddressID,
+			&method.Token,
+			&method.CreatedAt,
+			&method.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan payment method: %w", err)
+		}
+		methods = append(methods, method)
 	}
 
-	if rows == 0 {
-		return errors.New("user not found or not active")
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating payment methods rows: %w", err)
+	}
+
+	return methods, nil
+}
+
+func (r *PostgresRepository) UpdatePaymentMethod(ctx context.Context, payment *models.PaymentMethod) error {
+	query := `
+		UPDATE payment_methods
+		SET payment_type = $1, card_last_four = $2, card_brand = $3,
+			expiration_month = $4, expiration_year = $5, is_default = $6,
+			billing_address_id = $7, token = $8, updated_at = $9
+		WHERE payment_method_id = $10 AND user_id = $11
+		RETURNING updated_at`
+
+	return r.db.QueryRowContext(ctx, query,
+		payment.PaymentType,
+		payment.CardLastFour,
+		payment.CardBrand,
+		payment.ExpirationMonth,
+		payment.ExpirationYear,
+		payment.IsDefault,
+		payment.BillingAddressID,
+		payment.Token,
+		time.Now(),
+		payment.PaymentMethodID,
+		payment.UserID,
+	).Scan(&payment.UpdatedAt)
+}
+
+func (r *PostgresRepository) DeletePaymentMethod(ctx context.Context, paymentID, userID int64) error {
+	query := `DELETE FROM payment_methods WHERE payment_method_id = $1 AND user_id = $2`
+	result, err := r.db.ExecContext(ctx, query, paymentID, userID)
+	if err != nil {
+		return fmt.Errorf("failed to delete payment method: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("payment method not found or not owned by user")
 	}
 
 	return nil
 }
 
-// DeleteUser soft-deletes a user by marking as inactive
-func (r *PostgresRepository) DeleteUser(ctx context.Context, id string) error {
-	query := `UPDATE users SET is_active = false, updated_at = $1 WHERE id = $2`
+func (r *PostgresRepository) GetDefaultPaymentMethod(ctx context.Context, userID int64) (*models.PaymentMethod, error) {
+	query := `
+		SELECT payment_method_id, user_id, payment_type, card_last_four, 
+			   card_brand, expiration_month, expiration_year, is_default,
+			   billing_address_id, token, created_at, updated_at
+		FROM payment_methods
+		WHERE user_id = $1 AND is_default = true
+		LIMIT 1`
 
-	result, err := r.db.ExecContext(ctx, query, time.Now(), id)
+	payment := &models.PaymentMethod{}
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(
+		&payment.PaymentMethodID,
+		&payment.UserID,
+		&payment.PaymentType,
+		&payment.CardLastFour,
+		&payment.CardBrand,
+		&payment.ExpirationMonth,
+		&payment.ExpirationYear,
+		&payment.IsDefault,
+		&payment.BillingAddressID,
+		&payment.Token,
+		&payment.CreatedAt,
+		&payment.UpdatedAt,
+	)
+
 	if err != nil {
-		return fmt.Errorf("error deleting user: %w", err)
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("default payment method not found")
+		}
+		return nil, fmt.Errorf("failed to get default payment method: %w", err)
 	}
 
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("error checking rows affected: %w", err)
-	}
-
-	if rows == 0 {
-		return errors.New("user not found")
-	}
-
-	return nil
+	return payment, nil
 }
 
-// Ping verifies a connection to the database is still alive
-func (r *PostgresRepository) Ping(ctx context.Context) error {
-	if err := r.db.PingContext(ctx); err != nil {
-		return fmt.Errorf("database ping failed: %w", err)
+// Preferences operations
+
+func (r *PostgresRepository) CreatePreferences(ctx context.Context, prefs *models.UserPreferences) error {
+	query := `
+		INSERT INTO user_preferences (user_id, language, currency, 
+									notification_email, notification_sms, 
+									theme, timezone)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING created_at, updated_at`
+
+	return r.db.QueryRowContext(ctx, query,
+		prefs.UserID,
+		prefs.Language,
+		prefs.Currency,
+		prefs.NotificationEmail,
+		prefs.NotificationSMS,
+		prefs.Theme,
+		prefs.Timezone,
+	).Scan(&prefs.CreatedAt, &prefs.UpdatedAt)
+}
+
+func (r *PostgresRepository) GetPreferences(ctx context.Context, userID int64) (*models.UserPreferences, error) {
+	query := `
+		SELECT user_id, language, currency, notification_email, 
+			   notification_sms, theme, timezone, created_at, updated_at
+		FROM user_preferences
+		WHERE user_id = $1`
+
+	prefs := &models.UserPreferences{}
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(
+		&prefs.UserID,
+		&prefs.Language,
+		&prefs.Currency,
+		&prefs.NotificationEmail,
+		&prefs.NotificationSMS,
+		&prefs.Theme,
+		&prefs.Timezone,
+		&prefs.CreatedAt,
+		&prefs.UpdatedAt,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("preferences not found")
+		}
+		return nil, fmt.Errorf("failed to get preferences: %w", err)
 	}
-	return nil
+
+	return prefs, nil
+}
+
+func (r *PostgresRepository) UpdatePreferences(ctx context.Context, prefs *models.UserPreferences) error {
+	query := `
+		UPDATE user_preferences
+		SET language = $1, currency = $2, notification_email = $3, 
+			notification_sms = $4, theme = $5, timezone = $6, updated_at = $7
+		WHERE user_id = $8
+		RETURNING updated_at`
+
+	return r.db.QueryRowContext(ctx, query,
+		prefs.Language,
+		prefs.Currency,
+		prefs.NotificationEmail,
+		prefs.NotificationSMS,
+		prefs.Theme,
+		prefs.Timezone,
+		time.Now(),
+		prefs.UserID,
+	).Scan(&prefs.UpdatedAt)
 }
 
 
