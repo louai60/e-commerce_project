@@ -3,6 +3,7 @@ syntax = "proto3";
 package user;
 option go_package = "github.com/louai60/e-commerce_project/backend/user-service/proto";
 
+// User service definition
 service UserService {
     // User CRUD operations
     rpc CreateUser (CreateUserRequest) returns (UserResponse);
@@ -16,20 +17,31 @@ service UserService {
     rpc Login (LoginRequest) returns (LoginResponse);
     
     // Address operations
-    rpc AddAddress(AddAddressRequest) returns (AddressResponse);
-    rpc GetAddresses(GetAddressesRequest) returns (AddressListResponse);
-    rpc UpdateAddress(UpdateAddressRequest) returns (AddressResponse);
-    rpc DeleteAddress(DeleteAddressRequest) returns (DeleteResponse);
+    rpc AddAddress (AddAddressRequest) returns (AddressResponse);
+    rpc GetAddresses (GetAddressesRequest) returns (AddressListResponse);
+    rpc UpdateAddress (UpdateAddressRequest) returns (AddressResponse);
+    rpc DeleteAddress (DeleteAddressRequest) returns (DeleteResponse);
     
     // Payment method operations
-    rpc AddPaymentMethod(AddPaymentMethodRequest) returns (PaymentMethodResponse);
-    rpc UpdatePaymentMethod(UpdatePaymentMethodRequest) returns (PaymentMethodResponse);
-    rpc DeletePaymentMethod(DeletePaymentMethodRequest) returns (DeleteResponse);
+    rpc AddPaymentMethod (AddPaymentMethodRequest) returns (PaymentMethodResponse);
+    rpc GetPaymentMethods (GetPaymentMethodsRequest) returns (PaymentMethodListResponse);
+    rpc UpdatePaymentMethod (UpdatePaymentMethodRequest) returns (PaymentMethodResponse);
+    rpc DeletePaymentMethod (DeletePaymentMethodRequest) returns (DeleteResponse);
     
     // System
     rpc HealthCheck (HealthCheckRequest) returns (HealthCheckResponse);
 }
 
+// Base messages
+message DeleteResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message DeleteUserResponse {
+    bool success = 1;
+    string message = 2;
+}
 
 // User related messages
 message User {
@@ -75,7 +87,7 @@ message GetUserByEmailRequest {
 message ListUsersRequest {
     int32 page = 1;
     int32 limit = 2;
-    string filter = 3;  // Added filter capability
+    string filter = 3;
 }
 
 message ListUsersResponse {
@@ -87,16 +99,10 @@ message ListUsersResponse {
 
 message UpdateUserRequest {
     int64 user_id = 1;
-    optional string email = 2;  // Using optional for partial updates
-    optional string username = 3;
-    optional string first_name = 4;
-    optional string last_name = 5;
-    optional string role = 6;
-    optional string phone_number = 7;
-}
-
-message DeleteResponse {
-    bool success = 1;
+    string username = 2;
+    string first_name = 3;
+    string last_name = 4;
+    string phone_number = 5;
 }
 
 message DeleteUserRequest {
@@ -104,25 +110,39 @@ message DeleteUserRequest {
 }
 
 
+// Login related messages
+message LoginRequest {
+    string email = 1;
+    string password = 2;
+}
+
+message LoginResponse {
+    string token = 1;
+    string refresh_token = 2;
+    User user = 3;
+}
+
 // Address related messages
 message Address {
-    string address_id = 1;
-    string user_id = 2;
+    int64 address_id = 1;
+    int64 user_id = 2;
     string address_type = 3;
     string street_address1 = 4;
-    optional string street_address2 = 5;
+    string street_address2 = 5;
     string city = 6;
     string state = 7;
     string postal_code = 8;
     string country = 9;
     bool is_default = 10;
+    string created_at = 11;
+    string updated_at = 12;
 }
 
 message AddAddressRequest {
-    string user_id = 1;
+    int64 user_id = 1;
     string address_type = 2;
     string street_address1 = 3;
-    optional string street_address2 = 4;
+    string street_address2 = 4;
     string city = 5;
     string state = 6;
     string postal_code = 7;
@@ -135,7 +155,7 @@ message AddressResponse {
 }
 
 message GetAddressesRequest {
-    string user_id = 1;
+    int64 user_id = 1;
 }
 
 message AddressListResponse {
@@ -143,39 +163,40 @@ message AddressListResponse {
 }
 
 message UpdateAddressRequest {
-    string address_id = 1;
-    string user_id = 2;
-    optional string address_type = 3;
-    optional string street_address1 = 4;
-    optional string street_address2 = 5;
-    optional string city = 6;
-    optional string state = 7;
-    optional string postal_code = 8;
-    optional string country = 9;
-    optional bool is_default = 10;
+    int64 address_id = 1;
+    int64 user_id = 2;
+    string address_type = 3;
+    string street_address1 = 4;
+    string street_address2 = 5;
+    string city = 6;
+    string state = 7;
+    string postal_code = 8;
+    string country = 9;
+    bool is_default = 10;
 }
 
 message DeleteAddressRequest {
-    string address_id = 1;
-    string user_id = 2;
+    int64 address_id = 1;
+    int64 user_id = 2;
 }
 
 // Payment method related messages
 message PaymentMethod {
-    string payment_method_id = 1;
-    string user_id = 2;
+    int64 payment_method_id = 1;
+    int64 user_id = 2;
     string payment_type = 3;
     string card_last_four = 4;
     string card_brand = 5;
     int32 expiration_month = 6;
     int32 expiration_year = 7;
     bool is_default = 8;
-    optional string billing_address_id = 9;
-    string token = 10;
+    string token = 9;
+    string created_at = 10;
+    string updated_at = 11;
 }
 
 message AddPaymentMethodRequest {
-    string user_id = 1;
+    int64 user_id = 1;
     string payment_type = 2;
     string card_last_four = 3;
     string card_brand = 4;
@@ -183,44 +204,34 @@ message AddPaymentMethodRequest {
     int32 expiration_year = 6;
     bool is_default = 7;
     string token = 8;
-    optional string billing_address_id = 9;
 }
 
 message PaymentMethodResponse {
     PaymentMethod payment_method = 1;
 }
 
+message GetPaymentMethodsRequest {
+    int64 user_id = 1;
+}
+
+message PaymentMethodListResponse {
+    repeated PaymentMethod payment_methods = 1;
+}
+
 message UpdatePaymentMethodRequest {
-    string payment_method_id = 1;
-    string user_id = 2;
-    optional string payment_type = 3;
-    optional string card_last_four = 4;
-    optional string card_brand = 5;
-    optional int32 expiration_month = 6;
-    optional int32 expiration_year = 7;
-    optional bool is_default = 8;
-    optional string billing_address_id = 9;
-    optional string token = 10;
+    int64 payment_method_id = 1;
+    int64 user_id = 2;
+    int32 expiration_month = 3;
+    int32 expiration_year = 4;
+    bool is_default = 5;
 }
 
 message DeletePaymentMethodRequest {
-    string payment_method_id = 1;
-    string user_id = 2;
+    int64 payment_method_id = 1;
+    int64 user_id = 2;
 }
 
-// Authentication messages
-message LoginRequest {
-    string email = 1;
-    string password = 2;
-}
-
-message LoginResponse {
-    string token = 1;
-    string refresh_token = 2;
-    User user = 3;
-}
-
-// System messages
+// Health check messages
 message HealthCheckRequest {}
 
 message HealthCheckResponse {

@@ -29,20 +29,17 @@ func NewUserHandler(service *service.UserService, logger *zap.Logger) *UserHandl
 }
 
 func (h *UserHandler) GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.UserResponse, error) {
-	// Changed to accept string ID directly
 	user, err := h.service.GetUser(ctx, req.UserId)
 	if err != nil {
 		return nil, status.Error(codes.NotFound, "user not found")
 	}
 
-	return convertUserToProto(user), nil
+	return &pb.UserResponse{
+		User: convertUserToProto(user),
+	}, nil
 }
 
 func (h *UserHandler) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (*pb.ListUsersResponse, error) {
-    // Option 1: If service expects int
-    // users, total, err := h.service.ListUsers(ctx, int(req.Page), int(req.Limit), map[string]interface{}{})
-    
-    // Option 2: If service expects int32
     users, total, err := h.service.ListUsers(ctx, req.Page, req.Limit, map[string]interface{}{})
     
     if err != nil {
@@ -54,8 +51,8 @@ func (h *UserHandler) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (
     }
 
     response := &pb.ListUsersResponse{
-        Users:      make([]*pb.UserResponse, len(users)),
-        Total:      int32(total),  // Assuming total is int, convert to int32 for response
+        Users:      make([]*pb.User, len(users)),
+        Total:      int32(total),
         Page:       req.Page,
         Limit:      req.Limit,
     }
@@ -66,6 +63,7 @@ func (h *UserHandler) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (
 
     return response, nil
 }
+
 func (h *UserHandler) CreateUser(ctx context.Context, req *pb.CreateUserRequest) (*pb.UserResponse, error) {
 	h.logger.Info("Received create user request",
 		zap.String("email", req.Email),
@@ -89,32 +87,27 @@ func (h *UserHandler) CreateUser(ctx context.Context, req *pb.CreateUserRequest)
 			zap.String("username", req.Username),
 			zap.Error(err))
 		
-		// Convert specific errors to appropriate gRPC status codes
 		switch {
 		case strings.Contains(err.Error(), "email already registered"):
 			return nil, status.Errorf(codes.AlreadyExists, "email already registered")
 		case strings.Contains(err.Error(), "username already taken"):
 			return nil, status.Errorf(codes.AlreadyExists, "username already taken")
-		case strings.Contains(err.Error(), "invalid email format"):
-			return nil, status.Errorf(codes.InvalidArgument, "invalid email format")
-		case strings.Contains(err.Error(), "invalid role"):
-			return nil, status.Errorf(codes.InvalidArgument, "invalid role configuration")
 		default:
 			return nil, status.Errorf(codes.Internal, "failed to create user: %v", err)
 		}
 	}
 
-	return convertUserToProto(user), nil
+	return &pb.UserResponse{
+		User: convertUserToProto(user),
+	}, nil
 }
 
 func (h *UserHandler) UpdateUser(ctx context.Context, req *pb.UpdateUserRequest) (*pb.UserResponse, error) {
 	user := &models.User{
-		UserID:    req.UserId, // Now accepting string ID
-		Email:     req.Email,
+		UserID:    req.UserId,
 		Username:  req.Username,
 		FirstName: req.FirstName,
 		LastName:  req.LastName,
-		Role:      req.Role,
 	}
 
 	updatedUser, err := h.service.UpdateUser(ctx, user)
@@ -122,17 +115,21 @@ func (h *UserHandler) UpdateUser(ctx context.Context, req *pb.UpdateUserRequest)
 		return nil, status.Error(codes.Internal, "failed to update user")
 	}
 
-	return convertUserToProto(updatedUser), nil
+	return &pb.UserResponse{
+		User: convertUserToProto(updatedUser),
+	}, nil
 }
 
-func (h *UserHandler) DeleteUser(ctx context.Context, req *pb.DeleteUserRequest) (*pb.DeleteUserResponse, error) {
-	// Changed to accept string ID directly
+func (h *UserHandler) DeleteUser(ctx context.Context, req *pb.DeleteUserRequest) (*pb.DeleteResponse, error) {
 	err := h.service.DeleteUser(ctx, req.UserId)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to delete user")
 	}
 
-	return &pb.DeleteUserResponse{Success: true}, nil
+	return &pb.DeleteResponse{
+		Success: true,
+		Message: "user deleted successfully",
+	}, nil
 }
 
 func (h *UserHandler) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
@@ -152,8 +149,6 @@ func (h *UserHandler) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Logi
 		switch err.Error() {
 		case "invalid credentials":
 			return nil, status.Error(codes.Unauthenticated, "invalid email or password")
-		case "too many attempts":
-			return nil, status.Error(codes.ResourceExhausted, "too many login attempts")
 		default:
 			return nil, status.Error(codes.Internal, "login failed")
 		}
@@ -173,29 +168,34 @@ func (h *UserHandler) HealthCheck(ctx context.Context, req *pb.HealthCheckReques
 	return &pb.HealthCheckResponse{Status: "healthy"}, nil
 }
 
-func (h *UserHandler) DebugUserExists(ctx context.Context, req *pb.GetUserByEmailRequest) (*pb.UserResponse, error) {
+func (h *UserHandler) GetUserByEmail(ctx context.Context, req *pb.GetUserByEmailRequest) (*pb.UserResponse, error) {
 	user, err := h.service.GetUserByEmail(ctx, req.Email)
 	if err != nil {
 		return nil, status.Error(codes.NotFound, fmt.Sprintf("user not found: %v", err))
 	}
-	return convertUserToProto(user), nil
+	return &pb.UserResponse{
+		User: convertUserToProto(user),
+	}, nil
 }
 
-func convertUserToProto(user *models.User) *pb.UserResponse {
-	return &pb.UserResponse{
-		UserId:    user.UserID,
-		Email:     user.Email,
-		Username:  user.Username,
-		FirstName: user.FirstName,
-		LastName:  user.LastName,
-		UserType:  user.UserType,
-		Role:      user.Role,
-		CreatedAt: user.CreatedAt.Format(time.RFC3339),
-		UpdatedAt: user.UpdatedAt.Format(time.RFC3339),
+func convertUserToProto(user *models.User) *pb.User {
+	if user == nil {
+		return nil
+	}
+	return &pb.User{
+		UserId:        user.UserID,
+		Email:         user.Email,
+		Username:      user.Username,
+		FirstName:     user.FirstName,
+		LastName:      user.LastName,
+		PhoneNumber:   user.PhoneNumber,
+		UserType:      user.UserType,
+		Role:          user.Role,
+		AccountStatus: user.AccountStatus,
+		EmailVerified: user.EmailVerified,
+		PhoneVerified: user.PhoneVerified,
+		CreatedAt:     user.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:     user.UpdatedAt.Format(time.RFC3339),
+		LastLogin:     user.LastLogin.Format(time.RFC3339),
 	}
 }
-
-// Helper function to parse string IDs from requests
-// func parseUserID(userIDStr string) (int64, error) {
-// 	return strconv.ParseInt(userIDStr, 10, 64)
-// }
