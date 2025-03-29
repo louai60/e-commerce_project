@@ -180,11 +180,11 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 
     grpcReq := &pb.UpdateUserRequest{
         UserId:      userID,
-        Email:       &req.Email,
-        Username:    &req.Username,
-        FirstName:   &req.FirstName,
-        LastName:    &req.LastName,
-        PhoneNumber: &req.PhoneNumber,
+        // Email:       req.Email,
+        Username:    req.Username,
+        FirstName:   req.FirstName,
+        LastName:    req.LastName,
+        PhoneNumber: req.PhoneNumber,
     }
 
     resp, err := h.client.UpdateUser(c.Request.Context(), grpcReq)
@@ -363,10 +363,10 @@ func (h *UserHandler) AddAddress(c *gin.Context) {
     }
 
     grpcReq := &pb.AddAddressRequest{
-        UserId:         strconv.FormatInt(userID, 10),
+        UserId:         userID,
         AddressType:    req.AddressType,
         StreetAddress1: req.StreetAddress1,
-        StreetAddress2: &req.StreetAddress2,
+        StreetAddress2: req.StreetAddress2,
         City:           req.City,
         State:          req.State,
         PostalCode:     req.PostalCode,
@@ -392,7 +392,7 @@ func (h *UserHandler) GetAddresses(c *gin.Context) {
     }
 
     grpcReq := &pb.GetAddressesRequest{
-        UserId: strconv.FormatInt(userID, 10),
+        UserId: userID,
     }
 
     resp, err := h.client.GetAddresses(c.Request.Context(), grpcReq)
@@ -426,16 +426,16 @@ func (h *UserHandler) UpdateAddress(c *gin.Context) {
     }
 
     grpcReq := &pb.UpdateAddressRequest{
-        UserId:         strconv.FormatInt(userID, 10),
-        AddressId:      strconv.FormatInt(addressID, 10),
-        AddressType:    &req.AddressType,
-        StreetAddress1: &req.StreetAddress1,
-        StreetAddress2: &req.StreetAddress2,
-        City:           &req.City,
-        State:          &req.State,
-        PostalCode:     &req.PostalCode,
-        Country:        &req.Country,
-        IsDefault:      &req.IsDefault,
+        UserId:         userID,
+        AddressId:      addressID,
+        AddressType:    req.AddressType,
+        StreetAddress1: req.StreetAddress1,
+        StreetAddress2: req.StreetAddress2,
+        City:           req.City,
+        State:          req.State,
+        PostalCode:     req.PostalCode,
+        Country:        req.Country,
+        IsDefault:      req.IsDefault,
     }
 
     resp, err := h.client.UpdateAddress(c.Request.Context(), grpcReq)
@@ -463,8 +463,8 @@ func (h *UserHandler) DeleteAddress(c *gin.Context) {
     }
 
     grpcReq := &pb.DeleteAddressRequest{
-        UserId:    strconv.FormatInt(userID, 10),
-        AddressId: strconv.FormatInt(addressID, 10),
+        UserId:    userID,
+        AddressId: addressID,
     }
 
     _, err = h.client.DeleteAddress(c.Request.Context(), grpcReq)
@@ -495,7 +495,7 @@ func (h *UserHandler) AddPaymentMethod(c *gin.Context) {
     defer cancel()
 
     grpcReq := &pb.AddPaymentMethodRequest{
-        UserId:          strconv.FormatInt(userID, 10),
+        UserId:          userID,
         PaymentType:     req.PaymentType,
         CardLastFour:    req.CardLastFour,
         CardBrand:       req.CardBrand,

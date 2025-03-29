@@ -31,6 +31,7 @@ const (
 	UserService_UpdateAddress_FullMethodName       = "/user.UserService/UpdateAddress"
 	UserService_DeleteAddress_FullMethodName       = "/user.UserService/DeleteAddress"
 	UserService_AddPaymentMethod_FullMethodName    = "/user.UserService/AddPaymentMethod"
+	UserService_GetPaymentMethods_FullMethodName   = "/user.UserService/GetPaymentMethods"
 	UserService_UpdatePaymentMethod_FullMethodName = "/user.UserService/UpdatePaymentMethod"
 	UserService_DeletePaymentMethod_FullMethodName = "/user.UserService/DeletePaymentMethod"
 	UserService_HealthCheck_FullMethodName         = "/user.UserService/HealthCheck"
@@ -39,6 +40,8 @@ const (
 // UserServiceClient is the client API for UserService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// User service definition
 type UserServiceClient interface {
 	// User CRUD operations
 	CreateUser(ctx context.Context, in *CreateUserRequest, opts ...grpc.CallOption) (*UserResponse, error)
@@ -56,6 +59,7 @@ type UserServiceClient interface {
 	DeleteAddress(ctx context.Context, in *DeleteAddressRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
 	// Payment method operations
 	AddPaymentMethod(ctx context.Context, in *AddPaymentMethodRequest, opts ...grpc.CallOption) (*PaymentMethodResponse, error)
+	GetPaymentMethods(ctx context.Context, in *GetPaymentMethodsRequest, opts ...grpc.CallOption) (*PaymentMethodListResponse, error)
 	UpdatePaymentMethod(ctx context.Context, in *UpdatePaymentMethodRequest, opts ...grpc.CallOption) (*PaymentMethodResponse, error)
 	DeletePaymentMethod(ctx context.Context, in *DeletePaymentMethodRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
 	// System
@@ -190,6 +194,16 @@ func (c *userServiceClient) AddPaymentMethod(ctx context.Context, in *AddPayment
 	return out, nil
 }
 
+func (c *userServiceClient) GetPaymentMethods(ctx context.Context, in *GetPaymentMethodsRequest, opts ...grpc.CallOption) (*PaymentMethodListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PaymentMethodListResponse)
+	err := c.cc.Invoke(ctx, UserService_GetPaymentMethods_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *userServiceClient) UpdatePaymentMethod(ctx context.Context, in *UpdatePaymentMethodRequest, opts ...grpc.CallOption) (*PaymentMethodResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(PaymentMethodResponse)
@@ -223,6 +237,8 @@ func (c *userServiceClient) HealthCheck(ctx context.Context, in *HealthCheckRequ
 // UserServiceServer is the server API for UserService service.
 // All implementations must embed UnimplementedUserServiceServer
 // for forward compatibility.
+//
+// User service definition
 type UserServiceServer interface {
 	// User CRUD operations
 	CreateUser(context.Context, *CreateUserRequest) (*UserResponse, error)
@@ -240,6 +256,7 @@ type UserServiceServer interface {
 	DeleteAddress(context.Context, *DeleteAddressRequest) (*DeleteResponse, error)
 	// Payment method operations
 	AddPaymentMethod(context.Context, *AddPaymentMethodRequest) (*PaymentMethodResponse, error)
+	GetPaymentMethods(context.Context, *GetPaymentMethodsRequest) (*PaymentMethodListResponse, error)
 	UpdatePaymentMethod(context.Context, *UpdatePaymentMethodRequest) (*PaymentMethodResponse, error)
 	DeletePaymentMethod(context.Context, *DeletePaymentMethodRequest) (*DeleteResponse, error)
 	// System
@@ -289,6 +306,9 @@ func (UnimplementedUserServiceServer) DeleteAddress(context.Context, *DeleteAddr
 }
 func (UnimplementedUserServiceServer) AddPaymentMethod(context.Context, *AddPaymentMethodRequest) (*PaymentMethodResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddPaymentMethod not implemented")
+}
+func (UnimplementedUserServiceServer) GetPaymentMethods(context.Context, *GetPaymentMethodsRequest) (*PaymentMethodListResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetPaymentMethods not implemented")
 }
 func (UnimplementedUserServiceServer) UpdatePaymentMethod(context.Context, *UpdatePaymentMethodRequest) (*PaymentMethodResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdatePaymentMethod not implemented")
@@ -536,6 +556,24 @@ func _UserService_AddPaymentMethod_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserService_GetPaymentMethods_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetPaymentMethodsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).GetPaymentMethods(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_GetPaymentMethods_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).GetPaymentMethods(ctx, req.(*GetPaymentMethodsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _UserService_UpdatePaymentMethod_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdatePaymentMethodRequest)
 	if err := dec(in); err != nil {
@@ -644,6 +682,10 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AddPaymentMethod",
 			Handler:    _UserService_AddPaymentMethod_Handler,
+		},
+		{
+			MethodName: "GetPaymentMethods",
+			Handler:    _UserService_GetPaymentMethods_Handler,
 		},
 		{
 			MethodName: "UpdatePaymentMethod",
