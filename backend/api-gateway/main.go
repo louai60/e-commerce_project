@@ -70,12 +70,34 @@ func main() {
         {
             users.POST("/register", userHandler.Register)
             users.POST("/login", userHandler.Login)
-            users.POST("/admin/create", userHandler.CreateAdmin) // New admin creation endpoint
-            users.GET("/profile", middleware.AuthRequired(), userHandler.GetProfile)
-            users.PUT("/profile", middleware.AuthRequired(), userHandler.UpdateProfile)
-            users.GET("", middleware.AuthRequired(), middleware.AdminRequired(), userHandler.ListUsers)
-            users.GET("/:id", middleware.AuthRequired(), userHandler.GetUser)
-            users.DELETE("/:id", middleware.AuthRequired(), middleware.AdminRequired(), userHandler.DeleteUser)
+            users.POST("/admin", middleware.AdminKeyRequired(), userHandler.CreateAdmin)
+            
+            // Protected routes
+            authenticated := users.Group("/", middleware.AuthRequired())
+            {
+                authenticated.GET("/profile", userHandler.GetProfile)
+                authenticated.PUT("/profile", userHandler.UpdateProfile)
+                
+                // Address management
+                authenticated.POST("/addresses", userHandler.AddAddress)
+                // authenticated.GET("/addresses", userHandler.ListAddresses)
+                // authenticated.PUT("/addresses/:id", userHandler.UpdateAddress)
+                // authenticated.DELETE("/addresses/:id", userHandler.DeleteAddress)
+                
+                // Payment methods
+                authenticated.POST("/payment-methods", userHandler.AddPaymentMethod)
+                // authenticated.GET("/payment-methods", userHandler.ListPaymentMethods)
+                // authenticated.PUT("/payment-methods/:id", userHandler.UpdatePaymentMethod)
+                // authenticated.DELETE("/payment-methods/:id", userHandler.DeletePaymentMethod)
+                
+                // Admin only routes
+                admin := authenticated.Group("/", middleware.AdminRequired())
+                {
+                    admin.GET("", userHandler.ListUsers)
+                    admin.GET("/:id", userHandler.GetUser)
+                    admin.DELETE("/:id", userHandler.DeleteUser)
+                }
+            }
         }
     }
 
@@ -86,6 +108,7 @@ func main() {
         logger.Fatal("Failed to start server", zap.Error(err))
     }
 }
+
 
 
 
