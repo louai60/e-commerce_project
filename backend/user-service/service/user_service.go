@@ -7,15 +7,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/louai60/e-commerce_project/backend/user-service/models"
 	"github.com/louai60/e-commerce_project/backend/user-service/repository"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
+
 )
 
 type UserService struct {
-	repo         repository.UserRepository
+	repo         repository.Repository
 	logger       *zap.Logger
 	rateLimiter  RateLimiter
 	tokenManager TokenManager
@@ -32,7 +32,7 @@ type TokenManager interface {
 }
 
 func NewUserService(
-	repo repository.UserRepository,
+	repo repository.Repository,
 	logger *zap.Logger,
 	rateLimiter RateLimiter,
 	tokenManager TokenManager,
@@ -45,79 +45,111 @@ func NewUserService(
 	}
 }
 
-func (s *UserService) GetUser(ctx context.Context, id string) (*models.User, error) {
-	s.logger.Debug("Getting user by ID", zap.String("id", id))
+func (s *UserService) GetUser(ctx context.Context, id int64) (*models.User, error) {
+	s.logger.Debug("Getting user by ID", zap.Int64("id", id))
 	return s.repo.GetUser(ctx, id)
 }
 
-func (s *UserService) ListUsers(ctx context.Context, page, limit int32) ([]*models.User, int64, error) {
-	s.logger.Debug("Listing users", zap.Int32("page", page), zap.Int32("limit", limit))
-	return s.repo.ListUsers(ctx, page, limit)
+func (s *UserService) ListUsers(ctx context.Context, page, limit int32, filters map[string]interface{}) ([]*models.User, int64, error) {
+	// Validate pagination
+	if page < 1 { page = 1 }
+	if limit < 1 || limit > 100 { limit = 10 }
+
+	// Build query conditions
+	var conditions []string
+	var args []interface{}
+	
+	if userType, ok := filters["user_type"]; ok {
+		conditions = append(conditions, "user_type = ?")
+		args = append(args, userType)
+	}
+	if role, ok := filters["role"]; ok {
+		conditions = append(conditions, "role = ?")
+		args = append(args, role)
+	}
+
+	where := ""
+	if len(conditions) > 0 {
+		where = "WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	users, err := s.repo.ListUsers(ctx, int(page), int(limit), where, args...)
+	if err != nil {
+		s.logger.Error("ListUsers failed", zap.Error(err))
+		return nil, 0, err
+	}
+
+	total, err := s.repo.CountUsers(ctx, where, args...)
+	if err != nil {
+		s.logger.Error("CountUsers failed", zap.Error(err))
+		return nil, 0, err
+	}
+
+	return users, total, nil
 }
 
 func (s *UserService) CreateUser(ctx context.Context, req *models.RegisterRequest) (*models.User, error) {
-	s.logger.Debug("Creating new user - start",
-		zap.String("email", req.Email),
-		zap.String("username", req.Username))
+	// Validate email format
+	if !strings.Contains(req.Email, "@") {
+		return nil, fmt.Errorf("invalid email format")
+	}
 
-	// Hash password
+	// Check if email already exists
+	existingUser, err := s.repo.GetUserByEmail(ctx, req.Email)
+	if err == nil && existingUser != nil {
+		return nil, fmt.Errorf("email already registered")
+	}
+
+	// Check if username already exists
+	existingUser, err = s.repo.GetUserByUsername(ctx, req.Username)
+	if err == nil && existingUser != nil {
+		return nil, fmt.Errorf("username already taken")
+	}
+
+	// Validate user type
+	if req.UserType == "" {
+		req.UserType = "customer" // Set default user type
+	}
+
+	// Validate role
+	if req.Role == "" {
+		req.Role = "user" // Set default role
+	}
+
+	if !models.IsValidRole(req.UserType, req.Role) {
+		return nil, fmt.Errorf("invalid role '%s' for user type '%s'", req.Role, req.UserType)
+	}
+
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		s.logger.Error("Failed to hash password", zap.Error(err))
-		return nil, errors.New("internal server error")
+		return nil, fmt.Errorf("failed to process password")
 	}
 
-	now := time.Now()
 	user := &models.User{
-		ID:         uuid.New().String(),
-		Email:      strings.ToLower(req.Email),
-		Username:   req.Username,
-		Password:   string(hashedPassword),
-		FirstName:  req.FirstName,
-		LastName:   req.LastName,
-		Role:       req.Role, // Use the role from the request instead of hardcoding "user"
-		CreatedAt:  now,
-		UpdatedAt:  now,
-		IsActive:   true,
-		IsVerified: false,
+		Email:         strings.ToLower(req.Email),
+		Username:      req.Username,
+		PasswordHash:  string(hashedPassword),
+		FirstName:     req.FirstName,
+		LastName:      req.LastName,
+		PhoneNumber:   req.PhoneNumber,
+		UserType:      req.UserType,
+		Role:          req.Role,
+		AccountStatus: "active",
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
 	}
-
-	s.logger.Debug("Attempting to create user in database",
-		zap.String("user_id", user.ID),
-		zap.String("email", user.Email))
 
 	if err := s.repo.CreateUser(ctx, user); err != nil {
-		s.logger.Error("Database error during user creation",
-			zap.String("email", req.Email),
-			zap.Error(err))
-		if strings.Contains(err.Error(), "already exists") {
-			return nil, errors.New("user already exists")
-		}
-		return nil, fmt.Errorf("failed to create user: %w", err)
+		s.logger.Error("Failed to create user in database", zap.Error(err))
+		return nil, fmt.Errorf("database error: %w", err)
 	}
 
-	s.logger.Info("User created successfully",
-		zap.String("user_id", user.ID),
-		zap.String("email", user.Email))
-
-	// Verify the user was created by attempting to retrieve them
-	verifyUser, err := s.repo.GetUserByEmail(ctx, user.Email)
-	if err != nil {
-		s.logger.Error("Failed to verify user creation",
-			zap.String("email", user.Email),
-			zap.Error(err))
-	} else {
-		s.logger.Debug("User verified in database",
-			zap.String("user_id", verifyUser.ID),
-			zap.String("email", verifyUser.Email))
-	}
-
-	user.Password = "" // Don't return the password hash
 	return user, nil
 }
 
 func (s *UserService) UpdateUser(ctx context.Context, user *models.User) (*models.User, error) {
-	s.logger.Debug("Updating user", zap.String("id", user.ID))
+	s.logger.Debug("Updating user", zap.Int64("id", user.UserID))
 
 	if err := s.repo.UpdateUser(ctx, user); err != nil {
 		s.logger.Error("Failed to update user", zap.Error(err))
@@ -127,8 +159,8 @@ func (s *UserService) UpdateUser(ctx context.Context, user *models.User) (*model
 	return user, nil
 }
 
-func (s *UserService) DeleteUser(ctx context.Context, id string) error {
-	s.logger.Debug("Deleting user", zap.String("id", id))
+func (s *UserService) DeleteUser(ctx context.Context, id int64) error {
+	s.logger.Debug("Deleting user", zap.Int64("id", id))
 	return s.repo.DeleteUser(ctx, id)
 }
 
@@ -153,7 +185,7 @@ func (s *UserService) Login(ctx context.Context, credentials *models.LoginCreden
 	}
 
 	err = bcrypt.CompareHashAndPassword(
-		[]byte(user.Password),
+		[]byte(user.PasswordHash),
 		[]byte(credentials.Password))
 	if err != nil {
 		s.logger.Debug("Password mismatch",
@@ -182,7 +214,7 @@ func (s *UserService) Login(ctx context.Context, credentials *models.LoginCreden
 	}
 
 	// Clear sensitive data
-	user.Password = ""
+	user.PasswordHash = ""
 
 	return &models.LoginResponse{
 		Token:        token,
@@ -204,4 +236,50 @@ func (s *UserService) GetUserByEmail(ctx context.Context, email string) (*models
 	}
 	return user, nil
 }
+
+// Add Address Ads a new address to User's Profile
+
+func (s *UserService) AddAddress(ctx context.Context, userID int64, address *models.UserAddress) (*models.UserAddress, error) {
+	s.logger.Debug("adding address for user", 
+		zap.Int64("user_id", userID), 
+		zap.String("address_type", address.AddressType))
+
+	// Verify user exists
+	_, err := s.repo.GetUser(ctx, userID)
+	if err != nil {
+		s.logger.Error("user not found when adding address", 
+			zap.Int64("user_id", userID), 
+			zap.Error(err))
+		return nil, fmt.Errorf("user not found: %w", err)
+	}
+
+	// Set address metadata
+	address.UserID = userID
+	address.CreatedAt = time.Now()
+	address.UpdatedAt = time.Now()
+
+	// If this is set as default, update any existing default addresses
+	if address.IsDefault {
+		if err := s.repo.UpdateAddress(ctx, address); err != nil {
+			s.logger.Warn("failed to update existing default addresses", 
+				zap.Int64("user_id", userID),
+				zap.Error(err))
+		}
+	}
+
+	// Add address to database
+	if err := s.repo.CreateAddress(ctx, address); err != nil {
+		s.logger.Error("failed to add address to database",
+			zap.Int64("user_id", userID),
+			zap.Error(err))
+		return nil, fmt.Errorf("failed to add address: %w", err)
+	}
+
+	s.logger.Info("successfully added address",
+		zap.Int64("address_id", address.AddressID), 
+		zap.String("address_type", address.AddressType))
+	return address, nil
+}
+
+
 
