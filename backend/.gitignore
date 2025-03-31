@@ -15,3 +15,9 @@
 # Build artifacts
 bin/
 dist/
+
+# Air temporary files
+tmp/
+**/tmp/
+.air.toml
+air_errors.log
