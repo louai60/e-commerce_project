@@ -86,19 +86,28 @@ func (h *ProductHandler) ListProducts(c *gin.Context) {
 }
 
 func (h *ProductHandler) CreateProduct(c *gin.Context) {
+    // Get user role from context
+    role, exists := c.Get("user_role")
+    if !exists || role.(string) != "admin" {
+        c.JSON(http.StatusForbidden, gin.H{"error": "admin access required"})
+        return
+    }
+
     var req pb.CreateProductRequest
     if err := c.ShouldBindJSON(&req); err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
 
-    resp, err := h.client.CreateProduct(context.Background(), &req)
+    ctx := context.Background()
+    resp, err := h.client.CreateProduct(ctx, &req)
     if err != nil {
         st, ok := status.FromError(err)
         if ok && st.Code() == codes.InvalidArgument {
             c.JSON(http.StatusBadRequest, gin.H{"error": st.Message()})
             return
         }
+        h.logger.Error("Failed to create product", zap.Error(err))
         c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
         return
     }
@@ -153,3 +162,4 @@ func (h *ProductHandler) DeleteProduct(c *gin.Context) {
 
     c.Status(http.StatusNoContent)
 }
+

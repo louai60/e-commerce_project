@@ -12,13 +12,17 @@ import (
 	"github.com/louai60/e-commerce_project/backend/user-service/models"
 )
 
+import "go.uber.org/zap"
+
 type PostgresRepository struct {
 	db *sql.DB
+	Logger *zap.Logger
 }
 
-func NewPostgresRepository(db *sql.DB) *PostgresRepository {
+func NewPostgresRepository(db *sql.DB, logger *zap.Logger) *PostgresRepository {
 	return &PostgresRepository{
 		db: db,
+		Logger: logger,
 	}
 }
 
@@ -31,7 +35,7 @@ func (r *PostgresRepository) Ping(ctx context.Context) error {
 func (r *PostgresRepository) CreateUser(ctx context.Context, user *models.User) error {
 	query := `
 		INSERT INTO users (
-			username, email, password_hash, first_name, last_name, 
+			username, email, hashed_password, first_name, last_name, 
 			phone_number, user_type, role, account_status, 
 			email_verified, phone_verified
 		)
@@ -41,7 +45,7 @@ func (r *PostgresRepository) CreateUser(ctx context.Context, user *models.User) 
 	err := r.db.QueryRowContext(ctx, query,
 		user.Username,
 		user.Email,
-		user.PasswordHash,
+		user.HashedPassword,
 		user.FirstName,
 		user.LastName,
 		user.PhoneNumber,
@@ -72,7 +76,7 @@ func (r *PostgresRepository) CreateUser(ctx context.Context, user *models.User) 
 
 func (r *PostgresRepository) GetUser(ctx context.Context, userID int64) (*models.User, error) {
 	query := `
-		SELECT user_id, username, email, password_hash, first_name, last_name, 
+		SELECT user_id, username, email, hashed_password, first_name, last_name, 
 			   phone_number, user_type, role, account_status, email_verified, 
 			   phone_verified, created_at, updated_at, last_login
 		FROM users
@@ -83,7 +87,7 @@ func (r *PostgresRepository) GetUser(ctx context.Context, userID int64) (*models
 		&user.UserID,
 		&user.Username,
 		&user.Email,
-		&user.PasswordHash,
+		&user.HashedPassword,
 		&user.FirstName,
 		&user.LastName,
 		&user.PhoneNumber,
@@ -152,19 +156,34 @@ func (r *PostgresRepository) DeleteUser(ctx context.Context, userID int64) error
 }
 
 func (r *PostgresRepository) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
+	r.Logger.Info("Attempting to get user by email", zap.String("email", email))
+
 	query := `
-		SELECT user_id, username, email, password_hash, first_name, last_name, 
-			   phone_number, user_type, role, account_status, email_verified, 
-			   phone_verified, created_at, updated_at, last_login
-		FROM users
-		WHERE email = $1`
+		SELECT 
+			user_id, 
+			username, 
+			email, 
+			hashed_password,  
+			first_name, 
+			last_name, 
+			phone_number, 
+			user_type, 
+			role, 
+			account_status, 
+			email_verified, 
+			phone_verified, 
+			created_at, 
+			updated_at, 
+			COALESCE(last_login, created_at) as last_login
+		FROM users 
+		WHERE LOWER(email) = LOWER($1)`
 
 	user := &models.User{}
 	err := r.db.QueryRowContext(ctx, query, email).Scan(
 		&user.UserID,
 		&user.Username,
 		&user.Email,
-		&user.PasswordHash,
+		&user.HashedPassword,  
 		&user.FirstName,
 		&user.LastName,
 		&user.PhoneNumber,
@@ -180,17 +199,22 @@ func (r *PostgresRepository) GetUserByEmail(ctx context.Context, email string) (
 
 	if err != nil {
 		if err == sql.ErrNoRows {
+			r.Logger.Error("User not found", zap.String("email", email))
 			return nil, fmt.Errorf("user not found")
 		}
+		r.Logger.Error("Database error", zap.Error(err))
 		return nil, fmt.Errorf("failed to get user by email: %w", err)
 	}
 
+	r.Logger.Info("User found", 
+		zap.String("email", email),
+		zap.Int64("userId", user.UserID))
 	return user, nil
 }
 
 func (r *PostgresRepository) GetUserByUsername(ctx context.Context, username string) (*models.User, error) {
 	query := `
-		SELECT user_id, username, email, password_hash, first_name, last_name, 
+		SELECT user_id, username, email, hashed_password, first_name, last_name, 
 			   phone_number, user_type, role, account_status, email_verified, 
 			   phone_verified, created_at, updated_at, last_login
 		FROM users
@@ -201,7 +225,7 @@ func (r *PostgresRepository) GetUserByUsername(ctx context.Context, username str
 		&user.UserID,
 		&user.Username,
 		&user.Email,
-		&user.PasswordHash,
+		&user.HashedPassword,
 		&user.FirstName,
 		&user.LastName,
 		&user.PhoneNumber,

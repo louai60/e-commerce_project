@@ -1,8 +1,10 @@
+
 package handlers
 
 import (
 	"context"
 	"fmt"
+	// "strconv"
 	"strings"
 	"time"
 
@@ -29,7 +31,10 @@ func NewUserHandler(service *service.UserService, logger *zap.Logger) *UserHandl
 }
 
 func (h *UserHandler) GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.UserResponse, error) {
-	user, err := h.service.GetUser(ctx, req.UserId)
+	userIDStr := req.UserId
+	userID := userIDStr
+
+	user, err := h.service.GetUser(ctx, userID)
 	if err != nil {
 		return nil, status.Error(codes.NotFound, "user not found")
 	}
@@ -82,7 +87,7 @@ func (h *UserHandler) CreateUser(ctx context.Context, req *pb.CreateUserRequest)
 
 	user, err := h.service.CreateUser(ctx, registerReq)
 	if err != nil {
-		h.logger.Error("Failed to create user", 
+		h.logger.Error("Failed to create user",
 			zap.String("email", req.Email),
 			zap.String("username", req.Username),
 			zap.Error(err))
@@ -103,8 +108,10 @@ func (h *UserHandler) CreateUser(ctx context.Context, req *pb.CreateUserRequest)
 }
 
 func (h *UserHandler) UpdateUser(ctx context.Context, req *pb.UpdateUserRequest) (*pb.UserResponse, error) {
+	userIDStr := req.UserId
+	userID := userIDStr
 	user := &models.User{
-		UserID:    req.UserId,
+		UserID:    userID,
 		Username:  req.Username,
 		FirstName: req.FirstName,
 		LastName:  req.LastName,
@@ -121,7 +128,10 @@ func (h *UserHandler) UpdateUser(ctx context.Context, req *pb.UpdateUserRequest)
 }
 
 func (h *UserHandler) DeleteUser(ctx context.Context, req *pb.DeleteUserRequest) (*pb.DeleteResponse, error) {
-	err := h.service.DeleteUser(ctx, req.UserId)
+	userIDStr := req.UserId
+	userID := userIDStr
+
+	err := h.service.DeleteUser(ctx, userID)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to delete user")
 	}
@@ -133,19 +143,15 @@ func (h *UserHandler) DeleteUser(ctx context.Context, req *pb.DeleteUserRequest)
 }
 
 func (h *UserHandler) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
-	h.logger.Info("Login attempt", zap.String("email", req.Email))
+	h.logger.Info("Login attempt", zap.String("email", req.Email), zap.String("password", req.Password))
 
-	credentials := &models.LoginCredentials{
-		Email:    req.Email,
-		Password: req.Password,
-	}
-
-	loginResponse, err := h.service.Login(ctx, credentials)
+	// Call service directly with the proto request
+	loginResponse, err := h.service.Login(ctx, req)
 	if err != nil {
-		h.logger.Error("Login failed", 
+		h.logger.Error("Login failed",
 			zap.String("email", req.Email),
 			zap.Error(err))
-			
+		
 		switch err.Error() {
 		case "invalid credentials":
 			return nil, status.Error(codes.Unauthenticated, "invalid email or password")
@@ -154,10 +160,22 @@ func (h *UserHandler) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Logi
 		}
 	}
 
-	return &pb.LoginResponse{
-		Token:        loginResponse.Token,
-		RefreshToken: loginResponse.RefreshToken,
-		User:         convertUserToProto(loginResponse.User),
+	return loginResponse, nil
+}
+
+func (h *UserHandler) RefreshToken(ctx context.Context, req *pb.RefreshTokenRequest) (*pb.RefreshTokenResponse, error) {
+	h.logger.Info("Attempting to refresh token")
+
+	resp, err := h.service.RefreshToken(ctx, req.RefreshToken)
+	if err != nil {
+		h.logger.Error("Failed to refresh token", zap.Error(err))
+		return nil, status.Error(codes.Internal, "failed to refresh token")
+	}
+
+	return &pb.RefreshTokenResponse{
+		Token:        resp.Token,
+		RefreshToken: resp.RefreshToken,
+		User:         resp.User,
 	}, nil
 }
 
@@ -183,7 +201,7 @@ func convertUserToProto(user *models.User) *pb.User {
 		return nil
 	}
 	return &pb.User{
-		UserId:        user.UserID,
+		UserId:        user.UserID,  // Now directly using int64
 		Email:         user.Email,
 		Username:      user.Username,
 		FirstName:     user.FirstName,

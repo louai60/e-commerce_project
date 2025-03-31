@@ -1,74 +1,95 @@
 package service
 
 import (
-    "time"
-    "github.com/golang-jwt/jwt"
-    "github.com/louai60/e-commerce_project/backend/user-service/models"
+	"fmt"
+	"time"
+	"github.com/golang-jwt/jwt"
+	"github.com/louai60/e-commerce_project/backend/user-service/models"
 )
 
 type JWTManager struct {
-    secretKey     string
-    tokenDuration time.Duration
+	secretKey           string
+	accessTokenDuration time.Duration
+	refreshTokenDuration time.Duration
 }
 
-func NewJWTManager(secretKey string, tokenDuration time.Duration) *JWTManager {
-    return &JWTManager{
-        secretKey:     secretKey,
-        tokenDuration: tokenDuration,
-    }
+func NewJWTManager(secretKey string, accessTokenDuration, refreshTokenDuration time.Duration) *JWTManager {
+	return &JWTManager{
+		secretKey:           secretKey,
+		accessTokenDuration: accessTokenDuration,
+		refreshTokenDuration: refreshTokenDuration,
+	}
 }
 
 func (m *JWTManager) GenerateTokenPair(user *models.User) (string, string, error) {
-    claims := jwt.MapClaims{
-        "user_id":   user.UserID,
-        "email":     user.Email,
-        "username":  user.Username,
-        "user_type": user.UserType,
-        "role":      user.Role,
-        "exp":       time.Now().Add(m.tokenDuration).Unix(),
-    }
+	now := time.Now()
+	
+	// Access token claims
+	accessClaims := jwt.MapClaims{
+		"user_id":   user.UserID,
+		"email":     user.Email,
+		"username":  user.Username,
+		"user_type": user.UserType,
+		"role":      user.Role,
+		"type":      "access",
+		"iat":       now.Unix(),
+		"exp":       now.Add(m.accessTokenDuration).Unix(),
+	}
 
-    token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-    
-    // Generate access token
-    accessToken, err := token.SignedString([]byte(m.secretKey))
-    if err != nil {
-        return "", "", err
-    }
+	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
+	accessTokenString, err := accessToken.SignedString([]byte(m.secretKey))
+	if err != nil {
+		return "", "", fmt.Errorf("failed to sign access token: %w", err)
+	}
 
-    // Generate refresh token with longer expiration
-    refreshClaims := jwt.MapClaims{
-        "user_id": user.UserID,
-        "exp":     time.Now().Add(m.tokenDuration * 24 * 7).Unix(), // 7 days
-    }
-    refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
-    refreshTokenString, err := refreshToken.SignedString([]byte(m.secretKey))
-    if err != nil {
-        return "", "", err
-    }
+	// Refresh token claims
+	refreshClaims := jwt.MapClaims{
+		"user_id": user.UserID,
+		"type":    "refresh",
+		"iat":     now.Unix(),
+		"exp":     now.Add(m.refreshTokenDuration).Unix(),
+	}
 
-    return accessToken, refreshTokenString, nil
+	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
+	refreshTokenString, err := refreshToken.SignedString([]byte(m.secretKey))
+	if err != nil {
+		return "", "", fmt.Errorf("failed to sign refresh token: %w", err)
+	}
+
+	return accessTokenString, refreshTokenString, nil
 }
 
 func (m *JWTManager) ValidateToken(tokenString string) (*models.User, error) {
-    token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-        return []byte(m.secretKey), nil
-    })
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		return []byte(m.secretKey), nil
+	})
 
-    if err != nil || !token.Valid {
-        return nil, err
-    }
+	if err != nil || !token.Valid {
+		return nil, err
+	}
 
-    claims, ok := token.Claims.(jwt.MapClaims)
-    if !ok {
-        return nil, err
-    }
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return nil, err
+	}
 
-    return &models.User{
-        UserID:   int64(claims["user_id"].(float64)),
-        Email:    claims["email"].(string),
-        Username: claims["username"].(string),
-        UserType: claims["user_type"].(string),
-        Role:     claims["role"].(string),
-    }, nil
+	if float64(time.Now().Unix()) > claims["exp"].(float64) {
+		return nil, jwt.ValidationError{Errors: jwt.ValidationErrorExpired}
+	}
+
+	// For refresh tokens, we only need the user ID
+	if claims["type"] == "refresh" {
+		return &models.User{
+			UserID: claims["user_id"].(int64),
+		}, nil
+	}
+
+	// For access tokens, we need all user details
+	return &models.User{
+		UserID:   claims["user_id"].(int64),
+		Email:    claims["email"].(string),
+		Username: claims["username"].(string),
+		UserType: claims["user_type"].(string),
+		Role:     claims["role"].(string),
+	}, nil
 }

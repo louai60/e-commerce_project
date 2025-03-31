@@ -26,6 +26,7 @@ const (
 	UserService_DeleteUser_FullMethodName          = "/user.UserService/DeleteUser"
 	UserService_GetUserByEmail_FullMethodName      = "/user.UserService/GetUserByEmail"
 	UserService_Login_FullMethodName               = "/user.UserService/Login"
+	UserService_RefreshToken_FullMethodName        = "/user.UserService/RefreshToken"
 	UserService_AddAddress_FullMethodName          = "/user.UserService/AddAddress"
 	UserService_GetAddresses_FullMethodName        = "/user.UserService/GetAddresses"
 	UserService_UpdateAddress_FullMethodName       = "/user.UserService/UpdateAddress"
@@ -52,6 +53,7 @@ type UserServiceClient interface {
 	GetUserByEmail(ctx context.Context, in *GetUserByEmailRequest, opts ...grpc.CallOption) (*UserResponse, error)
 	// Authentication
 	Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error)
+	RefreshToken(ctx context.Context, in *RefreshTokenRequest, opts ...grpc.CallOption) (*RefreshTokenResponse, error)
 	// Address operations
 	AddAddress(ctx context.Context, in *AddAddressRequest, opts ...grpc.CallOption) (*AddressResponse, error)
 	GetAddresses(ctx context.Context, in *GetAddressesRequest, opts ...grpc.CallOption) (*AddressListResponse, error)
@@ -138,6 +140,16 @@ func (c *userServiceClient) Login(ctx context.Context, in *LoginRequest, opts ..
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(LoginResponse)
 	err := c.cc.Invoke(ctx, UserService_Login_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) RefreshToken(ctx context.Context, in *RefreshTokenRequest, opts ...grpc.CallOption) (*RefreshTokenResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RefreshTokenResponse)
+	err := c.cc.Invoke(ctx, UserService_RefreshToken_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -249,6 +261,7 @@ type UserServiceServer interface {
 	GetUserByEmail(context.Context, *GetUserByEmailRequest) (*UserResponse, error)
 	// Authentication
 	Login(context.Context, *LoginRequest) (*LoginResponse, error)
+	RefreshToken(context.Context, *RefreshTokenRequest) (*RefreshTokenResponse, error)
 	// Address operations
 	AddAddress(context.Context, *AddAddressRequest) (*AddressResponse, error)
 	GetAddresses(context.Context, *GetAddressesRequest) (*AddressListResponse, error)
@@ -291,6 +304,9 @@ func (UnimplementedUserServiceServer) GetUserByEmail(context.Context, *GetUserBy
 }
 func (UnimplementedUserServiceServer) Login(context.Context, *LoginRequest) (*LoginResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Login not implemented")
+}
+func (UnimplementedUserServiceServer) RefreshToken(context.Context, *RefreshTokenRequest) (*RefreshTokenResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RefreshToken not implemented")
 }
 func (UnimplementedUserServiceServer) AddAddress(context.Context, *AddAddressRequest) (*AddressResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddAddress not implemented")
@@ -462,6 +478,24 @@ func _UserService_Login_Handler(srv interface{}, ctx context.Context, dec func(i
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(UserServiceServer).Login(ctx, req.(*LoginRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_RefreshToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RefreshTokenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).RefreshToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_RefreshToken_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).RefreshToken(ctx, req.(*RefreshTokenRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -662,6 +696,10 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Login",
 			Handler:    _UserService_Login_Handler,
+		},
+		{
+			MethodName: "RefreshToken",
+			Handler:    _UserService_RefreshToken_Handler,
 		},
 		{
 			MethodName: "AddAddress",

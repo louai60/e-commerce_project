@@ -48,3 +48,8 @@ migrate-up:
 
 migrate-down:
     migrate -path migrations -database "postgres://user:password@localhost:5432/nexcart_user?sslmode=disable" down
+
+# Add this new target
+check-user:
+    psql -U postgres -d nexcart_user -c "SELECT * FROM users WHERE email = 'alex@example.com';"
+

@@ -69,7 +69,8 @@ func main() {
         users := v1.Group("/users")
         {
             users.POST("/register", userHandler.Register)
-            users.POST("/login", userHandler.Login)
+            users.POST("/login", userHandler.Login)     
+            users.POST("/refresh", userHandler.RefreshToken)
             users.POST("/admin", middleware.AdminKeyRequired(), userHandler.CreateAdmin)
             
             // Protected routes

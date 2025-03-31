@@ -15,6 +15,8 @@ service UserService {
     
     // Authentication
     rpc Login (LoginRequest) returns (LoginResponse);
+    rpc RefreshToken (RefreshTokenRequest) returns (RefreshTokenResponse);
+
     
     // Address operations
     rpc AddAddress (AddAddressRequest) returns (AddressResponse);
@@ -30,6 +32,7 @@ service UserService {
     
     // System
     rpc HealthCheck (HealthCheckRequest) returns (HealthCheckResponse);
+    
 }
 
 // Base messages
@@ -38,11 +41,15 @@ message DeleteResponse {
     string message = 2;
 }
 
-message DeleteUserResponse {
-    bool success = 1;
-    string message = 2;
+message RefreshTokenRequest {
+    string refresh_token = 1;
 }
 
+message RefreshTokenResponse {
+    string token = 1;
+    string refresh_token = 2;
+    User user = 3;
+}
 // User related messages
 message User {
     int64 user_id = 1;
@@ -124,7 +131,7 @@ message LoginResponse {
 
 // Address related messages
 message Address {
-    int64 address_id = 1;
+    int64 address_id = 1;  // Changed from string to int64
     int64 user_id = 2;
     string address_type = 3;
     string street_address1 = 4;
@@ -163,7 +170,7 @@ message AddressListResponse {
 }
 
 message UpdateAddressRequest {
-    int64 address_id = 1;
+    int64 address_id = 1;  // Changed from string to int64
     int64 user_id = 2;
     string address_type = 3;
     string street_address1 = 4;
@@ -176,13 +183,13 @@ message UpdateAddressRequest {
 }
 
 message DeleteAddressRequest {
-    int64 address_id = 1;
+    int64 address_id = 1;  // Changed from string to int64
     int64 user_id = 2;
 }
 
 // Payment method related messages
 message PaymentMethod {
-    int64 payment_method_id = 1;
+    int64 payment_method_id = 1;  // Changed from string to int64
     int64 user_id = 2;
     string payment_type = 3;
     string card_last_four = 4;
@@ -211,7 +218,7 @@ message PaymentMethodResponse {
 }
 
 message GetPaymentMethodsRequest {
-    int64 user_id = 1;
+    int64 user_id = 1;  // Changed from string to int64
 }
 
 message PaymentMethodListResponse {
@@ -219,7 +226,7 @@ message PaymentMethodListResponse {
 }
 
 message UpdatePaymentMethodRequest {
-    int64 payment_method_id = 1;
+    int64 payment_method_id = 1;  // Changed from string to int64
     int64 user_id = 2;
     int32 expiration_month = 3;
     int32 expiration_year = 4;
@@ -227,7 +234,7 @@ message UpdatePaymentMethodRequest {
 }
 
 message DeletePaymentMethodRequest {
-    int64 payment_method_id = 1;
+    int64 payment_method_id = 1;  // Changed from string to int64
     int64 user_id = 2;
 }
 
@@ -237,3 +244,5 @@ message HealthCheckRequest {}
 message HealthCheckResponse {
     string status = 1;
 }
+
+

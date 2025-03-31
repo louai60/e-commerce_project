@@ -149,9 +149,12 @@ func (h *UserHandler) Register(c *gin.Context) {
 
 func (h *UserHandler) GetProfile(c *gin.Context) {
     userIDStr := c.GetString("user_id")
-    userID, err := h.parseUserID(userIDStr)
+    userID, err := strconv.ParseInt(userIDStr, 10, 64)
     if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+        h.logger.Error("Invalid user ID format", 
+            zap.String("user_id", userIDStr),
+            zap.Error(err))
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
         return
     }
 
@@ -166,9 +169,12 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 
 func (h *UserHandler) UpdateProfile(c *gin.Context) {
     userIDStr := c.GetString("user_id")
-    userID, err := h.parseUserID(userIDStr)
+    userID, err := strconv.ParseInt(userIDStr, 10, 64)
     if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+        h.logger.Error("Invalid user ID format", 
+            zap.String("user_id", userIDStr),
+            zap.Error(err))
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
         return
     }
 
@@ -180,7 +186,6 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 
     grpcReq := &pb.UpdateUserRequest{
         UserId:      userID,
-        // Email:       req.Email,
         Username:    req.Username,
         FirstName:   req.FirstName,
         LastName:    req.LastName,
@@ -220,13 +225,16 @@ func (h *UserHandler) ListUsers(c *gin.Context) {
 }
 
 func (h *UserHandler) GetUser(c *gin.Context) {
-    userID, err := h.parseUserID(c.Param("id"))
+    userIDStr := c.Param("id")
+    userID, err := strconv.ParseInt(userIDStr, 10, 64)
     if err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
         return
     }
-
-    resp, err := h.client.GetUser(c.Request.Context(), &pb.GetUserRequest{UserId: userID})
+    
+    resp, err := h.client.GetUser(c.Request.Context(), &pb.GetUserRequest{
+        UserId: userID,  // Now using int64
+    })
     if err != nil {
         h.handleGRPCError(c, err, "Failed to get user")
         return
@@ -236,12 +244,16 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 }
 
 func (h *UserHandler) DeleteUser(c *gin.Context) {
-    userID, err := h.parseUserID(c.Param("id"))
+    userIDStr := c.Param("id")
+    userID, err := strconv.ParseInt(userIDStr, 10, 64)
     if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+        h.logger.Error("Invalid user ID format", 
+            zap.String("user_id", userIDStr),
+            zap.Error(err))
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
         return
     }
-
+    
     _, err = h.client.DeleteUser(c.Request.Context(), &pb.DeleteUserRequest{UserId: userID})
     if err != nil {
         h.handleGRPCError(c, err, "Failed to delete user")
@@ -293,6 +305,9 @@ func (h *UserHandler) Login(c *gin.Context) {
         return
     }
 
+    h.logger.Info("Login attempt", 
+        zap.String("email", req.Email))
+
     ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
     defer cancel()
 
@@ -300,14 +315,19 @@ func (h *UserHandler) Login(c *gin.Context) {
         Email:    req.Email,
         Password: req.Password,
     })
+
     if err != nil {
+        h.logger.Error("Login failed", 
+            zap.String("email", req.Email),
+            zap.Error(err))
         h.handleGRPCError(c, err, "Login failed")
         return
     }
 
     c.JSON(http.StatusOK, gin.H{
-        "token": resp.Token,
-        "user":  resp.User,
+        "token":         resp.Token,
+        "refresh_token": resp.RefreshToken,
+        "user":         resp.User,
     })
 }
 
@@ -350,9 +370,13 @@ func (h *UserHandler) CreateAdmin(c *gin.Context) {
 
 // New methods for address management
 func (h *UserHandler) AddAddress(c *gin.Context) {
-    userID, err := h.parseUserID(c.GetString("user_id"))
+    userIDStr := c.GetString("user_id")
+    userID, err := strconv.ParseInt(userIDStr, 10, 64)
     if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+        h.logger.Error("Invalid user ID format", 
+            zap.String("user_id", userIDStr),
+            zap.Error(err))
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
         return
     }
 
@@ -374,7 +398,10 @@ func (h *UserHandler) AddAddress(c *gin.Context) {
         IsDefault:      req.IsDefault,
     }
 
-    resp, err := h.client.AddAddress(c.Request.Context(), grpcReq)
+    ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+    defer cancel()
+
+    resp, err := h.client.AddAddress(ctx, grpcReq)
     if err != nil {
         h.handleGRPCError(c, err, "Failed to add address")
         return
@@ -385,14 +412,18 @@ func (h *UserHandler) AddAddress(c *gin.Context) {
 
 // GetAddresses retrieves all addresses for the current user
 func (h *UserHandler) GetAddresses(c *gin.Context) {
-    userID, err := h.parseUserID(c.GetString("user_id"))
+    userIDStr := c.GetString("user_id")
+    userID, err := strconv.ParseInt(userIDStr, 10, 64)
     if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+        h.logger.Error("Invalid user ID format", 
+            zap.String("user_id", userIDStr),
+            zap.Error(err))
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
         return
     }
 
     grpcReq := &pb.GetAddressesRequest{
-        UserId: userID,
+        UserId: userID,  // Now using int64
     }
 
     resp, err := h.client.GetAddresses(c.Request.Context(), grpcReq)
@@ -406,16 +437,20 @@ func (h *UserHandler) GetAddresses(c *gin.Context) {
 
 // UpdateAddress updates an existing address
 func (h *UserHandler) UpdateAddress(c *gin.Context) {
-    userID, err := h.parseUserID(c.GetString("user_id"))
+    userIDStr := c.GetString("user_id")
+    userID, err := strconv.ParseInt(userIDStr, 10, 64)
     if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+        h.logger.Error("Invalid user ID format", 
+            zap.String("user_id", userIDStr),
+            zap.Error(err))
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
         return
     }
 
     addressIDStr := c.Param("addressID")
     addressID, err := strconv.ParseInt(addressIDStr, 10, 64)
     if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid address ID"})
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid address ID format"})
         return
     }
 
@@ -426,8 +461,8 @@ func (h *UserHandler) UpdateAddress(c *gin.Context) {
     }
 
     grpcReq := &pb.UpdateAddressRequest{
-        UserId:         userID,
-        AddressId:      addressID,
+        UserId:         userID,      // Now using int64
+        AddressId:      addressID,   // Now using int64
         AddressType:    req.AddressType,
         StreetAddress1: req.StreetAddress1,
         StreetAddress2: req.StreetAddress2,
@@ -449,22 +484,26 @@ func (h *UserHandler) UpdateAddress(c *gin.Context) {
 
 // DeleteAddress removes an existing address
 func (h *UserHandler) DeleteAddress(c *gin.Context) {
-    userID, err := h.parseUserID(c.GetString("user_id"))
+    userIDStr := c.GetString("user_id")
+    userID, err := strconv.ParseInt(userIDStr, 10, 64)
     if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+        h.logger.Error("Invalid user ID format", 
+            zap.String("user_id", userIDStr),
+            zap.Error(err))
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
         return
     }
 
     addressIDStr := c.Param("addressID")
     addressID, err := strconv.ParseInt(addressIDStr, 10, 64)
     if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid address ID"})
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid address ID format"})
         return
     }
 
     grpcReq := &pb.DeleteAddressRequest{
-        UserId:    userID,
-        AddressId: addressID,
+        UserId:    userID,     // Now using int64
+        AddressId: addressID,  // Now using int64
     }
 
     _, err = h.client.DeleteAddress(c.Request.Context(), grpcReq)
@@ -479,9 +518,13 @@ func (h *UserHandler) DeleteAddress(c *gin.Context) {
 
 // New methods for payment management
 func (h *UserHandler) AddPaymentMethod(c *gin.Context) {
-    userID, err := h.parseUserID(c.GetString("user_id"))
+    userIDStr := c.GetString("user_id")
+    userID, err := strconv.ParseInt(userIDStr, 10, 64)
     if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+        h.logger.Error("Invalid user ID format", 
+            zap.String("user_id", userIDStr),
+            zap.Error(err))
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
         return
     }
 
@@ -514,10 +557,34 @@ func (h *UserHandler) AddPaymentMethod(c *gin.Context) {
     c.JSON(http.StatusCreated, resp)
 }
 
+func (h *UserHandler) RefreshToken(c *gin.Context) {
+    var req struct {
+        RefreshToken string `json:"refresh_token" binding:"required"`
+    }
 
+    if err := c.ShouldBindJSON(&req); err != nil {
+        h.logger.Error("Invalid refresh token payload", zap.Error(err))
+        c.JSON(http.StatusBadRequest, gin.H{
+            "error": "refresh_token is required",
+            "details": err.Error(),
+        })
+        return
+    }
 
+    ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+    defer cancel()
 
+    resp, err := h.client.RefreshToken(ctx, &pb.RefreshTokenRequest{
+        RefreshToken: req.RefreshToken,
+    })
+    if err != nil {
+        h.handleGRPCError(c, err, "Failed to refresh token")
+        return
+    }
 
-
-
-
+    c.JSON(http.StatusOK, gin.H{
+        "access_token": resp.Token,
+        "refresh_token": resp.RefreshToken,
+        "user": resp.User,
+    })
+}
