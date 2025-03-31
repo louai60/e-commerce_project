@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -33,7 +34,7 @@ func initializeDatabase(ctx context.Context, db *sql.DB, logger *zap.Logger) err
 			user_id BIGSERIAL PRIMARY KEY,
 			username VARCHAR(50) UNIQUE NOT NULL,
 			email VARCHAR(255) UNIQUE NOT NULL,
-			password_hash TEXT NOT NULL,
+			hashed_password TEXT NOT NULL,
 			first_name VARCHAR(100) NOT NULL,
 			last_name VARCHAR(100) NOT NULL,
 			phone_number VARCHAR(20),
@@ -176,7 +177,7 @@ func main() {
 
 	// Initialize repository
 	logger.Info("Initializing repository...")
-	repo := repository.NewPostgresRepository(db)
+	repo := repository.NewPostgresRepository(db, logger)
 
 	// Initialize rate limiter
 	rateLimiter := service.NewSimpleRateLimiter(
@@ -184,10 +185,20 @@ func main() {
 		cfg.RateLimiter.Duration,
 	)
 
-	// Initialize token manager
-	tokenManager := service.NewJWTManager(
-		cfg.Auth.SecretKey,
-		cfg.Auth.TokenDuration,
+	accessTokenDuration, err := time.ParseDuration(os.Getenv("JWT_ACCESS_TOKEN_DURATION"))
+	if err != nil {
+		accessTokenDuration = 24 * time.Hour // default to 24 hours
+	}
+
+	refreshTokenDuration, err := time.ParseDuration(os.Getenv("JWT_REFRESH_TOKEN_DURATION"))
+	if err != nil {
+		refreshTokenDuration = 7 * 24 * time.Hour // default to 7 days
+	}
+
+	jwtManager := service.NewJWTManager(
+		os.Getenv("JWT_SECRET_KEY"),
+		accessTokenDuration,
+		refreshTokenDuration,
 	)
 
 	// Initialize service
@@ -195,7 +206,7 @@ func main() {
 		repo,
 		logger,
 		rateLimiter,
-		tokenManager,
+		jwtManager,
 	)
 
 	// Initialize handler

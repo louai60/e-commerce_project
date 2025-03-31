@@ -5,11 +5,30 @@ CREATE TYPE user_role AS ENUM (
     'support_agent', 'warehouse_staff', 'super_admin'
 );
 
+-- Create a function to generate random numbers within a range
+CREATE OR REPLACE FUNCTION generate_random_id() 
+RETURNS bigint AS $$
+DECLARE
+    random_id bigint;
+BEGIN
+    -- Generate a random number between 100000 and 999999999
+    random_id := floor(random() * (999999999 - 100000 + 1) + 100000);
+    RETURN random_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create sequence with a random start
+CREATE SEQUENCE IF NOT EXISTS users_id_seq
+    START WITH 100000
+    INCREMENT BY 1
+    NO MAXVALUE;
+
+-- Create the users table
 CREATE TABLE IF NOT EXISTS users (
-    user_id BIGSERIAL PRIMARY KEY,
+    user_id bigint PRIMARY KEY DEFAULT generate_random_id(),
     username VARCHAR(50) UNIQUE NOT NULL,
     email VARCHAR(100) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
+    hashed_password VARCHAR(255) NOT NULL,
     first_name VARCHAR(50),
     last_name VARCHAR(50),
     phone_number VARCHAR(20),
@@ -21,14 +40,24 @@ CREATE TABLE IF NOT EXISTS users (
     last_login TIMESTAMP,
     email_verified BOOLEAN NOT NULL DEFAULT FALSE,
     phone_verified BOOLEAN NOT NULL DEFAULT FALSE,
-    two_factor_enabled BOOLEAN NOT NULL DEFAULT FALSE,
-    
-    CONSTRAINT valid_user_role CHECK (
-        (user_type = 'customer' AND role IN ('guest', 'registered', 'premium')) OR
-        (user_type = 'seller' AND role IN ('basic_seller', 'verified_seller')) OR
-        (user_type = 'admin' AND role IN ('support_agent', 'warehouse_staff', 'super_admin'))
-    )
+    two_factor_enabled BOOLEAN NOT NULL DEFAULT FALSE
 );
+
+-- Create a trigger to ensure unique random IDs
+CREATE OR REPLACE FUNCTION ensure_unique_user_id()
+RETURNS TRIGGER AS $$
+BEGIN
+    WHILE EXISTS (SELECT 1 FROM users WHERE user_id = NEW.user_id) LOOP
+        NEW.user_id := generate_random_id();
+    END LOOP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_ensure_unique_user_id
+    BEFORE INSERT ON users
+    FOR EACH ROW
+    EXECUTE FUNCTION ensure_unique_user_id();
 
 CREATE INDEX idx_users_user_type ON users(user_type);
 CREATE INDEX idx_users_role ON users(role);

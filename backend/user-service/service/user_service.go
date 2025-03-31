@@ -2,10 +2,13 @@ package service
 
 import (
 	"context"
-	"errors"
+	// "errors"
 	"fmt"
 	"strings"
 	"time"
+	pb "github.com/louai60/e-commerce_project/backend/user-service/proto"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/louai60/e-commerce_project/backend/user-service/models"
 	"github.com/louai60/e-commerce_project/backend/user-service/repository"
@@ -37,6 +40,11 @@ func NewUserService(
 	rateLimiter RateLimiter,
 	tokenManager TokenManager,
 ) *UserService {
+	repoWithLogger, ok := repo.(*repository.PostgresRepository)
+	if !ok {
+		panic("Repository is not PostgresRepository")
+	}
+	repoWithLogger.Logger = logger
 	return &UserService{
 		repo:         repo,
 		logger:       logger,
@@ -120,16 +128,20 @@ func (s *UserService) CreateUser(ctx context.Context, req *models.RegisterReques
 		return nil, fmt.Errorf("invalid role '%s' for user type '%s'", req.Role, req.UserType)
 	}
 
+	s.logger.Info("CreateUser - Plain Text Password", zap.String("plainTextPassword", req.Password))
+
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		s.logger.Error("Failed to hash password", zap.Error(err))
 		return nil, fmt.Errorf("failed to process password")
 	}
 
+	s.logger.Info("CreateUser - Hashed Password", zap.String("hashedPassword", string(hashedPassword)))
+
 	user := &models.User{
 		Email:         strings.ToLower(req.Email),
 		Username:      req.Username,
-		PasswordHash:  string(hashedPassword),
+		HashedPassword:  string(hashedPassword),
 		FirstName:     req.FirstName,
 		LastName:      req.LastName,
 		PhoneNumber:   req.PhoneNumber,
@@ -145,6 +157,7 @@ func (s *UserService) CreateUser(ctx context.Context, req *models.RegisterReques
 		return nil, fmt.Errorf("database error: %w", err)
 	}
 
+	s.logger.Info("User created", zap.String("email", user.Email), zap.String("username", user.Username))	// Log user creation details
 	return user, nil
 }
 
@@ -159,67 +172,80 @@ func (s *UserService) UpdateUser(ctx context.Context, user *models.User) (*model
 	return user, nil
 }
 
+func (s *UserService) UpdatePassword(ctx context.Context, email string, newPassword string) error {
+	user, err := s.repo.GetUserByEmail(ctx, email)
+	if err != nil {
+		return status.Errorf(codes.NotFound, "user not found")
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		s.logger.Error("Failed to hash password", zap.Error(err))
+		return fmt.Errorf("failed to process password")
+	}
+
+	user.HashedPassword = string(hashedPassword)
+
+	if err := s.repo.UpdateUser(ctx, user); err != nil {
+		s.logger.Error("Failed to update user password", zap.Error(err))
+		return err
+	}
+
+	return nil
+}
+
 func (s *UserService) DeleteUser(ctx context.Context, id int64) error {
 	s.logger.Debug("Deleting user", zap.Int64("id", id))
 	return s.repo.DeleteUser(ctx, id)
 }
 
-func (s *UserService) Login(ctx context.Context, credentials *models.LoginCredentials) (*models.LoginResponse, error) {
-	s.logger.Debug("Processing login request",
-		zap.String("email", credentials.Email))
+func (s *UserService) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
+	s.logger.Info("Login attempt", 
+		zap.String("email", req.Email))
 
-	// Add rate limiting
-	if err := s.rateLimiter.Allow(credentials.Email); err != nil {
-		s.logger.Warn("Rate limit exceeded",
-			zap.String("email", credentials.Email))
-		return nil, errors.New("too many attempts")
-	}
-
-	user, err := s.repo.GetUserByEmail(ctx, credentials.Email)
+	user, err := s.repo.GetUserByEmail(ctx, req.Email)
 	if err != nil {
-		s.logger.Debug("User not found",
-			zap.String("email", credentials.Email),
+		s.logger.Error("Failed to find user", 
+			zap.String("email", req.Email),
 			zap.Error(err))
-		s.rateLimiter.Record(credentials.Email)
-		return nil, errors.New("invalid credentials")
+		return nil, status.Errorf(codes.NotFound, "user not found")
 	}
 
-	err = bcrypt.CompareHashAndPassword(
-		[]byte(user.PasswordHash),
-		[]byte(credentials.Password))
-	if err != nil {
-		s.logger.Debug("Password mismatch",
-			zap.String("email", credentials.Email))
-		s.rateLimiter.Record(credentials.Email)
-		return nil, errors.New("invalid credentials")
-	}
+	s.logger.Info("User found, comparing passwords",
+		zap.String("email", req.Email),
+		zap.String("storedHash", user.HashedPassword))
 
-	// Generate JWT token
-	token, refreshToken, err := s.tokenManager.GenerateTokenPair(user)
+	// Verify password
+	err = bcrypt.CompareHashAndPassword([]byte(user.HashedPassword), []byte(req.Password))
 	if err != nil {
-		s.logger.Error("Failed to generate token",
-			zap.String("email", credentials.Email),
+		s.logger.Error("Password mismatch",
+			zap.String("email", req.Email),
 			zap.Error(err))
-		return nil, fmt.Errorf("failed to generate token: %w", err)
+		return nil, status.Errorf(codes.Unauthenticated, "invalid credentials")
 	}
 
-	// Update last login time
-	now := time.Now()
-	user.LastLogin = &now
-	if _, err := s.UpdateUser(ctx, user); err != nil {
-		s.logger.Warn("Failed to update last login time",
-			zap.String("email", credentials.Email),
+	// Generate token pair
+	accessToken, refreshToken, err := s.tokenManager.GenerateTokenPair(user)
+	if err != nil {
+		s.logger.Error("Failed to generate tokens",
+			zap.String("email", req.Email),
+			zap.Error(err))
+		return nil, status.Errorf(codes.Internal, "failed to generate tokens")
+	}
+
+	// Update last login
+	user.LastLogin = time.Now()
+	if err := s.repo.UpdateUser(ctx, user); err != nil {
+		s.logger.Error("Failed to update last login",
+			zap.String("email", req.Email),
 			zap.Error(err))
 		// Don't return error as login was successful
 	}
 
-	// Clear sensitive data
-	user.PasswordHash = ""
-
-	return &models.LoginResponse{
-		Token:        token,
+	return &pb.LoginResponse{
+		Token:        accessToken,
 		RefreshToken: refreshToken,
-		User:         user,
+		User:         convertUserToProto(user),
 	}, nil
 }
 
@@ -281,5 +307,44 @@ func (s *UserService) AddAddress(ctx context.Context, userID int64, address *mod
 	return address, nil
 }
 
+func (s *UserService) RefreshToken(ctx context.Context, refreshToken string) (*pb.RefreshTokenResponse, error) {
+	// Validate the refresh token
+	user, err := s.tokenManager.ValidateToken(refreshToken)
+	if err != nil {
+		return nil, status.Errorf(codes.Unauthenticated, "invalid refresh token")
+	}
 
+	// Generate new token pair
+	accessToken, newRefreshToken, err := s.tokenManager.GenerateTokenPair(user)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to generate tokens: %v", err)
+	}
 
+	return &pb.RefreshTokenResponse{
+		Token:        accessToken,
+		RefreshToken: newRefreshToken,
+		User:        convertUserToProto(user),
+	}, nil
+}
+
+func convertUserToProto(user *models.User) *pb.User {
+	if user == nil {
+		return nil
+	}
+	return &pb.User{
+		UserId:        user.UserID,
+		Email:         user.Email,
+		Username:      user.Username,
+		FirstName:     user.FirstName,
+		LastName:      user.LastName,
+		PhoneNumber:   user.PhoneNumber,
+		UserType:      user.UserType,
+		Role:          user.Role,
+		AccountStatus: user.AccountStatus,
+		EmailVerified: user.EmailVerified,
+		PhoneVerified: user.PhoneVerified,
+		CreatedAt:     user.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:     user.UpdatedAt.Format(time.RFC3339),
+		LastLogin:     user.LastLogin.Format(time.RFC3339),
+	}
+}

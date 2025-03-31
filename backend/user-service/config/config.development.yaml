@@ -17,10 +17,13 @@ database:
   connMaxIdleTime: "15m"
 
 auth:
-  accessTokenDuration: "1h"
-  refreshTokenDuration: "24h"
+  secretKey: "your_jwt_secret_key_here"
+  accessTokenDuration: "24h"
+  refreshTokenDuration: "168h"  # 7 days
 
 rateLimiter:
   attempts: 5
   duration: "1m"
+
+
 

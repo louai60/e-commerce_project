@@ -1,4 +1,5 @@
-DROP TABLE IF EXISTS user_preferences;DROP TABLE IF EXISTS payment_methods;
-DROP TABLE IF EXISTS user_addresses;
-
+DROP TRIGGER IF EXISTS trigger_ensure_unique_user_id ON users;
+DROP FUNCTION IF EXISTS ensure_unique_user_id();
+DROP FUNCTION IF EXISTS generate_random_id();
 DROP TABLE IF EXISTS users;
+DROP SEQUENCE IF EXISTS users_id_seq;
