@@ -2,10 +2,12 @@ package service
 
 import (
 	"context"
+	"net/http"
 	// "errors"
 	"fmt"
 	"strings"
 	"time"
+
 	pb "github.com/louai60/e-commerce_project/backend/user-service/proto"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -14,7 +16,6 @@ import (
 	"github.com/louai60/e-commerce_project/backend/user-service/repository"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
-
 )
 
 type UserService struct {
@@ -30,7 +31,7 @@ type RateLimiter interface {
 }
 
 type TokenManager interface {
-	GenerateTokenPair(user *models.User) (string, string, error)
+	GenerateTokenPair(user *models.User) (string, string, *http.Cookie, error)
 	ValidateToken(token string) (*models.User, error)
 }
 
@@ -97,67 +98,48 @@ func (s *UserService) ListUsers(ctx context.Context, page, limit int32, filters 
 }
 
 func (s *UserService) CreateUser(ctx context.Context, req *models.RegisterRequest) (*models.User, error) {
-	// Validate email format
-	if !strings.Contains(req.Email, "@") {
-		return nil, fmt.Errorf("invalid email format")
-	}
+	s.logger.Info("Creating user with type and role", 
+		zap.String("userType", req.UserType),
+		zap.String("role", req.Role))
 
-	// Check if email already exists
-	existingUser, err := s.repo.GetUserByEmail(ctx, req.Email)
-	if err == nil && existingUser != nil {
-		return nil, fmt.Errorf("email already registered")
-	}
-
-	// Check if username already exists
-	existingUser, err = s.repo.GetUserByUsername(ctx, req.Username)
-	if err == nil && existingUser != nil {
-		return nil, fmt.Errorf("username already taken")
-	}
-
-	// Validate user type
-	if req.UserType == "" {
-		req.UserType = "customer" // Set default user type
-	}
-
-	// Validate role
-	if req.Role == "" {
-		req.Role = "user" // Set default role
+	// Validate user type and role
+	if !models.IsValidUserType(req.UserType) {
+		return nil, fmt.Errorf("invalid user type: %s", req.UserType)
 	}
 
 	if !models.IsValidRole(req.UserType, req.Role) {
-		return nil, fmt.Errorf("invalid role '%s' for user type '%s'", req.Role, req.UserType)
+		return nil, fmt.Errorf("invalid role %s for user type %s", req.Role, req.UserType)
 	}
-
-	s.logger.Info("CreateUser - Plain Text Password", zap.String("plainTextPassword", req.Password))
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		s.logger.Error("Failed to hash password", zap.Error(err))
-		return nil, fmt.Errorf("failed to process password")
+		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
-
-	s.logger.Info("CreateUser - Hashed Password", zap.String("hashedPassword", string(hashedPassword)))
 
 	user := &models.User{
 		Email:         strings.ToLower(req.Email),
 		Username:      req.Username,
-		HashedPassword:  string(hashedPassword),
+		HashedPassword: string(hashedPassword),
 		FirstName:     req.FirstName,
 		LastName:      req.LastName,
 		PhoneNumber:   req.PhoneNumber,
 		UserType:      req.UserType,
-		Role:          req.Role,
+		Role:         req.Role,
 		AccountStatus: "active",
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
 	}
 
+	s.logger.Info("Attempting to create user", 
+		zap.String("email", user.Email),
+		zap.String("userType", user.UserType),
+		zap.String("role", user.Role))
+
 	if err := s.repo.CreateUser(ctx, user); err != nil {
-		s.logger.Error("Failed to create user in database", zap.Error(err))
-		return nil, fmt.Errorf("database error: %w", err)
+		s.logger.Error("Failed to create user", zap.Error(err))
+		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
-	s.logger.Info("User created", zap.String("email", user.Email), zap.String("username", user.Username))	// Log user creation details
 	return user, nil
 }
 
@@ -211,10 +193,6 @@ func (s *UserService) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Logi
 		return nil, status.Errorf(codes.NotFound, "user not found")
 	}
 
-	s.logger.Info("User found, comparing passwords",
-		zap.String("email", req.Email),
-		zap.String("storedHash", user.HashedPassword))
-
 	// Verify password
 	err = bcrypt.CompareHashAndPassword([]byte(user.HashedPassword), []byte(req.Password))
 	if err != nil {
@@ -225,7 +203,7 @@ func (s *UserService) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Logi
 	}
 
 	// Generate token pair
-	accessToken, refreshToken, err := s.tokenManager.GenerateTokenPair(user)
+	accessToken, refreshToken, refreshTokenCookie, err := s.tokenManager.GenerateTokenPair(user)
 	if err != nil {
 		s.logger.Error("Failed to generate tokens",
 			zap.String("email", req.Email),
@@ -242,10 +220,22 @@ func (s *UserService) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Logi
 		// Don't return error as login was successful
 	}
 
+	// Prepare CookieInfo for gRPC response
+	cookieInfo := &pb.CookieInfo{
+		Name:     refreshTokenCookie.Name,
+		Value:    refreshTokenCookie.Value,
+		MaxAge:   int32(refreshTokenCookie.MaxAge),
+		Path:     refreshTokenCookie.Path,
+		Domain:   refreshTokenCookie.Domain,
+		Secure:   refreshTokenCookie.Secure,
+		HttpOnly: refreshTokenCookie.HttpOnly,
+	}
+
 	return &pb.LoginResponse{
 		Token:        accessToken,
-		RefreshToken: refreshToken,
+		RefreshToken: refreshToken, // Keep sending the raw refresh token for potential non-cookie clients
 		User:         convertUserToProto(user),
+		Cookie:       cookieInfo,
 	}, nil
 }
 
@@ -315,7 +305,7 @@ func (s *UserService) RefreshToken(ctx context.Context, refreshToken string) (*p
 	}
 
 	// Generate new token pair
-	accessToken, newRefreshToken, err := s.tokenManager.GenerateTokenPair(user)
+	accessToken, newRefreshToken, _, err := s.tokenManager.GenerateTokenPair(user)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to generate tokens: %v", err)
 	}
@@ -323,7 +313,7 @@ func (s *UserService) RefreshToken(ctx context.Context, refreshToken string) (*p
 	return &pb.RefreshTokenResponse{
 		Token:        accessToken,
 		RefreshToken: newRefreshToken,
-		User:        convertUserToProto(user),
+		User:         convertUserToProto(user),
 	}, nil
 }
 

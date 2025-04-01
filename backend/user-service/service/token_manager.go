@@ -5,6 +5,7 @@ import (
 	"time"
 	"github.com/golang-jwt/jwt"
 	"github.com/louai60/e-commerce_project/backend/user-service/models"
+	"net/http"
 )
 
 type JWTManager struct {
@@ -21,7 +22,7 @@ func NewJWTManager(secretKey string, accessTokenDuration, refreshTokenDuration t
 	}
 }
 
-func (m *JWTManager) GenerateTokenPair(user *models.User) (string, string, error) {
+func (m *JWTManager) GenerateTokenPair(user *models.User) (string, string, *http.Cookie, error) {
 	now := time.Now()
 	
 	// Access token claims
@@ -39,7 +40,7 @@ func (m *JWTManager) GenerateTokenPair(user *models.User) (string, string, error
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
 	accessTokenString, err := accessToken.SignedString([]byte(m.secretKey))
 	if err != nil {
-		return "", "", fmt.Errorf("failed to sign access token: %w", err)
+		return "", "", nil, fmt.Errorf("failed to sign access token: %w", err)
 	}
 
 	// Refresh token claims
@@ -53,10 +54,22 @@ func (m *JWTManager) GenerateTokenPair(user *models.User) (string, string, error
 	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
 	refreshTokenString, err := refreshToken.SignedString([]byte(m.secretKey))
 	if err != nil {
-		return "", "", fmt.Errorf("failed to sign refresh token: %w", err)
+		return "", "", nil, fmt.Errorf("failed to sign refresh token: %w", err)
 	}
 
-	return accessTokenString, refreshTokenString, nil
+	// Set secure cookie options
+	refreshTokenCookie := &http.Cookie{
+		Name:     "refresh_token",
+		Value:    refreshTokenString,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   int(m.refreshTokenDuration.Seconds()),
+		Domain:   ".nexcart.com", // Update with your domain
+	}
+
+	return accessTokenString, refreshTokenString, refreshTokenCookie, nil
 }
 
 func (m *JWTManager) ValidateToken(tokenString string) (*models.User, error) {

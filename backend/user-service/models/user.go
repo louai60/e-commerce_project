@@ -4,6 +4,13 @@ import (
     "time"
 )
 
+const (
+    // User Roles
+    RoleUser        = "user"
+    RoleAdmin       = "admin"
+    // RoleSuperAdmin is now defined in roles.go
+)
+
 type User struct {
     UserID         int64     `json:"user_id" db:"user_id"`
     Email          string    `json:"email" db:"email"`
@@ -113,24 +120,27 @@ func (u *User) HasPermission(permission Permission) bool {
     return false
 }
 
-// ValidRoles maps user types to their allowed roles
-var ValidRoles = map[string][]string{
-    "customer": {"user"},
-    "admin":    {"admin"},
-    "staff":    {"staff", "manager"},
-}
-
-// IsValidRole checks if the role is valid for the given user type
-func IsValidRole(userType, role string) bool {
-    allowedRoles, exists := ValidRoles[userType]
-    if !exists {
-        return false
-    }
-    
-    for _, r := range allowedRoles {
-        if r == role {
+// IsValidUserType validates the user type
+func IsValidUserType(userType string) bool {
+    validTypes := []string{UserTypeCustomer, UserTypeSeller, UserTypeAdmin}
+    for _, t := range validTypes {
+        if t == userType {
             return true
         }
+    }
+    return false
+}
+
+// IsValidRole validates the role
+func IsValidRole(userType, role string) bool {
+    if userType == UserTypeAdmin && (role == RoleAdmin || role == RoleSuperAdmin) {
+        return true
+    }
+    if userType == UserTypeCustomer && role == RoleUser {
+        return true
+    }
+    if userType == UserTypeSeller && (role == "basic_seller" || role == "verified_seller") {
+        return true
     }
     return false
 }

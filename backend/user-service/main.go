@@ -210,7 +210,7 @@ func main() {
 	)
 
 	// Initialize handler
-	userHandler := handlers.NewUserHandler(userService, logger)
+	userHandler := handlers.NewUserHandler(userService, logger, jwtManager)
 
 	// Set up gRPC server
 	var opts []grpc.ServerOption
