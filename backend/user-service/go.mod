@@ -3,9 +3,11 @@ module github.com/louai60/e-commerce_project/backend/user-service
 go 1.24.0
 
 require (
+	github.com/go-redis/redis/v8 v8.11.5
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9
+	github.com/nbutton23/zxcvbn-go v0.0.0-20210217022336-fa2cb2858354
 	github.com/spf13/viper v1.20.0
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/zap v1.27.0
@@ -15,7 +17,9 @@ require (
 )
 
 require (
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect

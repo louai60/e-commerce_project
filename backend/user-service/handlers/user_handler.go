@@ -19,14 +19,16 @@ import (
 
 type UserHandler struct {
 	pb.UnimplementedUserServiceServer
-	service *service.UserService
-	logger  *zap.Logger
+	service      *service.UserService
+	logger       *zap.Logger
+	tokenManager service.TokenManager
 }
 
-func NewUserHandler(service *service.UserService, logger *zap.Logger) *UserHandler {
+func NewUserHandler(service *service.UserService, logger *zap.Logger, tokenManager service.TokenManager) *UserHandler {
 	return &UserHandler{
-		service: service,
-		logger:  logger,
+		service:      service,
+		logger:       logger,
+		tokenManager: tokenManager,
 	}
 }
 
@@ -72,7 +74,9 @@ func (h *UserHandler) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (
 func (h *UserHandler) CreateUser(ctx context.Context, req *pb.CreateUserRequest) (*pb.UserResponse, error) {
 	h.logger.Info("Received create user request",
 		zap.String("email", req.Email),
-		zap.String("username", req.Username))
+		zap.String("username", req.Username),
+		zap.String("userType", req.UserType),
+		zap.String("role", req.Role))
 
 	registerReq := &models.RegisterRequest{
 		Email:       req.Email,
@@ -143,24 +147,17 @@ func (h *UserHandler) DeleteUser(ctx context.Context, req *pb.DeleteUserRequest)
 }
 
 func (h *UserHandler) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
-	h.logger.Info("Login attempt", zap.String("email", req.Email), zap.String("password", req.Password))
+	h.logger.Info("Login attempt", zap.String("email", req.Email))
 
-	// Call service directly with the proto request
-	loginResponse, err := h.service.Login(ctx, req)
+	resp, err := h.service.Login(ctx, req)
 	if err != nil {
 		h.logger.Error("Login failed",
 			zap.String("email", req.Email),
 			zap.Error(err))
-		
-		switch err.Error() {
-		case "invalid credentials":
-			return nil, status.Error(codes.Unauthenticated, "invalid email or password")
-		default:
-			return nil, status.Error(codes.Internal, "login failed")
-		}
+		return nil, err
 	}
 
-	return loginResponse, nil
+	return resp, nil
 }
 
 func (h *UserHandler) RefreshToken(ctx context.Context, req *pb.RefreshTokenRequest) (*pb.RefreshTokenResponse, error) {

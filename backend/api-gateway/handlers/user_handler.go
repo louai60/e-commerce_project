@@ -324,10 +324,23 @@ func (h *UserHandler) Login(c *gin.Context) {
         return
     }
 
+    // Set the refresh token cookie if provided
+    if resp.Cookie != nil {
+    	c.SetCookie(
+    		resp.Cookie.Name,
+    		resp.Cookie.Value,
+    		int(resp.Cookie.MaxAge),
+    		resp.Cookie.Path,
+    		resp.Cookie.Domain,
+    		resp.Cookie.Secure,
+    		resp.Cookie.HttpOnly,
+    	)
+    }
+   
+    // Return access token and user details in the response body
     c.JSON(http.StatusOK, gin.H{
-        "token":         resp.Token,
-        "refresh_token": resp.RefreshToken,
-        "user":         resp.User,
+    	"access_token": resp.Token,
+    	"user":         resp.User,
     })
 }
 

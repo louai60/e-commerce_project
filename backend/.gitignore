@@ -21,3 +21,7 @@ tmp/
 **/tmp/
 .air.toml
 air_errors.log
+
+
+config/config.production.yaml
+config/config.development.yaml

@@ -127,6 +127,17 @@ message LoginResponse {
     string token = 1;
     string refresh_token = 2;
     User user = 3;
+    CookieInfo cookie = 4;
+}
+
+message CookieInfo {
+    string name = 1;
+    string value = 2;
+    int32 max_age = 3;
+    string path = 4;
+    string domain = 5;
+    bool secure = 6;
+    bool http_only = 7;
 }
 
 // Address related messages

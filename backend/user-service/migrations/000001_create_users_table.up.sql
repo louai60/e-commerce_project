@@ -1,8 +1,13 @@
+-- First drop existing types if they exist
+DROP TYPE IF EXISTS user_type CASCADE;
+DROP TYPE IF EXISTS user_role CASCADE;
+
+-- Recreate the ENUM types
 CREATE TYPE user_type AS ENUM ('customer', 'seller', 'admin');
 CREATE TYPE user_role AS ENUM (
-    'guest', 'registered', 'premium',
+    'user', 'admin', 'super_admin',
     'basic_seller', 'verified_seller',
-    'support_agent', 'warehouse_staff', 'super_admin'
+    'support_agent', 'warehouse_staff'
 );
 
 -- Create a function to generate random numbers within a range
@@ -116,4 +121,9 @@ CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_username ON users(username);
 CREATE INDEX idx_user_addresses_user_id ON user_addresses(user_id);
 CREATE INDEX idx_payment_methods_user_id ON payment_methods(user_id);
+
+-- Modify the users table
+ALTER TABLE users 
+    ALTER COLUMN user_type TYPE user_type USING user_type::user_type,
+    ALTER COLUMN role TYPE user_role USING role::user_role;
 
