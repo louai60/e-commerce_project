@@ -8,3 +8,17 @@ migrate -path . -database "postgres://user:password@localhost:5432/nexcart_user?
 
 # Run the service
 air
+
+# Run the service in production mode
+APP_ENV=production DOCKER_ENV=true air
+
+#Run everything in Docker
+docker-compose up
+
+# Run Redis on docker
+docker-compose up -d redis
+
+# Run PostgreSQL on docker
+docker-compose up -d postgres
+
+
