@@ -2,31 +2,56 @@ package service
 
 import (
 	"context"
+	"fmt"
+	"time"
+
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	
 	"github.com/louai60/e-commerce_project/backend/product-service/models"
 	"github.com/louai60/e-commerce_project/backend/product-service/repository"
+	"github.com/louai60/e-commerce_project/backend/shared/cache"
 )
 
 // ProductService handles business logic for products
 type ProductService struct {
-	repo   repository.ProductRepository
-	logger *zap.Logger
+	repo    repository.ProductRepository
+	cache   *cache.CacheManager
+	logger  *zap.Logger
 }
 
 // NewProductService creates a new product service
-func NewProductService(repo repository.ProductRepository, logger *zap.Logger) *ProductService {
+func NewProductService(repo repository.ProductRepository, logger *zap.Logger, cacheManager *cache.CacheManager) *ProductService {
 	return &ProductService{
-		repo:   repo,
-		logger: logger,
+		repo:    repo,
+		cache:   cacheManager,
+		logger:  logger,
 	}
 }
 
 // GetProduct retrieves a product by ID
 func (s *ProductService) GetProduct(ctx context.Context, id string) (*models.Product, error) {
-	s.logger.Info("Getting product", zap.String("id", id))
-	return s.repo.GetProduct(ctx, id)
+	cacheKey := fmt.Sprintf("product:%s", id)
+	
+	// Try cache first
+	var product *models.Product
+	err := s.cache.Get(ctx, cacheKey, &product)
+	if err == nil {
+		return product, nil
+	}
+
+	// Cache miss, get from database
+	product, err = s.repo.GetProduct(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Cache the result
+	if err := s.cache.Set(ctx, cacheKey, product, 1*time.Hour); err != nil {
+		s.logger.Warn("Failed to cache product", zap.Error(err))
+	}
+	
+	return product, nil
 }
 
 // ListProducts returns all products
@@ -47,11 +72,16 @@ func (s *ProductService) CreateProduct(ctx context.Context, product *models.Prod
 
 // UpdateProduct updates an existing product
 func (s *ProductService) UpdateProduct(ctx context.Context, product *models.Product) error {
-	s.logger.Info("Updating product", 
-		zap.String("id", product.ID),
-		zap.String("name", product.Name),
-	)
-	return s.repo.UpdateProduct(ctx, product)
+	err := s.repo.UpdateProduct(ctx, product)
+	if err != nil {
+		return err
+	}
+
+	// Invalidate cache
+	cacheKey := fmt.Sprintf("product:%s", product.ID)
+	s.cache.Delete(ctx, cacheKey)
+	
+	return nil
 }
 
 // DeleteProduct removes a product

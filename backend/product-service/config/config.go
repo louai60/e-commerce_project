@@ -11,9 +11,10 @@ import (
 
 // Config holds all configuration for our program
 type Config struct {
-    Server   ServerConfig   `mapstructure:"server"`
-    Database DatabaseConfig `mapstructure:"database"`
-    Secrets  SecretsConfig  `mapstructure:"-"` // Loaded from env vars
+    Server   ServerConfig   `yaml:"server"`
+    Database DatabaseConfig `yaml:"database"`
+    Redis    RedisConfig    `yaml:"redis"`
+    Secrets  SecretsConfig  `yaml:"secrets"`
 }
 
 // ServerConfig holds all server-related configuration
@@ -31,7 +32,7 @@ type DatabaseConfig struct {
     Port     string `mapstructure:"port"`
     Name     string `mapstructure:"name"`
     User     string `mapstructure:"user"`
-    Password string `mapstructure:"-"` // Loaded from env vars
+    // Password string `mapstructure:"-"` 
     SSLMode  string `mapstructure:"sslMode"`
 }
 
@@ -40,6 +41,13 @@ type SecretsConfig struct {
     DatabasePassword string
     JWTSecret       string
     APIKeys         map[string]string
+}
+
+type RedisConfig struct {
+    Host     string `yaml:"host"`
+    Port     string `yaml:"port"`
+    Password string `yaml:"password"`
+    DB       int    `yaml:"db"`
 }
 
 // LoadConfig reads configuration from files and environment variables
@@ -101,7 +109,7 @@ func loadSecrets(config *Config) error {
     if dbPassword == "" {
         return fmt.Errorf("DB_PASSWORD environment variable is required")
     }
-    config.Database.Password = dbPassword
+    config.Secrets.DatabasePassword = dbPassword
 
     // Load JWT secret
     jwtSecret := os.Getenv("JWT_SECRET")
@@ -145,8 +153,9 @@ func (c *Config) GetDSN() string {
         c.Database.Host,
         c.Database.Port,
         c.Database.User,
-        c.Database.Password,
+        c.Secrets.DatabasePassword,
         c.Database.Name,
         c.Database.SSLMode,
     )
 }
+
