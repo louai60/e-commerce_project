@@ -3,6 +3,7 @@ package main
 import (
 	"net"
 	"os"
+	"fmt"
 
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
@@ -11,6 +12,7 @@ import (
 	"github.com/louai60/e-commerce_project/backend/product-service/handlers"
 	"github.com/louai60/e-commerce_project/backend/product-service/repository"
 	"github.com/louai60/e-commerce_project/backend/product-service/service"
+	"github.com/louai60/e-commerce_project/backend/shared/cache"
 	pb "github.com/louai60/e-commerce_project/backend/product-service/proto"
 	"google.golang.org/grpc"
 )
@@ -40,8 +42,15 @@ func main() {
 		log.Fatal("Failed to initialize repository", zap.Error(err))
 	}
 
+	// Initialize cache manager
+	redisAddr := fmt.Sprintf("%s:%s", cfg.Redis.Host, cfg.Redis.Port)
+	cacheManager, err := cache.NewCacheManager(redisAddr)
+	if err != nil {
+		log.Fatal("Failed to initialize cache manager", zap.Error(err))
+	}
+
 	// Initialize service
-	productService := service.NewProductService(repo, log)
+	productService := service.NewProductService(repo, log, cacheManager)
 
 	// Initialize handler
 	productHandler := handlers.NewProductHandler(productService)

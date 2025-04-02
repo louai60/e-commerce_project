@@ -4,16 +4,22 @@ go 1.24.0
 
 require (
 	github.com/gin-gonic/gin v1.10.0
+	github.com/golang-jwt/jwt v3.2.2+incompatible
+	github.com/joho/godotenv v1.5.1
 	github.com/louai60/e-commerce_project/backend/product-service v0.0.0
+	github.com/louai60/e-commerce_project/backend/shared v0.0.0
 	github.com/louai60/e-commerce_project/backend/user-service v0.0.0
 	github.com/spf13/viper v1.20.0
 	go.uber.org/zap v1.27.0
 	google.golang.org/grpc v1.71.0
 )
 
+replace github.com/louai60/e-commerce_project/backend/shared => ../shared
+
 require (
-	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
-	github.com/joho/godotenv v1.5.1 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
+	github.com/go-redis/redis/v8 v8.11.5 // indirect
 )
 
 replace github.com/louai60/e-commerce_project/backend/product-service => ../product-service
