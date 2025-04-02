@@ -9,16 +9,21 @@ export class AuthService {
         email: credentials.email,
         password: credentials.password,
         redirect: false,
+        callbackUrl: '/'
       });
 
-      if (result?.error) {
+      if (!result) {
+        throw new Error('Authentication failed');
+      }
+
+      if (result.error) {
         throw new Error(result.error);
       }
 
       return result as any;
     } catch (error: any) {
       console.error('Login error:', error);
-      throw error;
+      throw new Error(error.message || 'Service unavailable');
     }
   }
 
@@ -45,6 +50,7 @@ export class AuthService {
     }
   }
 }
+
 
 
 

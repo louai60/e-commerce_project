@@ -10,6 +10,7 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
+	"github.com/louai60/e-commerce_project/backend/user-service/cache"
 	"github.com/louai60/e-commerce_project/backend/user-service/config"
 	"github.com/louai60/e-commerce_project/backend/user-service/handlers"
 	pb "github.com/louai60/e-commerce_project/backend/user-service/proto"
@@ -195,15 +196,34 @@ func main() {
 		refreshTokenDuration = 7 * 24 * time.Hour // default to 7 days
 	}
 
+	// Initialize JWT manager
 	jwtManager := service.NewJWTManager(
 		os.Getenv("JWT_SECRET_KEY"),
 		accessTokenDuration,
 		refreshTokenDuration,
 	)
 
-	// Initialize service
+	// Determine Redis host based on environment
+	redisHost := cfg.Redis.Host
+	if os.Getenv("APP_ENV") == "development" && os.Getenv("DOCKER_ENV") != "true" {
+		redisHost = "localhost"
+	}
+	
+	redisAddr := fmt.Sprintf("%s:%s", redisHost, cfg.Redis.Port)
+	logger.Info("Connecting to Redis", 
+		zap.String("address", redisAddr))
+		
+	cacheManager, err := cache.NewUserCacheManager(redisAddr)
+	if err != nil {
+		logger.Fatal("Failed to initialize cache manager", 
+			zap.Error(err),
+			zap.String("redis_addr", redisAddr))
+	}
+
+	// Initialize service with all required dependencies
 	userService := service.NewUserService(
 		repo,
+		cacheManager,
 		logger,
 		rateLimiter,
 		jwtManager,

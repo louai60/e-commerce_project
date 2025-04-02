@@ -12,10 +12,31 @@ import (
 )
 
 type Config struct {
-	Server      ServerConfig   `mapstructure:"server"`
-	Database    DatabaseConfig `mapstructure:"database"`
-	Auth        AuthConfig     `mapstructure:"auth"`
-	RateLimiter RateLimiter   `mapstructure:"rateLimiter"`
+	Server struct {
+		Port        string
+		Environment string
+		TLS struct {
+			CertPath string
+			KeyPath  string
+		}
+	}
+	Database struct {
+		Host     string
+		Port     string
+		User     string
+		Password string
+		Name     string
+		SSLMode  string
+	}
+	Redis struct {
+		Host string
+		Port string
+	}
+	RateLimiter struct {
+		Attempts  int
+		Duration  time.Duration
+	}
+	Auth AuthConfig
 }
 
 type ServerConfig struct {
@@ -193,7 +214,7 @@ func validateConfig(config *Config) error {
 		if config.Database.SSLMode != "verify-full" {
 			return errors.New("production environment requires SSL mode 'verify-full'")
 		}
-		if config.Server.TLS == nil {
+		if config.Server.TLS.CertPath == "" || config.Server.TLS.KeyPath == "" {
 			return errors.New("TLS configuration is required in production")
 		}
 	}

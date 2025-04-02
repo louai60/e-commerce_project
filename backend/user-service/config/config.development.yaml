@@ -16,6 +16,10 @@ database:
   connMaxLifetime: "15m"
   connMaxIdleTime: "15m"
 
+redis:
+  host: "localhost"  # Changed from "redis" to "localhost"
+  port: "6379"
+
 auth:
   secretKey: "your_jwt_secret_key_here"
   accessTokenDuration: "24h"

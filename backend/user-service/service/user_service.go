@@ -2,20 +2,20 @@ package service
 
 import (
 	"context"
-	"net/http"
-	// "errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
+	"github.com/louai60/e-commerce_project/backend/user-service/repository"
 	pb "github.com/louai60/e-commerce_project/backend/user-service/proto"
+	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/louai60/e-commerce_project/backend/user-service/cache"
 	"github.com/louai60/e-commerce_project/backend/user-service/models"
-	"github.com/louai60/e-commerce_project/backend/user-service/repository"
 	"go.uber.org/zap"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type UserService struct {
@@ -23,6 +23,7 @@ type UserService struct {
 	logger       *zap.Logger
 	rateLimiter  RateLimiter
 	tokenManager TokenManager
+	cacheManager *cache.UserCacheManager
 }
 
 type RateLimiter interface {
@@ -37,6 +38,7 @@ type TokenManager interface {
 
 func NewUserService(
 	repo repository.Repository,
+	cache *cache.UserCacheManager,
 	logger *zap.Logger,
 	rateLimiter RateLimiter,
 	tokenManager TokenManager,
@@ -51,12 +53,30 @@ func NewUserService(
 		logger:       logger,
 		rateLimiter:  rateLimiter,
 		tokenManager: tokenManager,
+		cacheManager: cache,
 	}
 }
 
 func (s *UserService) GetUser(ctx context.Context, id int64) (*models.User, error) {
-	s.logger.Debug("Getting user by ID", zap.Int64("id", id))
-	return s.repo.GetUser(ctx, id)
+	// Try to get from cache first
+	user, err := s.cacheManager.GetUser(ctx, fmt.Sprintf("%d", id))
+	if err == nil {
+		s.logger.Debug("Cache hit for user", zap.Int64("id", id))
+		return user, nil
+	}
+
+	// Cache miss, get from database
+	user, err = s.repo.GetUser(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Store in cache for future requests
+	if err := s.cacheManager.SetUser(ctx, user); err != nil {
+		s.logger.Warn("Failed to cache user", zap.Error(err))
+	}
+
+	return user, nil
 }
 
 func (s *UserService) ListUsers(ctx context.Context, page, limit int32, filters map[string]interface{}) ([]*models.User, int64, error) {
