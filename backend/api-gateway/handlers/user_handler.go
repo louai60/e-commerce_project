@@ -23,20 +23,20 @@ type UserHandler struct {
 
 // Request structs
 type CreateUserRequest struct {
-    Email       string `json:"email" binding:"required,email"`
-    Username    string `json:"username" binding:"required,min=3,max=50"`
-    Password    string `json:"password" binding:"required,min=8"`
-    FirstName   string `json:"first_name" binding:"required"`
-    LastName    string `json:"last_name" binding:"required"`
-    PhoneNumber string `json:"phone_number"`
+    Email       string `json:"Email" binding:"required,email"`
+    Username    string `json:"Username" binding:"required,min=3,max=50"`
+    Password    string `json:"Password" binding:"required,min=8"`
+    FirstName   string `json:"FirstName" binding:"required"`
+    LastName    string `json:"LastName" binding:"required"`
+    PhoneNumber string `json:"PhoneNumber"`
 }
 
 type UpdateUserRequest struct {
-    Email       string `json:"email"`
-    Username    string `json:"username"`
-    FirstName   string `json:"first_name"`
-    LastName    string `json:"last_name"`
-    PhoneNumber string `json:"phone_number"`
+    Email       string `json:"Email"`
+    Username    string `json:"Username"`
+    FirstName   string `json:"FirstName"`
+    LastName    string `json:"LastName"`
+    PhoneNumber string `json:"PhoneNumber"`
 }
 
 type AddressRequest struct {
@@ -103,48 +103,34 @@ func (h *UserHandler) Register(c *gin.Context) {
         FirstName:   req.FirstName,
         LastName:    req.LastName,
         PhoneNumber: req.PhoneNumber,
-        UserType:    "customer",  // Explicitly set for regular registration
-        Role:        "user",      // Explicitly set for regular registration
+        UserType:    "customer",
+        Role:        "user",
     }
-
-    h.logger.Info("Sending create user request to user service",
-        zap.String("email", req.Email),
-        zap.String("username", req.Username),
-        zap.String("userType", grpcReq.UserType),
-        zap.String("role", grpcReq.Role))
 
     resp, err := h.client.CreateUser(ctx, grpcReq)
     if err != nil {
         st, ok := status.FromError(err)
         if ok {
-            h.logger.Error("Failed to create user", 
-                zap.String("code", st.Code().String()),
-                zap.String("message", st.Message()),
-                zap.Error(err))
-
             statusCode := http.StatusInternalServerError
             switch st.Code() {
             case codes.AlreadyExists:
                 statusCode = http.StatusConflict
+                c.JSON(statusCode, gin.H{"error": st.Message()})
+                return
             case codes.InvalidArgument:
                 statusCode = http.StatusBadRequest
+                c.JSON(statusCode, gin.H{"error": st.Message()})
+                return
             }
-
-            c.JSON(statusCode, gin.H{
-                "error": st.Message(),
-                "code": st.Code().String(),
-            })
-            return
         }
-        h.logger.Error("Unexpected error while creating user", zap.Error(err))
-        c.JSON(http.StatusInternalServerError, gin.H{
-            "error": "Internal server error",
-            "details": err.Error(),
-        })
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
         return
     }
 
-    c.JSON(http.StatusCreated, resp)
+    c.JSON(http.StatusCreated, gin.H{
+        "user": resp.User,
+        "message": "User registered successfully",
+    })
 }
 
 func (h *UserHandler) GetProfile(c *gin.Context) {

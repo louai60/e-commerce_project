@@ -11,5 +11,4 @@ database:
   port: "5432"
   name: "nexcart_product"
   user: "postgres"
-  # password: "root"
   sslMode: "disable"

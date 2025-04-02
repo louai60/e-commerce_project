@@ -50,7 +50,7 @@ func main() {
 
     // Initialize Gin router
     r := gin.Default()
-    r.Use(middleware.Logger(logger))
+    r.Use(middleware.Logger(logger), middleware.CORSMiddleware())
 
     // API routes
     v1 := r.Group("/api/v1")

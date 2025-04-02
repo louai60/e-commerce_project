@@ -1,14 +1,32 @@
 version: '3.8'
 
 services:
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://api-gateway:8080
+    depends_on:
+      - api-gateway
+
+  api-gateway:
+    build: ./backend/api-gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      - product-service
+      - user-service
+
   product-service:
     build: ./backend/product-service
     ports:
       - "50051:50051"
-    environment:
-      - ENV=development
-    depends_on:
-      - postgres
+
+  user-service:
+    build: ./backend/user-service
+    ports:
+      - "50052:50052"
 
   postgres:
     image: postgres:latest

@@ -1,1 +1,18 @@
+# Backend
+backend/**/tmp/
+backend/**/.env
+backend/**/air_errors.log
+backend/**/bin/
+
+# Frontend
+frontend/.next/
+frontend/node_modules/
+frontend/.env*.local
+
+# Common
+.DS_Store
+.idea/
+.vscode/
+*.log
+
 .qodo

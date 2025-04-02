@@ -66,7 +66,7 @@ func (m *JWTManager) GenerateTokenPair(user *models.User) (string, string, *http
 		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 		MaxAge:   int(m.refreshTokenDuration.Seconds()),
-		Domain:   ".nexcart.com", // Update with your domain
+		Domain:   ".nexcart.com", 
 	}
 
 	return accessTokenString, refreshTokenString, refreshTokenCookie, nil
