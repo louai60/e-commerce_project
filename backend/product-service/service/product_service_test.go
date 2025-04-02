@@ -54,7 +54,7 @@ func (m *MockRepository) Ping(ctx context.Context) error {
 func TestGetProduct(t *testing.T) {
     mockRepo := new(MockRepository)
     logger := zap.NewNop() 
-    service := NewProductService(mockRepo, logger, nil)
+    service := NewProductService(mockRepo, nil, logger)
     ctx := context.Background()
 
     expectedProduct := &models.Product{
