@@ -12,7 +12,7 @@ import (
 	"github.com/louai60/e-commerce_project/backend/product-service/handlers"
 	"github.com/louai60/e-commerce_project/backend/product-service/repository"
 	"github.com/louai60/e-commerce_project/backend/product-service/service"
-	"github.com/louai60/e-commerce_project/backend/shared/cache"
+	"github.com/louai60/e-commerce_project/backend/product-service/cache"
 	pb "github.com/louai60/e-commerce_project/backend/product-service/proto"
 	"google.golang.org/grpc"
 )
@@ -50,7 +50,7 @@ func main() {
 	}
 
 	// Initialize service
-	productService := service.NewProductService(repo, log, cacheManager)
+	productService := service.NewProductService(repo, cacheManager, log)
 
 	// Initialize handler
 	productHandler := handlers.NewProductHandler(productService)
