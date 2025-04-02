@@ -2,9 +2,12 @@ package middleware
 
 import (
     "bytes"
+    "crypto/sha256"
+    "encoding/hex"
     "fmt"
-    // "io"
     "net/http"
+    "sort"
+    "strings"
     "time"
 
     "github.com/gin-gonic/gin"
@@ -21,7 +24,14 @@ func (w *CachedWriter) Write(b []byte) (int, error) {
     return w.ResponseWriter.Write(b)
 }
 
-func CacheMiddleware(cacheManager *cache.CacheManager, ttl time.Duration) gin.HandlerFunc {
+// CacheConfig holds configuration for cache middleware
+type CacheConfig struct {
+    TTL            time.Duration
+    ExcludeHeaders []string
+    IgnoreParams   []string
+}
+
+func CacheMiddleware(cacheManager *cache.CacheManager, config CacheConfig) gin.HandlerFunc {
     return func(c *gin.Context) {
         // Skip caching for non-GET requests
         if c.Request.Method != "GET" {
@@ -30,7 +40,7 @@ func CacheMiddleware(cacheManager *cache.CacheManager, ttl time.Duration) gin.Ha
         }
 
         // Generate cache key
-        key := generateCacheKey(c.Request)
+        key := generateCacheKey(c.Request, config)
 
         // Try to get from cache
         var cachedResponse []byte
@@ -50,13 +60,75 @@ func CacheMiddleware(cacheManager *cache.CacheManager, ttl time.Duration) gin.Ha
 
         c.Next()
 
-        // Cache the response if status is 200
+        // Only cache successful responses
         if c.Writer.Status() == http.StatusOK {
-            cacheManager.Set(c.Request.Context(), key, writer.body.Bytes(), ttl)
+            // Set cache with configured TTL
+            cacheManager.Set(c.Request.Context(), key, writer.body.Bytes(), config.TTL)
         }
     }
 }
 
-func generateCacheKey(r *http.Request) string {
-    return fmt.Sprintf("%s:%s:%s", r.Host, r.Method, r.URL.Path)
+func generateCacheKey(r *http.Request, config CacheConfig) string {
+    // Start with base components
+    components := []string{
+        r.Host,
+        r.Method,
+        r.URL.Path,
+    }
+
+    // Add sorted query parameters (excluding ignored ones)
+    if len(r.URL.Query()) > 0 {
+        params := []string{}
+        for key, values := range r.URL.Query() {
+            if !contains(config.IgnoreParams, key) {
+                sort.Strings(values)
+                params = append(params, fmt.Sprintf("%s=%s", key, strings.Join(values, ",")))
+            }
+        }
+        sort.Strings(params)
+        components = append(components, strings.Join(params, "&"))
+    }
+
+    // Add relevant headers
+    relevantHeaders := []string{}
+    for key, values := range r.Header {
+        if !contains(config.ExcludeHeaders, key) {
+            sort.Strings(values)
+            relevantHeaders = append(relevantHeaders, fmt.Sprintf("%s=%s", key, strings.Join(values, ",")))
+        }
+    }
+    if len(relevantHeaders) > 0 {
+        sort.Strings(relevantHeaders)
+        components = append(components, strings.Join(relevantHeaders, "&"))
+    }
+
+    // Generate SHA-256 hash of the combined string
+    hasher := sha256.New()
+    hasher.Write([]byte(strings.Join(components, "|")))
+    return "cache:" + hex.EncodeToString(hasher.Sum(nil))
+}
+
+func contains(slice []string, item string) bool {
+    for _, s := range slice {
+        if strings.EqualFold(s, item) {
+            return true
+        }
+    }
+    return false
+}
+
+// CacheInvalidator invalidates cache entries based on patterns
+func CacheInvalidator(cacheManager *cache.CacheManager) gin.HandlerFunc {
+    return func(c *gin.Context) {
+        c.Next()
+
+        // Only invalidate cache on successful write operations
+        if c.Writer.Status() >= 200 && c.Writer.Status() < 300 {
+            switch c.Request.Method {
+            case "POST", "PUT", "PATCH", "DELETE":
+                pattern := fmt.Sprintf("cache:%s:*", c.Request.URL.Path)
+                cacheManager.Clear(c.Request.Context(), pattern)
+            }
+        }
+    }
 }
