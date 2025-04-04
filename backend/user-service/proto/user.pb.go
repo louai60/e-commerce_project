@@ -2127,6 +2127,147 @@ func (x *HealthCheckResponse) GetStatus() string {
 	return ""
 }
 
+// Add new messages
+type GetUsersCountRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Filter        string                 `protobuf:"bytes,1,opt,name=filter,proto3" json:"filter,omitempty"` // Optional filter
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetUsersCountRequest) Reset() {
+	*x = GetUsersCountRequest{}
+	mi := &file_proto_user_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUsersCountRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUsersCountRequest) ProtoMessage() {}
+
+func (x *GetUsersCountRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUsersCountRequest.ProtoReflect.Descriptor instead.
+func (*GetUsersCountRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *GetUsersCountRequest) GetFilter() string {
+	if x != nil {
+		return x.Filter
+	}
+	return ""
+}
+
+type GetUsersCountResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Count         int64                  `protobuf:"varint,1,opt,name=count,proto3" json:"count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetUsersCountResponse) Reset() {
+	*x = GetUsersCountResponse{}
+	mi := &file_proto_user_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUsersCountResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUsersCountResponse) ProtoMessage() {}
+
+func (x *GetUsersCountResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUsersCountResponse.ProtoReflect.Descriptor instead.
+func (*GetUsersCountResponse) Descriptor() ([]byte, []int) {
+	return file_proto_user_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *GetUsersCountResponse) GetCount() int64 {
+	if x != nil {
+		return x.Count
+	}
+	return 0
+}
+
+type UpdateUserRoleRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Role          string                 `protobuf:"bytes,2,opt,name=role,proto3" json:"role,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateUserRoleRequest) Reset() {
+	*x = UpdateUserRoleRequest{}
+	mi := &file_proto_user_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateUserRoleRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateUserRoleRequest) ProtoMessage() {}
+
+func (x *UpdateUserRoleRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateUserRoleRequest.ProtoReflect.Descriptor instead.
+func (*UpdateUserRoleRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *UpdateUserRoleRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *UpdateUserRoleRequest) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
 var File_proto_user_proto protoreflect.FileDescriptor
 
 const file_proto_user_proto_rawDesc = "" +
@@ -2318,7 +2459,15 @@ const file_proto_user_proto_rawDesc = "" +
 	"\auser_id\x18\x02 \x01(\x03R\x06userId\"\x14\n" +
 	"\x12HealthCheckRequest\"-\n" +
 	"\x13HealthCheckResponse\x12\x16\n" +
-	"\x06status\x18\x01 \x01(\tR\x06status2\x89\t\n" +
+	"\x06status\x18\x01 \x01(\tR\x06status\".\n" +
+	"\x14GetUsersCountRequest\x12\x16\n" +
+	"\x06filter\x18\x01 \x01(\tR\x06filter\"-\n" +
+	"\x15GetUsersCountResponse\x12\x14\n" +
+	"\x05count\x18\x01 \x01(\x03R\x05count\"D\n" +
+	"\x15UpdateUserRoleRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
+	"\x04role\x18\x02 \x01(\tR\x04role2\x9a\n" +
+	"\n" +
 	"\vUserService\x129\n" +
 	"\n" +
 	"CreateUser\x12\x17.user.CreateUserRequest\x1a\x12.user.UserResponse\x123\n" +
@@ -2340,7 +2489,9 @@ const file_proto_user_proto_rawDesc = "" +
 	"\x11GetPaymentMethods\x12\x1e.user.GetPaymentMethodsRequest\x1a\x1f.user.PaymentMethodListResponse\x12T\n" +
 	"\x13UpdatePaymentMethod\x12 .user.UpdatePaymentMethodRequest\x1a\x1b.user.PaymentMethodResponse\x12M\n" +
 	"\x13DeletePaymentMethod\x12 .user.DeletePaymentMethodRequest\x1a\x14.user.DeleteResponse\x12B\n" +
-	"\vHealthCheck\x12\x18.user.HealthCheckRequest\x1a\x19.user.HealthCheckResponseBBZ@github.com/louai60/e-commerce_project/backend/user-service/protob\x06proto3"
+	"\vHealthCheck\x12\x18.user.HealthCheckRequest\x1a\x19.user.HealthCheckResponse\x12J\n" +
+	"\rGetUsersCount\x12\x1a.user.GetUsersCountRequest\x1a\x1b.user.GetUsersCountResponse\"\x00\x12C\n" +
+	"\x0eUpdateUserRole\x12\x1b.user.UpdateUserRoleRequest\x1a\x12.user.UserResponse\"\x00BBZ@github.com/louai60/e-commerce_project/backend/user-service/protob\x06proto3"
 
 var (
 	file_proto_user_proto_rawDescOnce sync.Once
@@ -2354,7 +2505,7 @@ func file_proto_user_proto_rawDescGZIP() []byte {
 	return file_proto_user_proto_rawDescData
 }
 
-var file_proto_user_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
+var file_proto_user_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
 var file_proto_user_proto_goTypes = []any{
 	(*DeleteResponse)(nil),             // 0: user.DeleteResponse
 	(*RefreshTokenRequest)(nil),        // 1: user.RefreshTokenRequest
@@ -2387,6 +2538,9 @@ var file_proto_user_proto_goTypes = []any{
 	(*DeletePaymentMethodRequest)(nil), // 28: user.DeletePaymentMethodRequest
 	(*HealthCheckRequest)(nil),         // 29: user.HealthCheckRequest
 	(*HealthCheckResponse)(nil),        // 30: user.HealthCheckResponse
+	(*GetUsersCountRequest)(nil),       // 31: user.GetUsersCountRequest
+	(*GetUsersCountResponse)(nil),      // 32: user.GetUsersCountResponse
+	(*UpdateUserRoleRequest)(nil),      // 33: user.UpdateUserRoleRequest
 }
 var file_proto_user_proto_depIdxs = []int32{
 	3,  // 0: user.RefreshTokenResponse.user:type_name -> user.User
@@ -2415,25 +2569,29 @@ var file_proto_user_proto_depIdxs = []int32{
 	27, // 23: user.UserService.UpdatePaymentMethod:input_type -> user.UpdatePaymentMethodRequest
 	28, // 24: user.UserService.DeletePaymentMethod:input_type -> user.DeletePaymentMethodRequest
 	29, // 25: user.UserService.HealthCheck:input_type -> user.HealthCheckRequest
-	5,  // 26: user.UserService.CreateUser:output_type -> user.UserResponse
-	5,  // 27: user.UserService.GetUser:output_type -> user.UserResponse
-	9,  // 28: user.UserService.ListUsers:output_type -> user.ListUsersResponse
-	5,  // 29: user.UserService.UpdateUser:output_type -> user.UserResponse
-	0,  // 30: user.UserService.DeleteUser:output_type -> user.DeleteResponse
-	5,  // 31: user.UserService.GetUserByEmail:output_type -> user.UserResponse
-	13, // 32: user.UserService.Login:output_type -> user.LoginResponse
-	2,  // 33: user.UserService.RefreshToken:output_type -> user.RefreshTokenResponse
-	17, // 34: user.UserService.AddAddress:output_type -> user.AddressResponse
-	19, // 35: user.UserService.GetAddresses:output_type -> user.AddressListResponse
-	17, // 36: user.UserService.UpdateAddress:output_type -> user.AddressResponse
-	0,  // 37: user.UserService.DeleteAddress:output_type -> user.DeleteResponse
-	24, // 38: user.UserService.AddPaymentMethod:output_type -> user.PaymentMethodResponse
-	26, // 39: user.UserService.GetPaymentMethods:output_type -> user.PaymentMethodListResponse
-	24, // 40: user.UserService.UpdatePaymentMethod:output_type -> user.PaymentMethodResponse
-	0,  // 41: user.UserService.DeletePaymentMethod:output_type -> user.DeleteResponse
-	30, // 42: user.UserService.HealthCheck:output_type -> user.HealthCheckResponse
-	26, // [26:43] is the sub-list for method output_type
-	9,  // [9:26] is the sub-list for method input_type
+	31, // 26: user.UserService.GetUsersCount:input_type -> user.GetUsersCountRequest
+	33, // 27: user.UserService.UpdateUserRole:input_type -> user.UpdateUserRoleRequest
+	5,  // 28: user.UserService.CreateUser:output_type -> user.UserResponse
+	5,  // 29: user.UserService.GetUser:output_type -> user.UserResponse
+	9,  // 30: user.UserService.ListUsers:output_type -> user.ListUsersResponse
+	5,  // 31: user.UserService.UpdateUser:output_type -> user.UserResponse
+	0,  // 32: user.UserService.DeleteUser:output_type -> user.DeleteResponse
+	5,  // 33: user.UserService.GetUserByEmail:output_type -> user.UserResponse
+	13, // 34: user.UserService.Login:output_type -> user.LoginResponse
+	2,  // 35: user.UserService.RefreshToken:output_type -> user.RefreshTokenResponse
+	17, // 36: user.UserService.AddAddress:output_type -> user.AddressResponse
+	19, // 37: user.UserService.GetAddresses:output_type -> user.AddressListResponse
+	17, // 38: user.UserService.UpdateAddress:output_type -> user.AddressResponse
+	0,  // 39: user.UserService.DeleteAddress:output_type -> user.DeleteResponse
+	24, // 40: user.UserService.AddPaymentMethod:output_type -> user.PaymentMethodResponse
+	26, // 41: user.UserService.GetPaymentMethods:output_type -> user.PaymentMethodListResponse
+	24, // 42: user.UserService.UpdatePaymentMethod:output_type -> user.PaymentMethodResponse
+	0,  // 43: user.UserService.DeletePaymentMethod:output_type -> user.DeleteResponse
+	30, // 44: user.UserService.HealthCheck:output_type -> user.HealthCheckResponse
+	32, // 45: user.UserService.GetUsersCount:output_type -> user.GetUsersCountResponse
+	5,  // 46: user.UserService.UpdateUserRole:output_type -> user.UserResponse
+	28, // [28:47] is the sub-list for method output_type
+	9,  // [9:28] is the sub-list for method input_type
 	9,  // [9:9] is the sub-list for extension type_name
 	9,  // [9:9] is the sub-list for extension extendee
 	0,  // [0:9] is the sub-list for field type_name
@@ -2450,7 +2608,7 @@ func file_proto_user_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_user_proto_rawDesc), len(file_proto_user_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   31,
+			NumMessages:   34,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

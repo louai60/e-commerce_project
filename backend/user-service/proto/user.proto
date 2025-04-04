@@ -33,6 +33,9 @@ service UserService {
     // System
     rpc HealthCheck (HealthCheckRequest) returns (HealthCheckResponse);
     
+    // Add new methods
+    rpc GetUsersCount(GetUsersCountRequest) returns (GetUsersCountResponse) {}
+    rpc UpdateUserRole(UpdateUserRoleRequest) returns (UserResponse) {}
 }
 
 // Base messages
@@ -254,6 +257,20 @@ message HealthCheckRequest {}
 
 message HealthCheckResponse {
     string status = 1;
+}
+
+// Add new messages
+message GetUsersCountRequest {
+    string filter = 1;  // Optional filter
+}
+
+message GetUsersCountResponse {
+    int64 count = 1;
+}
+
+message UpdateUserRoleRequest {
+    string user_id = 1;
+    string role = 2;
 }
 
 

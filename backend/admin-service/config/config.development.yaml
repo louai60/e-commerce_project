@@ -1,0 +1,15 @@
+server:
+  port: "8085"
+  environment: "development"
+
+services:
+  product:
+    host: "localhost"
+    port: "50051"
+  user:
+    host: "localhost"
+    port: "50052"
+
+auth:
+  adminSecretKey: "your-secret-key-here"
+  tokenDuration: "24h"

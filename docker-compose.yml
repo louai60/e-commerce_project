@@ -28,6 +28,17 @@ services:
     ports:
       - "50052:50052"
 
+  admin-service:
+    build: ./backend/admin-service
+    ports:
+      - "8085:8085"
+    environment:
+      - ADMIN_SERVICE_PORT=8085
+      - ADMIN_SECRET_KEY=${ADMIN_SECRET_KEY}
+    depends_on:
+      - product-service
+      - user-service
+
   postgres:
     image: postgres:latest
     environment:

@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package admin;
+
+option go_package = "github.com/louai60/e-commerce_project/backend/admin-service/proto";
+
+// Dashboard Statistics
+message GetDashboardStatsRequest {}
+
+message DashboardStats {
+    int64 total_users = 1;
+    int64 total_products = 2;
+    int64 total_orders = 3;
+    double total_revenue = 4;
+}
+
+message GetDashboardStatsResponse {
+    DashboardStats stats = 1;
+}
+
+// Admin Service
+service AdminService {
+    // Dashboard
+    rpc GetDashboardStats(GetDashboardStatsRequest) returns (GetDashboardStatsResponse);
+}
+

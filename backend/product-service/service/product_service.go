@@ -49,6 +49,7 @@ func (s *ProductService) GetProduct(ctx context.Context, id string) (*models.Pro
 	return product, nil
 }
 
+
 // ListProducts returns all products
 func (s *ProductService) ListProducts(ctx context.Context, page, limit int32) ([]*models.Product, int64, error) {
 	// Generate cache key from pagination parameters

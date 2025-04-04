@@ -36,6 +36,8 @@ const (
 	UserService_UpdatePaymentMethod_FullMethodName = "/user.UserService/UpdatePaymentMethod"
 	UserService_DeletePaymentMethod_FullMethodName = "/user.UserService/DeletePaymentMethod"
 	UserService_HealthCheck_FullMethodName         = "/user.UserService/HealthCheck"
+	UserService_GetUsersCount_FullMethodName       = "/user.UserService/GetUsersCount"
+	UserService_UpdateUserRole_FullMethodName      = "/user.UserService/UpdateUserRole"
 )
 
 // UserServiceClient is the client API for UserService service.
@@ -66,6 +68,9 @@ type UserServiceClient interface {
 	DeletePaymentMethod(ctx context.Context, in *DeletePaymentMethodRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
 	// System
 	HealthCheck(ctx context.Context, in *HealthCheckRequest, opts ...grpc.CallOption) (*HealthCheckResponse, error)
+	// Add new methods
+	GetUsersCount(ctx context.Context, in *GetUsersCountRequest, opts ...grpc.CallOption) (*GetUsersCountResponse, error)
+	UpdateUserRole(ctx context.Context, in *UpdateUserRoleRequest, opts ...grpc.CallOption) (*UserResponse, error)
 }
 
 type userServiceClient struct {
@@ -246,6 +251,26 @@ func (c *userServiceClient) HealthCheck(ctx context.Context, in *HealthCheckRequ
 	return out, nil
 }
 
+func (c *userServiceClient) GetUsersCount(ctx context.Context, in *GetUsersCountRequest, opts ...grpc.CallOption) (*GetUsersCountResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetUsersCountResponse)
+	err := c.cc.Invoke(ctx, UserService_GetUsersCount_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) UpdateUserRole(ctx context.Context, in *UpdateUserRoleRequest, opts ...grpc.CallOption) (*UserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UserResponse)
+	err := c.cc.Invoke(ctx, UserService_UpdateUserRole_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // UserServiceServer is the server API for UserService service.
 // All implementations must embed UnimplementedUserServiceServer
 // for forward compatibility.
@@ -274,6 +299,9 @@ type UserServiceServer interface {
 	DeletePaymentMethod(context.Context, *DeletePaymentMethodRequest) (*DeleteResponse, error)
 	// System
 	HealthCheck(context.Context, *HealthCheckRequest) (*HealthCheckResponse, error)
+	// Add new methods
+	GetUsersCount(context.Context, *GetUsersCountRequest) (*GetUsersCountResponse, error)
+	UpdateUserRole(context.Context, *UpdateUserRoleRequest) (*UserResponse, error)
 	mustEmbedUnimplementedUserServiceServer()
 }
 
@@ -334,6 +362,12 @@ func (UnimplementedUserServiceServer) DeletePaymentMethod(context.Context, *Dele
 }
 func (UnimplementedUserServiceServer) HealthCheck(context.Context, *HealthCheckRequest) (*HealthCheckResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method HealthCheck not implemented")
+}
+func (UnimplementedUserServiceServer) GetUsersCount(context.Context, *GetUsersCountRequest) (*GetUsersCountResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUsersCount not implemented")
+}
+func (UnimplementedUserServiceServer) UpdateUserRole(context.Context, *UpdateUserRoleRequest) (*UserResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateUserRole not implemented")
 }
 func (UnimplementedUserServiceServer) mustEmbedUnimplementedUserServiceServer() {}
 func (UnimplementedUserServiceServer) testEmbeddedByValue()                     {}
@@ -662,6 +696,42 @@ func _UserService_HealthCheck_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserService_GetUsersCount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUsersCountRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).GetUsersCount(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_GetUsersCount_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).GetUsersCount(ctx, req.(*GetUsersCountRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_UpdateUserRole_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateUserRoleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).UpdateUserRole(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_UpdateUserRole_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).UpdateUserRole(ctx, req.(*UpdateUserRoleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // UserService_ServiceDesc is the grpc.ServiceDesc for UserService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -736,6 +806,14 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "HealthCheck",
 			Handler:    _UserService_HealthCheck_Handler,
+		},
+		{
+			MethodName: "GetUsersCount",
+			Handler:    _UserService_GetUsersCount_Handler,
+		},
+		{
+			MethodName: "UpdateUserRole",
+			Handler:    _UserService_UpdateUserRole_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

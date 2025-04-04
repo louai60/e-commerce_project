@@ -10,6 +10,8 @@ import (
     "github.com/louai60/e-commerce_project/backend/api-gateway/handlers"
     "github.com/louai60/e-commerce_project/backend/api-gateway/middleware"
     productpb "github.com/louai60/e-commerce_project/backend/product-service/proto"
+    userpb "github.com/louai60/e-commerce_project/backend/user-service/proto"
+    // adminpb "github.com/louai60/e-commerce_project/backend/admin-service/proto"
     "github.com/joho/godotenv"
 )
 
@@ -39,14 +41,24 @@ func main() {
     }
     defer userConn.Close()
 
-    // Initialize handlers
-    productClient := productpb.NewProductServiceClient(productConn)
-    productHandler := handlers.NewProductHandler(productClient, logger)
-
-    userHandler, err := handlers.NewUserHandler("localhost:50052", logger)
+    adminConn, err := grpc.Dial("localhost:50053", grpc.WithTransportCredentials(insecure.NewCredentials()))
     if err != nil {
-        logger.Fatal("Failed to initialize user handler", zap.Error(err))
+        logger.Fatal("Failed to connect to admin service", zap.Error(err))
     }
+    defer adminConn.Close()
+
+    // Initialize gRPC clients
+    productClient := productpb.NewProductServiceClient(productConn)
+    userClient := userpb.NewUserServiceClient(userConn)
+    // Remove unused adminClient
+    
+    // Initialize handlers
+    productHandler := handlers.NewProductHandler(productClient, logger)
+    userHandler, err := handlers.NewUserHandler("localhost:50052", logger) 
+    if err != nil {
+        logger.Fatal("Failed to create user handler", zap.Error(err))
+    }
+    adminHandler := handlers.NewAdminHandler(productClient, userClient, logger)
 
     // Initialize Gin router
     r := gin.Default()
@@ -55,14 +67,11 @@ func main() {
     // API routes
     v1 := r.Group("/api/v1")
     {
-        // Product routes
+        // Product routes (public)
         products := v1.Group("/products")
         {
             products.GET("", productHandler.ListProducts)
             products.GET("/:id", productHandler.GetProduct)
-            products.POST("", middleware.AuthRequired(), middleware.AdminRequired(), productHandler.CreateProduct)
-            products.PUT("/:id", middleware.AuthRequired(), middleware.AdminRequired(), productHandler.UpdateProduct)
-            products.DELETE("/:id", middleware.AuthRequired(), middleware.AdminRequired(), productHandler.DeleteProduct)
         }
 
         // User routes
@@ -71,7 +80,6 @@ func main() {
             users.POST("/register", userHandler.Register)
             users.POST("/login", userHandler.Login)     
             users.POST("/refresh", userHandler.RefreshToken)
-            users.POST("/admin", middleware.AdminKeyRequired(), userHandler.CreateAdmin)
             
             // Protected routes
             authenticated := users.Group("/", middleware.AuthRequired())
@@ -82,22 +90,32 @@ func main() {
                 // Address management
                 authenticated.POST("/addresses", userHandler.AddAddress)
                 // authenticated.GET("/addresses", userHandler.ListAddresses)
-                // authenticated.PUT("/addresses/:id", userHandler.UpdateAddress)
-                // authenticated.DELETE("/addresses/:id", userHandler.DeleteAddress)
-                
-                // Payment methods
-                authenticated.POST("/payment-methods", userHandler.AddPaymentMethod)
-                // authenticated.GET("/payment-methods", userHandler.ListPaymentMethods)
-                // authenticated.PUT("/payment-methods/:id", userHandler.UpdatePaymentMethod)
-                // authenticated.DELETE("/payment-methods/:id", userHandler.DeletePaymentMethod)
-                
-                // Admin only routes
-                admin := authenticated.Group("/", middleware.AdminRequired())
-                {
-                    admin.GET("", userHandler.ListUsers)
-                    admin.GET("/:id", userHandler.GetUser)
-                    admin.DELETE("/:id", userHandler.DeleteUser)
-                }
+            }
+        }
+
+        // Admin routes
+        admin := v1.Group("/admin", middleware.AuthRequired(), middleware.AdminRequired())
+        {
+            // Dashboard
+            admin.GET("/dashboard/stats", adminHandler.GetDashboardStats)
+
+            // Admin Product Management
+            adminProducts := admin.Group("/products")
+            {
+                adminProducts.GET("", adminHandler.ListProducts)
+                adminProducts.POST("", adminHandler.CreateProduct)
+                adminProducts.GET("/:id", adminHandler.GetProduct)
+                adminProducts.PUT("/:id", adminHandler.UpdateProduct)
+                adminProducts.DELETE("/:id", adminHandler.DeleteProduct)
+            }
+
+            // Admin User Management
+            adminUsers := admin.Group("/users")
+            {
+                adminUsers.GET("", adminHandler.ListUsers)
+                adminUsers.GET("/:id", adminHandler.GetUser)
+                // adminUsers.POST("/roles", adminHandler.UpdateUserRole)
+                adminUsers.DELETE("/:id", adminHandler.DeleteUser)
             }
         }
     }
