@@ -93,10 +93,10 @@ func (h *UserHandler) Register(c *gin.Context) {
         return
     }
 
-    ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
-    defer cancel()
+    ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second) // Re-adding line 470
+    defer cancel() // Re-adding line 471
 
-    grpcReq := &pb.CreateUserRequest{
+    grpcReq := &pb.CreateUserRequest{ // Re-adding line 472
         Email:       req.Email,
         Username:    req.Username,
         Password:    req.Password,
@@ -303,9 +303,21 @@ func (h *UserHandler) Login(c *gin.Context) {
     })
 
     if err != nil {
-        h.logger.Error("Login failed", 
+        h.logger.Error("Login failed",
             zap.String("email", req.Email),
             zap.Error(err))
+
+        // Explicitly check for Unauthenticated status first
+        st, ok := status.FromError(err)
+        if ok { // Check ok first
+            if st.Code() == codes.Unauthenticated { // Then check the code
+                 h.logger.Warn("Explicit Unauthenticated error caught in Login handler", zap.String("message", st.Message()))
+                 c.JSON(http.StatusUnauthorized, gin.H{"error": st.Message()}) // Ensure JSON response for 401
+                 return // Stop processing here
+            }
+        }
+
+        // Fallback to the generic handler for other errors
         h.handleGRPCError(c, err, "Login failed")
         return
     }

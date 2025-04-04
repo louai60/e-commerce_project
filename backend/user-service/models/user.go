@@ -12,21 +12,23 @@ const (
 )
 
 type User struct {
-    UserID         int64     `json:"user_id" db:"user_id"`
-    Email          string    `json:"email" db:"email"`
-    Username       string    `json:"username" db:"username"`
-    HashedPassword string    `json:"-" db:"hashed_password"`
-    FirstName      string    `json:"first_name" db:"first_name"`
-    LastName       string    `json:"last_name" db:"last_name"`
-    PhoneNumber    string    `json:"phone_number" db:"phone_number"`
-    UserType       string    `json:"user_type" db:"user_type"`
-    Role           string    `json:"role" db:"role"`
-    AccountStatus  string    `json:"account_status" db:"account_status"`
-    EmailVerified  bool      `json:"email_verified" db:"email_verified"`
-    PhoneVerified  bool      `json:"phone_verified" db:"phone_verified"`
-    CreatedAt      time.Time `json:"created_at" db:"created_at"`
-    UpdatedAt      time.Time `json:"updated_at" db:"updated_at"`
-    LastLogin      time.Time `json:"last_login" db:"last_login"`
+    UserID           int64     `json:"user_id" db:"user_id"`
+    Email            string    `json:"email" db:"email"`
+    Username         string    `json:"username" db:"username"`
+    HashedPassword   string    `json:"-" db:"hashed_password"`
+    FirstName        string    `json:"first_name" db:"first_name"`
+    LastName         string    `json:"last_name" db:"last_name"`
+    PhoneNumber      string    `json:"phone_number" db:"phone_number"`
+    UserType         string    `json:"user_type" db:"user_type"`
+    Role             string    `json:"role" db:"role"`
+    AccountStatus    string    `json:"account_status" db:"account_status"`
+    EmailVerified    bool      `json:"email_verified" db:"email_verified"`
+    PhoneVerified    bool      `json:"phone_verified" db:"phone_verified"`
+    Provider         string    `json:"provider" db:"provider"`
+    ProviderAccountId string   `json:"provider_account_id" db:"provider_account_id"`
+    CreatedAt        time.Time `json:"created_at" db:"created_at"`
+    UpdatedAt        time.Time `json:"updated_at" db:"updated_at"`
+    LastLogin        time.Time `json:"last_login" db:"last_login"`
 }
 
 type UserAddress struct {
@@ -143,6 +145,14 @@ func IsValidRole(userType, role string) bool {
         return true
     }
     return false
+}
+
+type OAuthRequest struct {
+    Email            string `json:"email" validate:"required,email"`
+    FirstName        string `json:"first_name"`
+    LastName         string `json:"last_name"`
+    Provider         string `json:"provider" validate:"required"`
+    ProviderAccountId string `json:"provider_account_id" validate:"required"`
 }
 
 

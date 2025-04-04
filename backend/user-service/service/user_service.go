@@ -2,13 +2,15 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/louai60/e-commerce_project/backend/user-service/repository"
 	pb "github.com/louai60/e-commerce_project/backend/user-service/proto"
+	"github.com/louai60/e-commerce_project/backend/user-service/repository"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -357,4 +359,87 @@ func convertUserToProto(user *models.User) *pb.User {
 		UpdatedAt:     user.UpdatedAt.Format(time.RFC3339),
 		LastLogin:     user.LastLogin.Format(time.RFC3339),
 	}
+}
+
+func (s *UserService) HandleOAuthLogin(ctx context.Context, req *models.OAuthRequest) (*models.User, error) {
+	s.logger.Info("OAuth login attempt",
+		zap.String("email", req.Email),
+		zap.String("provider", req.Provider))
+
+	// Try to get user from cache first
+	user, err := s.cacheManager.GetUser(ctx, req.Email)
+	if err == nil {
+		s.logger.Debug("Cache hit for OAuth user", zap.String("email", req.Email))
+		return user, nil
+	}
+
+	// Check if user exists
+	user, err = s.repo.GetUserByEmail(ctx, req.Email)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// Create new user
+			user = &models.User{
+				Email:            req.Email,
+				Username:         generateUsername(req.FirstName, req.LastName),
+				FirstName:        req.FirstName,
+				LastName:         req.LastName,
+				UserType:         models.UserTypeCustomer,
+				Role:            models.RoleUser,
+				AccountStatus:    "active",
+				EmailVerified:    true,
+				Provider:         req.Provider,
+				ProviderAccountId: req.ProviderAccountId,
+				CreatedAt:        time.Now(),
+				UpdatedAt:        time.Now(),
+			}
+
+			err = s.repo.CreateUser(ctx, user)
+			if err != nil {
+				s.logger.Error("Failed to create OAuth user", zap.Error(err))
+				return nil, fmt.Errorf("failed to create user: %w", err)
+			}
+		} else {
+			s.logger.Error("Failed to get user by email", zap.Error(err))
+			return nil, err
+		}
+	}
+
+	// Update provider info if it's a new OAuth login for existing user
+	if user.Provider == "" {
+		user.Provider = req.Provider
+		user.ProviderAccountId = req.ProviderAccountId
+		user.EmailVerified = true
+		user.UpdatedAt = time.Now()
+
+		err = s.repo.UpdateUser(ctx, user)
+		if err != nil {
+			s.logger.Error("Failed to update user with OAuth info", zap.Error(err))
+			return nil, fmt.Errorf("failed to update user: %w", err)
+		}
+	}
+
+	// Store in cache
+	if err := s.cacheManager.SetUser(ctx, user); err != nil {
+		s.logger.Warn("Failed to cache OAuth user", zap.Error(err))
+	}
+
+	return user, nil
+}
+
+func generateUsername(firstName, lastName string) string {
+	base := strings.ToLower(firstName + lastName)
+	base = strings.ReplaceAll(base, " ", "")
+	// Generate a random number between 0 and 999 using crypto/rand.Read() and the first byte of the result.
+	// This is to ensure that the username is unique and not too long.
+	// rand.Seed(time.Now().UnixNano()) // Deprecated since Go 1.20. Use crypto/rand instead.
+	// Note: rand.Seed is deprecated since Go 1.20. The crypto/rand package is used instead
+	// Generate a random number using crypto/rand
+	b := make([]byte, 4)
+	_, err := rand.Read(b)
+	if err != nil {
+		// Fallback to a timestamp-based number if random generation fails
+		return fmt.Sprintf("%s%d", base, time.Now().UnixNano()%1000)
+	}
+	randomNum := int(b[0])%1000 // Use only the first byte modulo 1000
+	return fmt.Sprintf("%s%d", base, randomNum)
 }

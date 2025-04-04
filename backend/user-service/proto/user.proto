@@ -16,6 +16,7 @@ service UserService {
     // Authentication
     rpc Login (LoginRequest) returns (LoginResponse);
     rpc RefreshToken (RefreshTokenRequest) returns (RefreshTokenResponse);
+    rpc OAuthLogin (OAuthLoginRequest) returns (LoginResponse);
 
     
     // Address operations
@@ -254,6 +255,14 @@ message HealthCheckRequest {}
 
 message HealthCheckResponse {
     string status = 1;
+}
+
+message OAuthLoginRequest {
+    string email = 1;
+    string first_name = 2;
+    string last_name = 3;
+    string provider = 4;
+    string provider_account_id = 5;
 }
 
 

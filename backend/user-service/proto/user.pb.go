@@ -2127,6 +2127,82 @@ func (x *HealthCheckResponse) GetStatus() string {
 	return ""
 }
 
+type OAuthLoginRequest struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Email             string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
+	FirstName         string                 `protobuf:"bytes,2,opt,name=first_name,json=firstName,proto3" json:"first_name,omitempty"`
+	LastName          string                 `protobuf:"bytes,3,opt,name=last_name,json=lastName,proto3" json:"last_name,omitempty"`
+	Provider          string                 `protobuf:"bytes,4,opt,name=provider,proto3" json:"provider,omitempty"`
+	ProviderAccountId string                 `protobuf:"bytes,5,opt,name=provider_account_id,json=providerAccountId,proto3" json:"provider_account_id,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *OAuthLoginRequest) Reset() {
+	*x = OAuthLoginRequest{}
+	mi := &file_proto_user_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OAuthLoginRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OAuthLoginRequest) ProtoMessage() {}
+
+func (x *OAuthLoginRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OAuthLoginRequest.ProtoReflect.Descriptor instead.
+func (*OAuthLoginRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *OAuthLoginRequest) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *OAuthLoginRequest) GetFirstName() string {
+	if x != nil {
+		return x.FirstName
+	}
+	return ""
+}
+
+func (x *OAuthLoginRequest) GetLastName() string {
+	if x != nil {
+		return x.LastName
+	}
+	return ""
+}
+
+func (x *OAuthLoginRequest) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
+}
+
+func (x *OAuthLoginRequest) GetProviderAccountId() string {
+	if x != nil {
+		return x.ProviderAccountId
+	}
+	return ""
+}
+
 var File_proto_user_proto protoreflect.FileDescriptor
 
 const file_proto_user_proto_rawDesc = "" +
@@ -2318,7 +2394,14 @@ const file_proto_user_proto_rawDesc = "" +
 	"\auser_id\x18\x02 \x01(\x03R\x06userId\"\x14\n" +
 	"\x12HealthCheckRequest\"-\n" +
 	"\x13HealthCheckResponse\x12\x16\n" +
-	"\x06status\x18\x01 \x01(\tR\x06status2\x89\t\n" +
+	"\x06status\x18\x01 \x01(\tR\x06status\"\xb1\x01\n" +
+	"\x11OAuthLoginRequest\x12\x14\n" +
+	"\x05email\x18\x01 \x01(\tR\x05email\x12\x1d\n" +
+	"\n" +
+	"first_name\x18\x02 \x01(\tR\tfirstName\x12\x1b\n" +
+	"\tlast_name\x18\x03 \x01(\tR\blastName\x12\x1a\n" +
+	"\bprovider\x18\x04 \x01(\tR\bprovider\x12.\n" +
+	"\x13provider_account_id\x18\x05 \x01(\tR\x11providerAccountId2\xc5\t\n" +
 	"\vUserService\x129\n" +
 	"\n" +
 	"CreateUser\x12\x17.user.CreateUserRequest\x1a\x12.user.UserResponse\x123\n" +
@@ -2330,7 +2413,9 @@ const file_proto_user_proto_rawDesc = "" +
 	"DeleteUser\x12\x17.user.DeleteUserRequest\x1a\x14.user.DeleteResponse\x12A\n" +
 	"\x0eGetUserByEmail\x12\x1b.user.GetUserByEmailRequest\x1a\x12.user.UserResponse\x120\n" +
 	"\x05Login\x12\x12.user.LoginRequest\x1a\x13.user.LoginResponse\x12E\n" +
-	"\fRefreshToken\x12\x19.user.RefreshTokenRequest\x1a\x1a.user.RefreshTokenResponse\x12<\n" +
+	"\fRefreshToken\x12\x19.user.RefreshTokenRequest\x1a\x1a.user.RefreshTokenResponse\x12:\n" +
+	"\n" +
+	"OAuthLogin\x12\x17.user.OAuthLoginRequest\x1a\x13.user.LoginResponse\x12<\n" +
 	"\n" +
 	"AddAddress\x12\x17.user.AddAddressRequest\x1a\x15.user.AddressResponse\x12D\n" +
 	"\fGetAddresses\x12\x19.user.GetAddressesRequest\x1a\x19.user.AddressListResponse\x12B\n" +
@@ -2354,7 +2439,7 @@ func file_proto_user_proto_rawDescGZIP() []byte {
 	return file_proto_user_proto_rawDescData
 }
 
-var file_proto_user_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
+var file_proto_user_proto_msgTypes = make([]protoimpl.MessageInfo, 32)
 var file_proto_user_proto_goTypes = []any{
 	(*DeleteResponse)(nil),             // 0: user.DeleteResponse
 	(*RefreshTokenRequest)(nil),        // 1: user.RefreshTokenRequest
@@ -2387,6 +2472,7 @@ var file_proto_user_proto_goTypes = []any{
 	(*DeletePaymentMethodRequest)(nil), // 28: user.DeletePaymentMethodRequest
 	(*HealthCheckRequest)(nil),         // 29: user.HealthCheckRequest
 	(*HealthCheckResponse)(nil),        // 30: user.HealthCheckResponse
+	(*OAuthLoginRequest)(nil),          // 31: user.OAuthLoginRequest
 }
 var file_proto_user_proto_depIdxs = []int32{
 	3,  // 0: user.RefreshTokenResponse.user:type_name -> user.User
@@ -2406,34 +2492,36 @@ var file_proto_user_proto_depIdxs = []int32{
 	7,  // 14: user.UserService.GetUserByEmail:input_type -> user.GetUserByEmailRequest
 	12, // 15: user.UserService.Login:input_type -> user.LoginRequest
 	1,  // 16: user.UserService.RefreshToken:input_type -> user.RefreshTokenRequest
-	16, // 17: user.UserService.AddAddress:input_type -> user.AddAddressRequest
-	18, // 18: user.UserService.GetAddresses:input_type -> user.GetAddressesRequest
-	20, // 19: user.UserService.UpdateAddress:input_type -> user.UpdateAddressRequest
-	21, // 20: user.UserService.DeleteAddress:input_type -> user.DeleteAddressRequest
-	23, // 21: user.UserService.AddPaymentMethod:input_type -> user.AddPaymentMethodRequest
-	25, // 22: user.UserService.GetPaymentMethods:input_type -> user.GetPaymentMethodsRequest
-	27, // 23: user.UserService.UpdatePaymentMethod:input_type -> user.UpdatePaymentMethodRequest
-	28, // 24: user.UserService.DeletePaymentMethod:input_type -> user.DeletePaymentMethodRequest
-	29, // 25: user.UserService.HealthCheck:input_type -> user.HealthCheckRequest
-	5,  // 26: user.UserService.CreateUser:output_type -> user.UserResponse
-	5,  // 27: user.UserService.GetUser:output_type -> user.UserResponse
-	9,  // 28: user.UserService.ListUsers:output_type -> user.ListUsersResponse
-	5,  // 29: user.UserService.UpdateUser:output_type -> user.UserResponse
-	0,  // 30: user.UserService.DeleteUser:output_type -> user.DeleteResponse
-	5,  // 31: user.UserService.GetUserByEmail:output_type -> user.UserResponse
-	13, // 32: user.UserService.Login:output_type -> user.LoginResponse
-	2,  // 33: user.UserService.RefreshToken:output_type -> user.RefreshTokenResponse
-	17, // 34: user.UserService.AddAddress:output_type -> user.AddressResponse
-	19, // 35: user.UserService.GetAddresses:output_type -> user.AddressListResponse
-	17, // 36: user.UserService.UpdateAddress:output_type -> user.AddressResponse
-	0,  // 37: user.UserService.DeleteAddress:output_type -> user.DeleteResponse
-	24, // 38: user.UserService.AddPaymentMethod:output_type -> user.PaymentMethodResponse
-	26, // 39: user.UserService.GetPaymentMethods:output_type -> user.PaymentMethodListResponse
-	24, // 40: user.UserService.UpdatePaymentMethod:output_type -> user.PaymentMethodResponse
-	0,  // 41: user.UserService.DeletePaymentMethod:output_type -> user.DeleteResponse
-	30, // 42: user.UserService.HealthCheck:output_type -> user.HealthCheckResponse
-	26, // [26:43] is the sub-list for method output_type
-	9,  // [9:26] is the sub-list for method input_type
+	31, // 17: user.UserService.OAuthLogin:input_type -> user.OAuthLoginRequest
+	16, // 18: user.UserService.AddAddress:input_type -> user.AddAddressRequest
+	18, // 19: user.UserService.GetAddresses:input_type -> user.GetAddressesRequest
+	20, // 20: user.UserService.UpdateAddress:input_type -> user.UpdateAddressRequest
+	21, // 21: user.UserService.DeleteAddress:input_type -> user.DeleteAddressRequest
+	23, // 22: user.UserService.AddPaymentMethod:input_type -> user.AddPaymentMethodRequest
+	25, // 23: user.UserService.GetPaymentMethods:input_type -> user.GetPaymentMethodsRequest
+	27, // 24: user.UserService.UpdatePaymentMethod:input_type -> user.UpdatePaymentMethodRequest
+	28, // 25: user.UserService.DeletePaymentMethod:input_type -> user.DeletePaymentMethodRequest
+	29, // 26: user.UserService.HealthCheck:input_type -> user.HealthCheckRequest
+	5,  // 27: user.UserService.CreateUser:output_type -> user.UserResponse
+	5,  // 28: user.UserService.GetUser:output_type -> user.UserResponse
+	9,  // 29: user.UserService.ListUsers:output_type -> user.ListUsersResponse
+	5,  // 30: user.UserService.UpdateUser:output_type -> user.UserResponse
+	0,  // 31: user.UserService.DeleteUser:output_type -> user.DeleteResponse
+	5,  // 32: user.UserService.GetUserByEmail:output_type -> user.UserResponse
+	13, // 33: user.UserService.Login:output_type -> user.LoginResponse
+	2,  // 34: user.UserService.RefreshToken:output_type -> user.RefreshTokenResponse
+	13, // 35: user.UserService.OAuthLogin:output_type -> user.LoginResponse
+	17, // 36: user.UserService.AddAddress:output_type -> user.AddressResponse
+	19, // 37: user.UserService.GetAddresses:output_type -> user.AddressListResponse
+	17, // 38: user.UserService.UpdateAddress:output_type -> user.AddressResponse
+	0,  // 39: user.UserService.DeleteAddress:output_type -> user.DeleteResponse
+	24, // 40: user.UserService.AddPaymentMethod:output_type -> user.PaymentMethodResponse
+	26, // 41: user.UserService.GetPaymentMethods:output_type -> user.PaymentMethodListResponse
+	24, // 42: user.UserService.UpdatePaymentMethod:output_type -> user.PaymentMethodResponse
+	0,  // 43: user.UserService.DeletePaymentMethod:output_type -> user.DeleteResponse
+	30, // 44: user.UserService.HealthCheck:output_type -> user.HealthCheckResponse
+	27, // [27:45] is the sub-list for method output_type
+	9,  // [9:27] is the sub-list for method input_type
 	9,  // [9:9] is the sub-list for extension type_name
 	9,  // [9:9] is the sub-list for extension extendee
 	0,  // [0:9] is the sub-list for field type_name
@@ -2450,7 +2538,7 @@ func file_proto_user_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_user_proto_rawDesc), len(file_proto_user_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   31,
+			NumMessages:   32,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -5,6 +5,16 @@ import { getToken } from 'next-auth/jwt';
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
+  // Skip middleware for OAuth callback routes
+  if (pathname.startsWith('/api/auth/callback')) {
+    return NextResponse.next();
+  }
+
+  // Skip middleware for authentication routes
+  if (pathname.startsWith('/signin') || pathname.startsWith('/signup')) {
+    return NextResponse.next();
+  }
+  
   // Check if the path is a protected route
   const isProtectedRoute = [
     '/dashboard',
@@ -32,6 +42,7 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|images|.*\\.png$).*)',
+    // Exclude OAuth callback paths and static assets
+    '/((?!api/auth/callback|_next/static|_next/image|favicon.ico|images|.*\\.png$).*)',
   ],
 };

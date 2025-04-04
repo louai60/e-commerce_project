@@ -1,8 +1,18 @@
 import NextAuth from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
+import GoogleProvider from 'next-auth/providers/google';
+import GitHubProvider from 'next-auth/providers/github';
 
 const handler = NextAuth({
   providers: [
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    }),
+    GitHubProvider({
+      clientId: process.env.GITHUB_CLIENT_ID!,
+      clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+    }),
     CredentialsProvider({
       name: 'Credentials',
       credentials: {
@@ -44,34 +54,56 @@ const handler = NextAuth({
           throw new Error(error.message || 'Authentication failed');
         }
       }
-    })
+    }),
   ],
-  pages: {
-    signIn: '/signin',
-    error: '/signin'
-  },
   callbacks: {
+    async signIn({ user, account }) {
+      if (account?.provider === 'credentials') {
+        return true;
+      }
+
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/oauth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: user.email,
+            // Split name into first and last names for the backend
+            first_name: user.name?.split(' ')[0] || '',
+            last_name: user.name?.split(' ').slice(1).join(' ') || '',
+            provider: account?.provider,
+            provider_account_id: account?.providerAccountId, // Ensure key matches backend expectation
+          }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error);
+
+        // Add tokens to user object so they're available in jwt callback
+        user.accessToken = data.access_token;
+        user.refreshToken = data.refresh_token;
+        return true;
+      } catch (error) {
+        console.error('OAuth error:', error);
+        return false;
+      }
+    },
     async jwt({ token, user }) {
       if (user) {
         token.accessToken = user.accessToken;
         token.refreshToken = user.refreshToken;
-        token.role = user.role;
-        token.id = user.id;
       }
       return token;
     },
     async session({ session, token }) {
-      if (token) {
-        session.user = {
-          ...session.user,
-          id: token.id as string,
-          role: token.role as string
-        };
-        session.accessToken = token.accessToken as string;
-        session.refreshToken = token.refreshToken as string;
-      }
+      session.accessToken = token.accessToken;
+      session.refreshToken = token.refreshToken;
       return session;
-    }
+    },
+  },
+  pages: {
+    signIn: '/signin',
+    error: '/signin',
   },
   session: {
     strategy: 'jwt',
