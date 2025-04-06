@@ -25,7 +25,12 @@ func main() {
         log.Fatal("Failed to initialize logger:", err)
     }
     defer logger.Sync()
-
+   
+    // Load JWT public key for token validation
+    if err := middleware.LoadPublicKey(); err != nil {
+    	logger.Fatal("Failed to load JWT public key", zap.Error(err))
+    }
+   
     // Initialize gRPC connections
     productConn, err := grpc.Dial("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
     if err != nil {

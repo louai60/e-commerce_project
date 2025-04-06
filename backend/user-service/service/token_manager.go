@@ -1,25 +1,57 @@
 package service
 
 import (
+	"crypto/rsa"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"os"
 	"time"
+
 	"github.com/golang-jwt/jwt"
 	"github.com/louai60/e-commerce_project/backend/user-service/models"
-	"net/http"
 )
 
 type JWTManager struct {
-	secretKey           string
-	accessTokenDuration time.Duration
+	privateKey           *rsa.PrivateKey
+	publicKey            *rsa.PublicKey
+	accessTokenDuration  time.Duration
 	refreshTokenDuration time.Duration
 }
 
-func NewJWTManager(secretKey string, accessTokenDuration, refreshTokenDuration time.Duration) *JWTManager {
-	return &JWTManager{
-		secretKey:           secretKey,
-		accessTokenDuration: accessTokenDuration,
-		refreshTokenDuration: refreshTokenDuration,
+func NewJWTManager(privateKeyPath, publicKeyPath string, accessTokenDuration, refreshTokenDuration time.Duration) (*JWTManager, error) {
+	// Read private key
+	privateKeyBytes, err := ioutil.ReadFile(privateKeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read private key file: %w", err)
 	}
+	privateKey, err := jwt.ParseRSAPrivateKeyFromPEM(privateKeyBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse private key: %w", err)
+	}
+
+	// Read public key
+	publicKeyBytes, err := ioutil.ReadFile(publicKeyPath)
+	if err != nil {
+		// Allow public key to be optional if not needed for validation within this service
+		// Or handle error strictly depending on requirements
+		fmt.Fprintf(os.Stderr, "Warning: failed to read public key file: %v\n", err)
+	}
+	var publicKey *rsa.PublicKey
+	if len(publicKeyBytes) > 0 {
+		publicKey, err = jwt.ParseRSAPublicKeyFromPEM(publicKeyBytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse public key: %w", err)
+		}
+	}
+
+
+	return &JWTManager{
+		privateKey:           privateKey,
+		publicKey:            publicKey, // Store the public key
+		accessTokenDuration:  accessTokenDuration,
+		refreshTokenDuration: refreshTokenDuration,
+	}, nil
 }
 
 func (m *JWTManager) GenerateTokenPair(user *models.User) (string, string, *http.Cookie, error) {
@@ -37,8 +69,8 @@ func (m *JWTManager) GenerateTokenPair(user *models.User) (string, string, *http
 		"exp":       now.Add(m.accessTokenDuration).Unix(),
 	}
 
-	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
-	accessTokenString, err := accessToken.SignedString([]byte(m.secretKey))
+	accessToken := jwt.NewWithClaims(jwt.SigningMethodRS256, accessClaims)
+	accessTokenString, err := accessToken.SignedString(m.privateKey)
 	if err != nil {
 		return "", "", nil, fmt.Errorf("failed to sign access token: %w", err)
 	}
@@ -51,8 +83,8 @@ func (m *JWTManager) GenerateTokenPair(user *models.User) (string, string, *http
 		"exp":     now.Add(m.refreshTokenDuration).Unix(),
 	}
 
-	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
-	refreshTokenString, err := refreshToken.SignedString([]byte(m.secretKey))
+	refreshToken := jwt.NewWithClaims(jwt.SigningMethodRS256, refreshClaims)
+	refreshTokenString, err := refreshToken.SignedString(m.privateKey)
 	if err != nil {
 		return "", "", nil, fmt.Errorf("failed to sign refresh token: %w", err)
 	}
@@ -79,11 +111,15 @@ func (m *JWTManager) GetRefreshTokenDuration() time.Duration {
 
 func (m *JWTManager) ValidateToken(tokenString string) (*models.User, error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		// Ensure the signing method is HMAC
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+		// Ensure the signing method is RSA
+		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return []byte(m.secretKey), nil
+		// Check if public key is loaded before returning
+		if m.publicKey == nil {
+			return nil, fmt.Errorf("public key not loaded for validation")
+		}
+		return m.publicKey, nil
 	})
 
 	if err != nil {

@@ -197,11 +197,24 @@ func main() {
 	}
 
 	// Initialize JWT manager
-	jwtManager := service.NewJWTManager(
-		os.Getenv("JWT_SECRET_KEY"),
+	privateKeyPath := os.Getenv("JWT_PRIVATE_KEY_PATH")
+	if privateKeyPath == "" {
+		privateKeyPath = "certificates/private_key.pem" // Default path
+	}
+	publicKeyPath := os.Getenv("JWT_PUBLIC_KEY_PATH")
+	if publicKeyPath == "" {
+		publicKeyPath = "certificates/public_key.pem" // Default path
+	}
+
+	jwtManager, err := service.NewJWTManager(
+		privateKeyPath,
+		publicKeyPath,
 		accessTokenDuration,
 		refreshTokenDuration,
 	)
+	if err != nil {
+		logger.Fatal("Failed to initialize JWT manager", zap.Error(err))
+	}
 
 	// Determine Redis host based on environment
 	redisHost := cfg.Redis.Host

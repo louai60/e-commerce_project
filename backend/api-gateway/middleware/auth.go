@@ -1,18 +1,56 @@
 package middleware
 
 import (
-    "net/http"
-    "strings"
-    "os"
-    "fmt"
+	"crypto/rsa"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"os"
+	"strings"
 
-
-    "github.com/gin-gonic/gin"
-    "github.com/golang-jwt/jwt"
+	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt"
 )
 
+// Global variable to hold the parsed public key
+var jwtPublicKey *rsa.PublicKey
+
+// LoadPublicKey loads the JWT public key from the specified path.
+// It should be called once during application startup.
+func LoadPublicKey() error {
+	publicKeyPath := os.Getenv("JWT_PUBLIC_KEY_PATH")
+	if publicKeyPath == "" {
+		publicKeyPath = "certificates/public_key.pem" // Default path
+	}
+
+	keyBytes, err := ioutil.ReadFile(publicKeyPath)
+	if err != nil {
+		return fmt.Errorf("failed to read public key file '%s': %w", publicKeyPath, err)
+	}
+
+	jwtPublicKey, err = jwt.ParseRSAPublicKeyFromPEM(keyBytes)
+	if err != nil {
+		return fmt.Errorf("failed to parse public key: %w", err)
+	}
+	log.Printf("Successfully loaded JWT public key from %s", publicKeyPath)
+	return nil
+}
+
+
 func AuthRequired() gin.HandlerFunc {
-    return func(c *gin.Context) {
+	// Ensure the public key is loaded before returning the handler
+	if jwtPublicKey == nil {
+		// This should ideally not happen if LoadPublicKey is called at startup
+		log.Fatal("JWT Public Key not loaded. Call LoadPublicKey() during initialization.")
+		// Or return a handler that always returns an error
+		// return func(c *gin.Context) {
+		// 	c.JSON(http.StatusInternalServerError, gin.H{"error": "JWT public key not configured"})
+		// 	c.Abort()
+		// }
+	}
+
+	return func(c *gin.Context) {
         authHeader := c.GetHeader("Authorization")
         if authHeader == "" {
             c.JSON(http.StatusUnauthorized, gin.H{"error": "authorization header is required"})
@@ -28,8 +66,8 @@ func AuthRequired() gin.HandlerFunc {
         }
 
         token := bearerToken[1]
-        claims, err := validateToken(token)
-        if err != nil {
+  claims, err := validateToken(token, jwtPublicKey) // Pass the loaded key
+  if err != nil {
             c.JSON(http.StatusUnauthorized, gin.H{"error": fmt.Sprintf("invalid token: %v", err)})
             c.Abort()
             return
@@ -44,18 +82,19 @@ func AuthRequired() gin.HandlerFunc {
     }
 }
 
-func validateToken(tokenString string) (jwt.MapClaims, error) {
-    secret := os.Getenv("JWT_SECRET")
-    if secret == "" {
-        return nil, fmt.Errorf("JWT_SECRET not set")
-    }
+func validateToken(tokenString string, publicKey *rsa.PublicKey) (jwt.MapClaims, error) {
+	if publicKey == nil {
+		return nil, fmt.Errorf("public key is nil, cannot validate token")
+	}
 
-    token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-        if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-            return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-        }
-        return []byte(secret), nil
-    })
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		// Validate the alg is RS256
+		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		// Return the public key for verification
+		return publicKey, nil
+	})
 
     if err != nil {
         // Handle specific validation errors
