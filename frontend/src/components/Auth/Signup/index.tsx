@@ -23,7 +23,7 @@ const formReducer = (state, action) => {
 const Signup = () => {
   const dispatch = useDispatch<AppDispatch>();
   const router = useRouter();
-  const { loading, error } = useSelector((state: RootState) => state.auth);
+  const { loading: reduxLoading, error } = useSelector((state: RootState) => state.auth); // Rename redux loading state
   
   const [formData, dispatchForm] = useReducer(formReducer, {
     email: '',
@@ -38,6 +38,7 @@ const Signup = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [isLoading, setIsLoading] = useState(false); // Add local loading state
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [validations, setValidations] = useState({
     email: true,
@@ -120,13 +121,15 @@ const Signup = () => {
     }
 
     try {
+      setIsLoading(true); // Use local loading state setter
+      
       const registerData = {
         Email: formData.email,
         Username: formData.username,
         Password: formData.password,
         FirstName: formData.firstName,
         LastName: formData.lastName,
-        PhoneNumber: formData.phoneNumber
+        PhoneNumber: formData.phoneNumber || ""
       };
 
       const result = await dispatch(register(registerData)).unwrap();
@@ -136,6 +139,8 @@ const Signup = () => {
     } catch (error: any) {
       console.error('Registration error:', error);
       dispatch(setError(error.message || 'Registration failed'));
+    } finally {
+      setIsLoading(false); // Use local loading state setter
     }
   }, [dispatch, formData, router, validateField]);
 
@@ -344,7 +349,7 @@ const Signup = () => {
                     </button>
                   </div>
                   
-                  {formData.password && (
+                  {formData.password && ( 
                     <div className="mt-2">
                       <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
                         <div 
@@ -404,19 +409,19 @@ const Signup = () => {
 
                 <button
                   type="submit"
-                  disabled={loading}
-                  className="w-full flex justify-center font-medium text-blue-600 bg-blue-600 py-3.5 px-6 rounded-lg transition-all duration-200 hover:bg-blue-700 active:bg-blue-800 mt-7.5 disabled:opacity-50 disabled:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 relative overflow-hidden group"
+                  disabled={isLoading || reduxLoading} // Disable if local or redux loading is true
+                  className="w-full flex justify-center font-medium text-white bg-blue-600 py-3.5 px-6 rounded-lg transition-all duration-200 hover:bg-blue-700 active:bg-blue-800 mt-7.5 disabled:opacity-50 disabled:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 relative overflow-hidden group"
                   aria-label="Create your account"
                 >
-                  {loading ? (
+                  {(isLoading || reduxLoading) ? ( // Show indicator if local or redux loading is true
                     <>
-                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
-                      <span className="text-blue-600">Creating Account...</span>
+                      <span className="text-white">Creating Account...</span>
                     </>
-                  ) : <span className="text-blue-600">Create Account</span>}
+                  ) : <span className="text-white">Create Account</span>}
                 </button>
 
                 <p className="text-center mt-6 text-gray-600">
@@ -438,3 +443,4 @@ const Signup = () => {
 };
 
 export default Signup;
+

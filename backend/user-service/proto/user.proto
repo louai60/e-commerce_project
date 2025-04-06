@@ -12,27 +12,27 @@ service UserService {
     rpc UpdateUser (UpdateUserRequest) returns (UserResponse);
     rpc DeleteUser (DeleteUserRequest) returns (DeleteResponse);
     rpc GetUserByEmail (GetUserByEmailRequest) returns (UserResponse);
-    
+
     // Authentication
     rpc Login (LoginRequest) returns (LoginResponse);
     rpc RefreshToken (RefreshTokenRequest) returns (RefreshTokenResponse);
 
-    
+
     // Address operations
     rpc AddAddress (AddAddressRequest) returns (AddressResponse);
     rpc GetAddresses (GetAddressesRequest) returns (AddressListResponse);
     rpc UpdateAddress (UpdateAddressRequest) returns (AddressResponse);
     rpc DeleteAddress (DeleteAddressRequest) returns (DeleteResponse);
-    
+
     // Payment method operations
     rpc AddPaymentMethod (AddPaymentMethodRequest) returns (PaymentMethodResponse);
     rpc GetPaymentMethods (GetPaymentMethodsRequest) returns (PaymentMethodListResponse);
     rpc UpdatePaymentMethod (UpdatePaymentMethodRequest) returns (PaymentMethodResponse);
     rpc DeletePaymentMethod (DeletePaymentMethodRequest) returns (DeleteResponse);
-    
+
     // System
     rpc HealthCheck (HealthCheckRequest) returns (HealthCheckResponse);
-    
+
 }
 
 // Base messages
@@ -42,13 +42,14 @@ message DeleteResponse {
 }
 
 message RefreshTokenRequest {
-    string refresh_token = 1;
+    string refresh_token = 1; // This will be read from the cookie by the gateway
 }
 
 message RefreshTokenResponse {
-    string token = 1;
-    string refresh_token = 2;
+    string token = 1; // New Access Token
+    // string refresh_token = 2; // Removed - Handled by cookie
     User user = 3;
+    CookieInfo cookie = 4; // New Refresh Token Cookie details
 }
 // User related messages
 message User {
@@ -124,10 +125,10 @@ message LoginRequest {
 }
 
 message LoginResponse {
-    string token = 1;
-    string refresh_token = 2;
+    string token = 1; // Access Token
+    // string refresh_token = 2; // Removed - Handled by cookie
     User user = 3;
-    CookieInfo cookie = 4;
+    CookieInfo cookie = 4; // Refresh Token Cookie details
 }
 
 message CookieInfo {
@@ -255,5 +256,3 @@ message HealthCheckRequest {}
 message HealthCheckResponse {
     string status = 1;
 }
-
-

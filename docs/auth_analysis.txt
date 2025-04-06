@@ -1,0 +1,152 @@
+# Authentication and User Management Analysis (Frontend, API Gateway & User Service)
+
+This document outlines the authentication flow and user management mechanisms implemented across the Frontend (Next.js with NextAuth.js), API Gateway (Go/Gin), and User Service (Go/gRPC).
+
+## Core Components:
+
+1.  **Frontend (`frontend/`):**
+    *   Uses Next.js and React.
+    *   Manages client-side sessions and authentication state using `next-auth/react`.
+    *   Provides UI components for login (`src/components/Auth/Signin`) and registration (`src/components/Auth/Signup`).
+    *   Uses an authentication service (`src/services/auth.service.ts`) to interact with NextAuth.js and the backend API.
+    *   Uses an Axios instance (`src/lib/api.ts`) with interceptors to automatically handle access token injection and refresh token logic.
+    *   Relies on the backend to set/manage the `HttpOnly` refresh token cookie.
+
+2.  **API Gateway (`backend/api-gateway`):**
+    *   Handles incoming HTTP requests from the frontend.
+    *   Validates Access Tokens for protected routes using middleware (`middleware/auth.go`).
+    *   Communicates with the User Service via gRPC (`handlers/user_handler.go`).
+    *   Manages the Refresh Token cookie lifecycle (setting/clearing) based on responses from the User Service.
+    *   Uses `JWT_SECRET` from its `.env` file to validate access token signatures *locally* within the gateway.
+
+3.  **User Service (`backend/user-service`):**
+    *   Provides a gRPC API for user operations (`handlers/user_handler.go`).
+    *   Contains the core business logic for registration, login, password hashing, token generation/validation, and user data management (`service/user_service.go`).
+    *   Interacts with the PostgreSQL database (`repository/repository.go`).
+    *   Manages JWT generation and validation (`service/token_manager.go`) using `JWT_SECRET_KEY` from its `.env` file.
+    *   Uses `bcrypt` for password hashing.
+
+## Authentication Flow:
+
+1.  **Login (Frontend -> Backend):**
+    *   User submits email/password via the Signin component.
+    *   `AuthService.login` calls `signIn('credentials', ...)` from `next-auth/react`.
+    *   NextAuth.js backend route (`/api/auth/[...nextauth]/route.ts`):
+        *   The `authorize` callback is triggered.
+        *   It sends a `POST` request to the API Gateway's `/api/v1/users/login` endpoint with email and password.
+    *   API Gateway (`handlers/user_handler.go`):
+        *   Receives the HTTP request.
+        *   Forwards the credentials to the User Service's `Login` gRPC method.
+    *   User Service (`service/user_service.go` & `service/token_manager.go`):
+        *   Retrieves user, verifies password (`bcrypt`).
+        *   Generates Access Token (JWT string) and Refresh Token (JWT string).
+        *   Creates an `HttpOnly`, `Secure`, `SameSite=Strict` cookie containing the Refresh Token string. The cookie path is set to `/api/v1/users/refresh`.
+        *   Returns the Access Token string and the cookie details (`pb.CookieInfo`) in the gRPC response.
+    *   API Gateway:
+        *   Receives the gRPC response.
+        *   Sets the Refresh Token cookie in the HTTP response header (`Set-Cookie`) using the details provided by the User Service.
+        *   Returns an HTTP 200 OK response with a JSON body containing the Access Token string and user details.
+    *   NextAuth.js `authorize` callback:
+        *   Receives the successful HTTP response from the API Gateway.
+        *   Extracts user details and the `access_token`.
+        *   Returns a `User` object containing these details to NextAuth.js core.
+    *   NextAuth.js Core:
+        *   Calls the `jwt` callback, adding the access token, user ID, and role to the NextAuth.js session JWT.
+        *   Calls the `session` callback, making the access token, user ID, and role available in the client-side session object.
+        *   The `signIn` promise in `AuthService.login` resolves successfully.
+
+2.  **Registration (Frontend -> Backend):**
+    *   User submits details via the Signup component.
+    *   `AuthService.register`:
+        *   Makes a direct `POST` request via the Axios instance (`api.ts`) to the API Gateway's `/api/v1/users/register` endpoint.
+        *   API Gateway forwards to User Service's `CreateUser` gRPC method.
+        *   User Service creates the user in the database.
+        *   API Gateway returns the success response (e.g., HTTP 201 Created).
+    *   If registration API call is successful, `AuthService.register` *immediately* calls `AuthService.login` (which uses `signIn('credentials', ...)`), triggering the full Login flow described above to establish a session.
+
+3.  **Authenticated API Calls (Frontend -> Backend):**
+    *   Frontend code makes a request using the configured Axios instance (`api.ts`).
+    *   Axios Request Interceptor (`api.ts`):
+        *   Calls `getSession()` to get the NextAuth.js session.
+        *   If the session contains an `accessToken`, it adds the `Authorization: Bearer <token>` header.
+    *   Request is sent to the API Gateway.
+    *   API Gateway `AuthRequired` middleware (`middleware/auth.go`):
+        *   Extracts and validates the Access Token signature using its `JWT_SECRET`.
+        *   Checks expiry, claims, etc.
+        *   If valid, allows the request to proceed, adding user info to the context.
+        *   If invalid/expired, returns an HTTP 401 Unauthorized error.
+
+4.  **Token Refresh (Triggered by 401 on Frontend):**
+    *   Frontend Axios instance receives a 401 response from the API Gateway.
+    *   Axios Response Interceptor (`api.ts`):
+        *   Detects the 401 error.
+        *   Manages concurrent refresh requests using `isRefreshing` flag and `failedQueue`.
+        *   Sends a `POST` request to the API Gateway's `/api/v1/users/refresh` endpoint. Crucially, `withCredentials: true` ensures the browser sends the `HttpOnly` refresh token cookie.
+    *   API Gateway (`handlers/user_handler.go`):
+        *   Receives the refresh request.
+        *   Extracts the refresh token string from the received cookie.
+        *   Calls the User Service's `RefreshToken` gRPC method with the token string.
+    *   User Service (`service/user_service.go` & `service/token_manager.go`):
+        *   Validates the refresh token string (signature, expiry, type="refresh") using `JWT_SECRET_KEY`.
+        *   If valid, generates a *new* Access Token and a *new* Refresh Token (with new cookie details).
+        *   Returns the new Access Token string and new cookie details (`pb.CookieInfo`) in the gRPC response.
+    *   API Gateway:
+        *   Receives the gRPC response.
+        *   Sets the *new* Refresh Token cookie in the HTTP response header (`Set-Cookie`).
+        *   Returns an HTTP 200 OK response with the *new* Access Token string in the JSON body.
+    *   Frontend Axios Response Interceptor (`api.ts`):
+        *   Receives the successful refresh response.
+        *   Extracts the new Access Token.
+        *   **Important:** It updates the `Authorization` header for the original failed request and any queued requests. It *does not* directly update the NextAuth.js session token here. The NextAuth.js session will still have the old access token until the next time `getSession` or `useSession` is called, which might implicitly pick up the change or require a manual refresh/update mechanism if immediate consistency is needed across all components.
+        *   Retries the original request(s) with the new Access Token.
+
+5.  **Invalid/Expired Refresh Token (Frontend Handling):**
+    *   If the User Service determines the refresh token is invalid during the refresh process, it returns an `Unauthenticated` gRPC error.
+    *   The API Gateway translates this to an HTTP 401 error for the `/users/refresh` endpoint.
+    *   The Frontend Axios Response Interceptor (`api.ts`) catches this error during the refresh attempt.
+    *   It calls `signOut()` from `next-auth/react` to clear the client-side session.
+    *   It rejects the original request and any queued requests. The user is effectively logged out.
+
+## User Management:
+
+*   **Storage:** User data (email, username, hashed password, names, roles, etc.) is stored in a PostgreSQL database, managed by the User Service.
+*   **Password Security:** Passwords are hashed using `bcrypt` in the User Service before storage.
+*   **Roles:** Users have roles (e.g., `user`, `admin`) stored in the database. The role is included in the Access Token claims and propagated to the NextAuth.js session JWT and session object. Frontend components can access `session.user.role`.
+*   **Authorization (Backend):** Protected routes in the API Gateway use middleware (e.g., `middleware/admin.go`) that checks the `role` claim present in the Gin context (set by `AuthRequired` middleware) to enforce RBAC.
+*   **Authorization (Frontend):** Frontend routing or component rendering can be conditionally controlled based on the user's role available in the NextAuth.js session (`session.user.role`). Middleware (`frontend/src/middleware.ts`, not examined) might also use this.
+*   **Admin Creation:** A specific backend endpoint (`POST /api/v1/users/admin`) allows creating admin users, protected by an `ADMIN_CREATE_KEY`.
+
+## Tokens & Cookies Summary:
+
+*   **Access Token (JWT):**
+    *   Purpose: Authorize API requests.
+    *   Generation: User Service (`token_manager.go`) using `JWT_SECRET_KEY`.
+    *   Location: Sent from Backend to Frontend in login/refresh response body. Stored in NextAuth.js session JWT. Sent from Frontend to Backend in `Authorization: Bearer` header via Axios interceptor.
+    *   Lifetime: Short (e.g., 24 hours).
+    *   Claims: User details, role, type="access", expiry.
+    *   Validation: Signature checked by API Gateway (`middleware/auth.go`) using its `JWT_SECRET`.
+*   **Refresh Token (JWT):**
+    *   Purpose: Obtain new Access Tokens without re-login.
+    *   Generation: User Service (`token_manager.go`) using `JWT_SECRET_KEY`.
+    *   Location: Sent from Backend to Frontend via `Set-Cookie` header. Stored in browser as `HttpOnly`, `Secure`, `SameSite=Strict` cookie. Automatically sent back to the backend's refresh endpoint by the browser due to `withCredentials: true` in Axios and matching cookie attributes. **Never directly handled by frontend JavaScript.**
+    *   Lifetime: Long (e.g., 7 days).
+    *   Claims: `user_id`, type="refresh", expiry.
+    *   Validation: Signature checked by User Service (`token_manager.go`) using `JWT_SECRET_KEY`.
+*   **NextAuth.js Session Token (JWT):**
+    *   Purpose: Maintain client-side session state in the frontend.
+    *   Generation: NextAuth.js library.
+    *   Location: Stored in browser cookies or local storage (depending on configuration, JWT strategy uses cookies by default).
+    *   Lifetime: Configurable via NextAuth.js options.
+    *   Claims: Includes user details (id, name, email), role, and the *Access Token* received from the backend.
+    *   Validation: Handled by NextAuth.js library using `NEXTAUTH_SECRET`.
+
+## Security Considerations & Sync Points:
+
+*   **Secret Key Consistency:**
+    *   `JWT_SECRET` (API Gateway) *must* match `JWT_SECRET_KEY` (User Service) for the gateway to validate access tokens.
+    *   `NEXTAUTH_SECRET` (Frontend `.env.local`) is used by NextAuth.js to sign its *own* session JWT and is independent of the backend JWT secrets.
+*   **HTTPS:** Required in production for `Secure` cookies.
+*   **CSRF Protection:** `SameSite=Strict` on the refresh token cookie provides strong CSRF protection. NextAuth.js also has built-in CSRF protection using a separate cookie and hidden form field strategy, primarily relevant for non-GET requests handled by its own API routes.
+*   **XSS Protection:** `HttpOnly` on the refresh token cookie prevents XSS attacks from stealing it. The NextAuth.js session token cookie should also ideally be `HttpOnly`.
+*   **Frontend Token Handling:** The frontend relies on the Axios interceptor to manage access token injection and trigger refresh. It never directly accesses the refresh token. The NextAuth.js session holds the *access token*, which needs to be kept up-to-date implicitly or explicitly after a successful refresh via the interceptor.
+*   **API URL:** `NEXT_PUBLIC_API_URL` in the frontend `.env.local` must point correctly to the running API Gateway.

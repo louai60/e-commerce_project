@@ -34,6 +34,7 @@ type RateLimiter interface {
 type TokenManager interface {
 	GenerateTokenPair(user *models.User) (string, string, *http.Cookie, error)
 	ValidateToken(token string) (*models.User, error)
+	GetRefreshTokenDuration() time.Duration // Added method signature
 }
 
 func NewUserService(
@@ -223,7 +224,7 @@ func (s *UserService) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Logi
 	}
 
 	// Generate token pair
-	accessToken, refreshToken, refreshTokenCookie, err := s.tokenManager.GenerateTokenPair(user)
+	accessToken, _, refreshTokenCookie, err := s.tokenManager.GenerateTokenPair(user) // Ignore refreshToken string
 	if err != nil {
 		s.logger.Error("Failed to generate tokens",
 			zap.String("email", req.Email),
@@ -253,7 +254,7 @@ func (s *UserService) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Logi
 
 	return &pb.LoginResponse{
 		Token:        accessToken,
-		RefreshToken: refreshToken, // Keep sending the raw refresh token for potential non-cookie clients
+		// RefreshToken: refreshToken, // Removed - Handled by cookie
 		User:         convertUserToProto(user),
 		Cookie:       cookieInfo,
 	}, nil
@@ -330,10 +331,22 @@ func (s *UserService) RefreshToken(ctx context.Context, refreshToken string) (*p
 		return nil, status.Errorf(codes.Internal, "failed to generate tokens: %v", err)
 	}
 
+	// Prepare CookieInfo for the new refresh token
+	newCookieInfo := &pb.CookieInfo{
+		Name:     "refresh_token", // Assuming cookie name is standard
+		Value:    newRefreshToken,
+		MaxAge:   int32(s.tokenManager.GetRefreshTokenDuration().Seconds()), // Need a way to get duration from tokenManager
+		Path:     "/api/v1/users", // Path for refresh endpoint
+		Domain:   "", // Set domain appropriately in production
+		Secure:   true, // Should be true in production
+		HttpOnly: true,
+	}
+
 	return &pb.RefreshTokenResponse{
 		Token:        accessToken,
-		RefreshToken: newRefreshToken,
-		User:         convertUserToProto(user),
+		User:         convertUserToProto(user), // Keep this one
+		Cookie:       newCookieInfo, // Add cookie info to response
+		// RefreshToken field is removed
 	}, nil
 }
 

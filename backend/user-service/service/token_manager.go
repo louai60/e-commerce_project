@@ -24,7 +24,7 @@ func NewJWTManager(secretKey string, accessTokenDuration, refreshTokenDuration t
 
 func (m *JWTManager) GenerateTokenPair(user *models.User) (string, string, *http.Cookie, error) {
 	now := time.Now()
-	
+
 	// Access token claims
 	accessClaims := jwt.MapClaims{
 		"user_id":   user.UserID,
@@ -61,48 +61,94 @@ func (m *JWTManager) GenerateTokenPair(user *models.User) (string, string, *http
 	refreshTokenCookie := &http.Cookie{
 		Name:     "refresh_token",
 		Value:    refreshTokenString,
-		Path:     "/",
+		Path:     "/api/v1/users/refresh", // Specific path for the refresh endpoint
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   true, // Ensure this is true in production (requires HTTPS)
 		SameSite: http.SameSiteStrictMode,
 		MaxAge:   int(m.refreshTokenDuration.Seconds()),
-		Domain:   ".nexcart.com", 
+		Domain:   "", // Set domain appropriately in production, e.g., ".yourdomain.com"
 	}
 
 	return accessTokenString, refreshTokenString, refreshTokenCookie, nil
 }
 
+// GetRefreshTokenDuration returns the configured duration for refresh tokens.
+func (m *JWTManager) GetRefreshTokenDuration() time.Duration {
+	return m.refreshTokenDuration
+}
+
 func (m *JWTManager) ValidateToken(tokenString string) (*models.User, error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		// Ensure the signing method is HMAC
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
 		return []byte(m.secretKey), nil
 	})
 
-	if err != nil || !token.Valid {
-		return nil, err
+	if err != nil {
+		// Check specifically for expired token error
+		if ve, ok := err.(*jwt.ValidationError); ok {
+			if ve.Errors&jwt.ValidationErrorExpired != 0 {
+				return nil, fmt.Errorf("token has expired: %w", err)
+			}
+		}
+		return nil, fmt.Errorf("invalid token: %w", err)
+	}
+
+	if !token.Valid {
+		return nil, fmt.Errorf("invalid token")
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
-		return nil, err
+		return nil, fmt.Errorf("invalid token claims")
 	}
 
-	if float64(time.Now().Unix()) > claims["exp"].(float64) {
-		return nil, jwt.ValidationError{Errors: jwt.ValidationErrorExpired}
+	// Check expiration again (though Parse should handle it)
+	if exp, ok := claims["exp"].(float64); ok {
+		if float64(time.Now().Unix()) > exp {
+			return nil, fmt.Errorf("token has expired")
+		}
+	} else {
+		return nil, fmt.Errorf("invalid expiration claim")
 	}
+
+	// Extract user ID safely
+	userIDClaim, ok := claims["user_id"]
+	if !ok {
+		return nil, fmt.Errorf("user_id claim missing")
+	}
+	
+	var userID int64
+	switch v := userIDClaim.(type) {
+	case float64:
+		userID = int64(v)
+	case int64:
+		userID = v
+	default:
+		return nil, fmt.Errorf("invalid user_id claim type")
+	}
+
 
 	// For refresh tokens, we only need the user ID
-	if claims["type"] == "refresh" {
+	if tokenType, ok := claims["type"].(string); ok && tokenType == "refresh" {
 		return &models.User{
-			UserID: claims["user_id"].(int64),
+			UserID: userID,
 		}, nil
 	}
 
-	// For access tokens, we need all user details
+	// For access tokens, extract all user details safely
+	email, _ := claims["email"].(string)
+	username, _ := claims["username"].(string)
+	userType, _ := claims["user_type"].(string)
+	role, _ := claims["role"].(string)
+
 	return &models.User{
-		UserID:   claims["user_id"].(int64),
-		Email:    claims["email"].(string),
-		Username: claims["username"].(string),
-		UserType: claims["user_type"].(string),
-		Role:     claims["role"].(string),
+		UserID:   userID,
+		Email:    email,
+		Username: username,
+		UserType: userType,
+		Role:     role,
 	}, nil
 }

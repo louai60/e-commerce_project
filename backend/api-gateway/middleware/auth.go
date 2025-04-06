@@ -58,38 +58,56 @@ func validateToken(tokenString string) (jwt.MapClaims, error) {
     })
 
     if err != nil {
+        // Handle specific validation errors
         if ve, ok := err.(*jwt.ValidationError); ok {
-            if ve.Errors&jwt.ValidationErrorExpired != 0 {
+            if ve.Errors&jwt.ValidationErrorMalformed != 0 {
+                return nil, fmt.Errorf("malformed token")
+            } else if ve.Errors&jwt.ValidationErrorExpired != 0 {
+                // Token is expired
                 return nil, fmt.Errorf("token has expired")
+            } else if ve.Errors&jwt.ValidationErrorNotValidYet != 0 {
+                // Token not active yet
+                return nil, fmt.Errorf("token not active yet")
+            } else {
+                return nil, fmt.Errorf("couldn't handle this token: %w", err)
             }
         }
-        return nil, err
+        // Other parsing errors
+        return nil, fmt.Errorf("couldn't parse token: %w", err)
     }
 
     claims, ok := token.Claims.(jwt.MapClaims)
     if !ok || !token.Valid {
-        return nil, fmt.Errorf("invalid token claims")
+        return nil, fmt.Errorf("invalid token or claims")
     }
 
-    // Check if it's a refresh token
-    if tokenType, ok := claims["type"].(string); ok && tokenType == "refresh" {
-        // For refresh tokens, we only validate the user_id and type
-        if claims["user_id"] == nil {
-            return nil, fmt.Errorf("invalid refresh token")
-        }
-    } else {
-        // For access tokens, we validate all required claims
-        requiredClaims := []string{"user_id", "email", "username", "user_type", "role"}
-        for _, claim := range requiredClaims {
-            if claims[claim] == nil {
-                return nil, fmt.Errorf("missing required claim: %s", claim)
-            }
+    // Ensure it's an access token
+    tokenType, ok := claims["type"].(string)
+    if !ok || tokenType != "access" {
+        return nil, fmt.Errorf("invalid token type: expected 'access'")
+    }
+
+    // Validate required claims for an access token
+    requiredClaims := []string{"user_id", "email", "username", "user_type", "role"}
+    for _, claim := range requiredClaims {
+        if claims[claim] == nil {
+            return nil, fmt.Errorf("missing required claim: %s", claim)
         }
     }
+
+    // Check claim types (optional but recommended for robustness)
+    if _, ok := claims["user_id"].(float64); !ok { // JWT numbers are often float64
+         if _, ok := claims["user_id"].(int64); !ok { // Allow int64 as well
+            return nil, fmt.Errorf("invalid type for user_id claim")
+         }
+    }
+    if _, ok := claims["role"].(string); !ok {
+        return nil, fmt.Errorf("invalid type for role claim")
+    }
+     if _, ok := claims["email"].(string); !ok {
+        return nil, fmt.Errorf("invalid type for email claim")
+    }
+
 
     return claims, nil
 }
-
-
-
-

@@ -1,4 +1,4 @@
-import NextAuth from 'next-auth';
+import NextAuth, { User } from 'next-auth'; // Import User type
 import CredentialsProvider from 'next-auth/providers/credentials';
 
 const handler = NextAuth({
@@ -9,7 +9,7 @@ const handler = NextAuth({
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' }
       },
-      async authorize(credentials) {
+      async authorize(credentials): Promise<User | null> {
         if (!credentials?.email || !credentials?.password) {
           throw new Error('Email and password required');
         }
@@ -32,14 +32,18 @@ const handler = NextAuth({
             throw new Error(data.error || 'Authentication failed');
           }
 
-          return {
-            id: data.user.id,
+          // The function's return type annotation should handle this now
+          const userPayload = {
+            id: String(data.user.userId), // Ensure id is a string
             email: data.user.email,
             name: `${data.user.firstName} ${data.user.lastName}`,
             accessToken: data.access_token,
-            refreshToken: data.refresh_token,
             role: data.user.role,
+            // No refreshToken property here
           };
+
+          return userPayload as User; // Assert the type here
+
         } catch (error: any) {
           throw new Error(error.message || 'Authentication failed');
         }
@@ -52,9 +56,10 @@ const handler = NextAuth({
   },
   callbacks: {
     async jwt({ token, user }) {
+      // The 'user' object comes from the 'authorize' callback
       if (user) {
         token.accessToken = user.accessToken;
-        token.refreshToken = user.refreshToken;
+        // token.refreshToken = user.refreshToken; // Removed
         token.role = user.role;
         token.id = user.id;
       }
@@ -68,7 +73,7 @@ const handler = NextAuth({
           role: token.role as string
         };
         session.accessToken = token.accessToken as string;
-        session.refreshToken = token.refreshToken as string;
+        // session.refreshToken = token.refreshToken as string; // Removed
       }
       return session;
     }

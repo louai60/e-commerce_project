@@ -171,8 +171,8 @@ func (h *UserHandler) RefreshToken(ctx context.Context, req *pb.RefreshTokenRequ
 
 	return &pb.RefreshTokenResponse{
 		Token:        resp.Token,
-		RefreshToken: resp.RefreshToken,
 		User:         resp.User,
+		Cookie:       resp.Cookie,
 	}, nil
 }
 

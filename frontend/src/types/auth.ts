@@ -24,8 +24,15 @@ export interface RegisterCredentials {
 }
 
 export interface AuthResponse {
-  access_token: string;
-  refresh_token: string;
-  user: User;
+  user: {
+    id: string;
+    email: string;
+    username: string;
+    firstName: string;
+    lastName: string;
+    role: string;
+  };
+  message?: string;
 }
+
 

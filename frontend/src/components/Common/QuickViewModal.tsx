@@ -94,7 +94,7 @@ const QuickViewModal = () => {
             <div className="max-w-[526px] w-full">
               <div className="flex gap-5">
                 <div className="flex flex-col gap-5">
-                  {product.imgs.thumbnails?.map((img, key) => (
+                  {product?.imgs?.thumbnails?.map((img, key) => (
                     <button
                       onClick={() => setActivePreview(key)}
                       key={key}
@@ -137,12 +137,17 @@ const QuickViewModal = () => {
                       </svg>
                     </button>
 
-                    <Image
-                      src={product?.imgs?.previews?.[activePreview]}
-                      alt="products-details"
-                      width={400}
-                      height={400}
-                    />
+                    {(() => {
+                      const previewSrc = product?.imgs?.previews?.[activePreview];
+                      return previewSrc ? (
+                        <Image
+                          src={previewSrc}
+                          alt="products-details"
+                          width={400}
+                          height={400}
+                        />
+                      ) : null; // Or render a placeholder if needed
+                    })()}
                   </div>
                 </div>
               </div>

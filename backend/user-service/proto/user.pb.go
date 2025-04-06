@@ -76,7 +76,7 @@ func (x *DeleteResponse) GetMessage() string {
 
 type RefreshTokenRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	RefreshToken  string                 `protobuf:"bytes,1,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
+	RefreshToken  string                 `protobuf:"bytes,1,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"` // This will be read from the cookie by the gateway
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -119,10 +119,11 @@ func (x *RefreshTokenRequest) GetRefreshToken() string {
 }
 
 type RefreshTokenResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
-	RefreshToken  string                 `protobuf:"bytes,2,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
-	User          *User                  `protobuf:"bytes,3,opt,name=user,proto3" json:"user,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Token string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"` // New Access Token
+	// string refresh_token = 2; // Removed - Handled by cookie
+	User          *User       `protobuf:"bytes,3,opt,name=user,proto3" json:"user,omitempty"`
+	Cookie        *CookieInfo `protobuf:"bytes,4,opt,name=cookie,proto3" json:"cookie,omitempty"` // New Refresh Token Cookie details
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -164,16 +165,16 @@ func (x *RefreshTokenResponse) GetToken() string {
 	return ""
 }
 
-func (x *RefreshTokenResponse) GetRefreshToken() string {
-	if x != nil {
-		return x.RefreshToken
-	}
-	return ""
-}
-
 func (x *RefreshTokenResponse) GetUser() *User {
 	if x != nil {
 		return x.User
+	}
+	return nil
+}
+
+func (x *RefreshTokenResponse) GetCookie() *CookieInfo {
+	if x != nil {
+		return x.Cookie
 	}
 	return nil
 }
@@ -861,11 +862,11 @@ func (x *LoginRequest) GetPassword() string {
 }
 
 type LoginResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
-	RefreshToken  string                 `protobuf:"bytes,2,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
-	User          *User                  `protobuf:"bytes,3,opt,name=user,proto3" json:"user,omitempty"`
-	Cookie        *CookieInfo            `protobuf:"bytes,4,opt,name=cookie,proto3" json:"cookie,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Token string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"` // Access Token
+	// string refresh_token = 2; // Removed - Handled by cookie
+	User          *User       `protobuf:"bytes,3,opt,name=user,proto3" json:"user,omitempty"`
+	Cookie        *CookieInfo `protobuf:"bytes,4,opt,name=cookie,proto3" json:"cookie,omitempty"` // Refresh Token Cookie details
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -903,13 +904,6 @@ func (*LoginResponse) Descriptor() ([]byte, []int) {
 func (x *LoginResponse) GetToken() string {
 	if x != nil {
 		return x.Token
-	}
-	return ""
-}
-
-func (x *LoginResponse) GetRefreshToken() string {
-	if x != nil {
-		return x.RefreshToken
 	}
 	return ""
 }
@@ -2136,12 +2130,12 @@ const file_proto_user_proto_rawDesc = "" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\":\n" +
 	"\x13RefreshTokenRequest\x12#\n" +
-	"\rrefresh_token\x18\x01 \x01(\tR\frefreshToken\"q\n" +
+	"\rrefresh_token\x18\x01 \x01(\tR\frefreshToken\"v\n" +
 	"\x14RefreshTokenResponse\x12\x14\n" +
-	"\x05token\x18\x01 \x01(\tR\x05token\x12#\n" +
-	"\rrefresh_token\x18\x02 \x01(\tR\frefreshToken\x12\x1e\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\x12\x1e\n" +
 	"\x04user\x18\x03 \x01(\v2\n" +
-	".user.UserR\x04user\"\xb3\x03\n" +
+	".user.UserR\x04user\x12(\n" +
+	"\x06cookie\x18\x04 \x01(\v2\x10.user.CookieInfoR\x06cookie\"\xb3\x03\n" +
 	"\x04User\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1a\n" +
@@ -2200,10 +2194,9 @@ const file_proto_user_proto_rawDesc = "" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\"@\n" +
 	"\fLoginRequest\x12\x14\n" +
 	"\x05email\x18\x01 \x01(\tR\x05email\x12\x1a\n" +
-	"\bpassword\x18\x02 \x01(\tR\bpassword\"\x94\x01\n" +
+	"\bpassword\x18\x02 \x01(\tR\bpassword\"o\n" +
 	"\rLoginResponse\x12\x14\n" +
-	"\x05token\x18\x01 \x01(\tR\x05token\x12#\n" +
-	"\rrefresh_token\x18\x02 \x01(\tR\frefreshToken\x12\x1e\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\x12\x1e\n" +
 	"\x04user\x18\x03 \x01(\v2\n" +
 	".user.UserR\x04user\x12(\n" +
 	"\x06cookie\x18\x04 \x01(\v2\x10.user.CookieInfoR\x06cookie\"\xb0\x01\n" +
@@ -2390,53 +2383,54 @@ var file_proto_user_proto_goTypes = []any{
 }
 var file_proto_user_proto_depIdxs = []int32{
 	3,  // 0: user.RefreshTokenResponse.user:type_name -> user.User
-	3,  // 1: user.UserResponse.user:type_name -> user.User
-	3,  // 2: user.ListUsersResponse.users:type_name -> user.User
-	3,  // 3: user.LoginResponse.user:type_name -> user.User
-	14, // 4: user.LoginResponse.cookie:type_name -> user.CookieInfo
-	15, // 5: user.AddressResponse.address:type_name -> user.Address
-	15, // 6: user.AddressListResponse.addresses:type_name -> user.Address
-	22, // 7: user.PaymentMethodResponse.payment_method:type_name -> user.PaymentMethod
-	22, // 8: user.PaymentMethodListResponse.payment_methods:type_name -> user.PaymentMethod
-	4,  // 9: user.UserService.CreateUser:input_type -> user.CreateUserRequest
-	6,  // 10: user.UserService.GetUser:input_type -> user.GetUserRequest
-	8,  // 11: user.UserService.ListUsers:input_type -> user.ListUsersRequest
-	10, // 12: user.UserService.UpdateUser:input_type -> user.UpdateUserRequest
-	11, // 13: user.UserService.DeleteUser:input_type -> user.DeleteUserRequest
-	7,  // 14: user.UserService.GetUserByEmail:input_type -> user.GetUserByEmailRequest
-	12, // 15: user.UserService.Login:input_type -> user.LoginRequest
-	1,  // 16: user.UserService.RefreshToken:input_type -> user.RefreshTokenRequest
-	16, // 17: user.UserService.AddAddress:input_type -> user.AddAddressRequest
-	18, // 18: user.UserService.GetAddresses:input_type -> user.GetAddressesRequest
-	20, // 19: user.UserService.UpdateAddress:input_type -> user.UpdateAddressRequest
-	21, // 20: user.UserService.DeleteAddress:input_type -> user.DeleteAddressRequest
-	23, // 21: user.UserService.AddPaymentMethod:input_type -> user.AddPaymentMethodRequest
-	25, // 22: user.UserService.GetPaymentMethods:input_type -> user.GetPaymentMethodsRequest
-	27, // 23: user.UserService.UpdatePaymentMethod:input_type -> user.UpdatePaymentMethodRequest
-	28, // 24: user.UserService.DeletePaymentMethod:input_type -> user.DeletePaymentMethodRequest
-	29, // 25: user.UserService.HealthCheck:input_type -> user.HealthCheckRequest
-	5,  // 26: user.UserService.CreateUser:output_type -> user.UserResponse
-	5,  // 27: user.UserService.GetUser:output_type -> user.UserResponse
-	9,  // 28: user.UserService.ListUsers:output_type -> user.ListUsersResponse
-	5,  // 29: user.UserService.UpdateUser:output_type -> user.UserResponse
-	0,  // 30: user.UserService.DeleteUser:output_type -> user.DeleteResponse
-	5,  // 31: user.UserService.GetUserByEmail:output_type -> user.UserResponse
-	13, // 32: user.UserService.Login:output_type -> user.LoginResponse
-	2,  // 33: user.UserService.RefreshToken:output_type -> user.RefreshTokenResponse
-	17, // 34: user.UserService.AddAddress:output_type -> user.AddressResponse
-	19, // 35: user.UserService.GetAddresses:output_type -> user.AddressListResponse
-	17, // 36: user.UserService.UpdateAddress:output_type -> user.AddressResponse
-	0,  // 37: user.UserService.DeleteAddress:output_type -> user.DeleteResponse
-	24, // 38: user.UserService.AddPaymentMethod:output_type -> user.PaymentMethodResponse
-	26, // 39: user.UserService.GetPaymentMethods:output_type -> user.PaymentMethodListResponse
-	24, // 40: user.UserService.UpdatePaymentMethod:output_type -> user.PaymentMethodResponse
-	0,  // 41: user.UserService.DeletePaymentMethod:output_type -> user.DeleteResponse
-	30, // 42: user.UserService.HealthCheck:output_type -> user.HealthCheckResponse
-	26, // [26:43] is the sub-list for method output_type
-	9,  // [9:26] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	14, // 1: user.RefreshTokenResponse.cookie:type_name -> user.CookieInfo
+	3,  // 2: user.UserResponse.user:type_name -> user.User
+	3,  // 3: user.ListUsersResponse.users:type_name -> user.User
+	3,  // 4: user.LoginResponse.user:type_name -> user.User
+	14, // 5: user.LoginResponse.cookie:type_name -> user.CookieInfo
+	15, // 6: user.AddressResponse.address:type_name -> user.Address
+	15, // 7: user.AddressListResponse.addresses:type_name -> user.Address
+	22, // 8: user.PaymentMethodResponse.payment_method:type_name -> user.PaymentMethod
+	22, // 9: user.PaymentMethodListResponse.payment_methods:type_name -> user.PaymentMethod
+	4,  // 10: user.UserService.CreateUser:input_type -> user.CreateUserRequest
+	6,  // 11: user.UserService.GetUser:input_type -> user.GetUserRequest
+	8,  // 12: user.UserService.ListUsers:input_type -> user.ListUsersRequest
+	10, // 13: user.UserService.UpdateUser:input_type -> user.UpdateUserRequest
+	11, // 14: user.UserService.DeleteUser:input_type -> user.DeleteUserRequest
+	7,  // 15: user.UserService.GetUserByEmail:input_type -> user.GetUserByEmailRequest
+	12, // 16: user.UserService.Login:input_type -> user.LoginRequest
+	1,  // 17: user.UserService.RefreshToken:input_type -> user.RefreshTokenRequest
+	16, // 18: user.UserService.AddAddress:input_type -> user.AddAddressRequest
+	18, // 19: user.UserService.GetAddresses:input_type -> user.GetAddressesRequest
+	20, // 20: user.UserService.UpdateAddress:input_type -> user.UpdateAddressRequest
+	21, // 21: user.UserService.DeleteAddress:input_type -> user.DeleteAddressRequest
+	23, // 22: user.UserService.AddPaymentMethod:input_type -> user.AddPaymentMethodRequest
+	25, // 23: user.UserService.GetPaymentMethods:input_type -> user.GetPaymentMethodsRequest
+	27, // 24: user.UserService.UpdatePaymentMethod:input_type -> user.UpdatePaymentMethodRequest
+	28, // 25: user.UserService.DeletePaymentMethod:input_type -> user.DeletePaymentMethodRequest
+	29, // 26: user.UserService.HealthCheck:input_type -> user.HealthCheckRequest
+	5,  // 27: user.UserService.CreateUser:output_type -> user.UserResponse
+	5,  // 28: user.UserService.GetUser:output_type -> user.UserResponse
+	9,  // 29: user.UserService.ListUsers:output_type -> user.ListUsersResponse
+	5,  // 30: user.UserService.UpdateUser:output_type -> user.UserResponse
+	0,  // 31: user.UserService.DeleteUser:output_type -> user.DeleteResponse
+	5,  // 32: user.UserService.GetUserByEmail:output_type -> user.UserResponse
+	13, // 33: user.UserService.Login:output_type -> user.LoginResponse
+	2,  // 34: user.UserService.RefreshToken:output_type -> user.RefreshTokenResponse
+	17, // 35: user.UserService.AddAddress:output_type -> user.AddressResponse
+	19, // 36: user.UserService.GetAddresses:output_type -> user.AddressListResponse
+	17, // 37: user.UserService.UpdateAddress:output_type -> user.AddressResponse
+	0,  // 38: user.UserService.DeleteAddress:output_type -> user.DeleteResponse
+	24, // 39: user.UserService.AddPaymentMethod:output_type -> user.PaymentMethodResponse
+	26, // 40: user.UserService.GetPaymentMethods:output_type -> user.PaymentMethodListResponse
+	24, // 41: user.UserService.UpdatePaymentMethod:output_type -> user.PaymentMethodResponse
+	0,  // 42: user.UserService.DeletePaymentMethod:output_type -> user.DeleteResponse
+	30, // 43: user.UserService.HealthCheck:output_type -> user.HealthCheckResponse
+	27, // [27:44] is the sub-list for method output_type
+	10, // [10:27] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_proto_user_proto_init() }

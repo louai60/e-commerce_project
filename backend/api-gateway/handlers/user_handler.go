@@ -324,6 +324,7 @@ func (h *UserHandler) Login(c *gin.Context) {
     }
    
     // Return access token and user details in the response body
+    // Refresh token is handled via HttpOnly cookie
     c.JSON(http.StatusOK, gin.H{
     	"access_token": resp.Token,
     	"user":         resp.User,
@@ -557,33 +558,54 @@ func (h *UserHandler) AddPaymentMethod(c *gin.Context) {
 }
 
 func (h *UserHandler) RefreshToken(c *gin.Context) {
-    var req struct {
-        RefreshToken string `json:"refresh_token" binding:"required"`
+    // Read refresh token from cookie
+    refreshToken, err := c.Cookie("refresh_token")
+    if err != nil {
+        h.logger.Error("Refresh token cookie not found", zap.Error(err))
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "Refresh token not found"})
+        return
     }
 
-    if err := c.ShouldBindJSON(&req); err != nil {
-        h.logger.Error("Invalid refresh token payload", zap.Error(err))
-        c.JSON(http.StatusBadRequest, gin.H{
-            "error": "refresh_token is required",
-            "details": err.Error(),
-        })
-        return
+    if refreshToken == "" {
+         h.logger.Error("Refresh token cookie is empty")
+         c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid refresh token"})
+         return
     }
 
     ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
     defer cancel()
 
     resp, err := h.client.RefreshToken(ctx, &pb.RefreshTokenRequest{
-        RefreshToken: req.RefreshToken,
+        RefreshToken: refreshToken, // Use token from cookie
     })
     if err != nil {
+        // If refresh token is invalid/expired, clear the cookie
+        if st, ok := status.FromError(err); ok && st.Code() == codes.Unauthenticated {
+             c.SetCookie("refresh_token", "", -1, "/", "", false, true) // Clear cookie
+        }
         h.handleGRPCError(c, err, "Failed to refresh token")
         return
     }
 
+    // Set the new refresh token cookie if provided
+    if resp.Cookie != nil {
+        c.SetCookie(
+            resp.Cookie.Name,
+            resp.Cookie.Value,
+            int(resp.Cookie.MaxAge),
+            resp.Cookie.Path,
+            resp.Cookie.Domain,
+            resp.Cookie.Secure,
+            resp.Cookie.HttpOnly,
+        )
+    } else {
+        // Correct indentation for the logger warning
+        h.logger.Warn("RefreshToken response from user service did not contain cookie info")
+    }
+
+    // Return only the new access token and user details
     c.JSON(http.StatusOK, gin.H{
         "access_token": resp.Token,
-        "refresh_token": resp.RefreshToken,
-        "user": resp.User,
+        "user":         resp.User,
     })
 }

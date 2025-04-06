@@ -29,8 +29,19 @@ export class AuthService {
 
   static async register(credentials: RegisterCredentials): Promise<AuthResponse> {
     try {
-      const response = await api.post<AuthResponse>('/users/register', credentials);
+      const registerData = {
+        Email: credentials.Email,
+        Username: credentials.Username,
+        Password: credentials.Password,
+        FirstName: credentials.FirstName,
+        LastName: credentials.LastName,
+        PhoneNumber: credentials.PhoneNumber || "" // Optional field
+      };
+
+      // Make the registration request
+      const response = await api.post<AuthResponse>('/api/v1/users/register', registerData);
       
+      // Attempt to sign in immediately after successful registration
       const result = await signIn('credentials', {
         email: credentials.Email,
         password: credentials.Password,
@@ -46,15 +57,9 @@ export class AuthService {
       if (error.response?.status === 409) {
         throw new Error('Username or email already exists');
       }
-      throw new Error('Registration failed. Please try again.');
+      console.error('Registration error:', error);
+      throw new Error(error.message || 'Registration failed. Please try again.');
     }
   }
 }
-
-
-
-
-
-
-
 
