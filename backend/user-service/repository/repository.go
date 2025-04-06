@@ -16,6 +16,7 @@ type Repository interface {
 	GetUserByUsername(ctx context.Context, username string) (*models.User, error)
 	ListUsers(ctx context.Context, page, limit int, where string, args ...interface{}) ([]*models.User, error)
 	CountUsers(ctx context.Context, where string, args ...interface{}) (int64, error)
+	UpdateRefreshTokenID(ctx context.Context, userID int64, refreshTokenID string) error
 
 	// Address operations
 	CreateAddress(ctx context.Context, address *models.UserAddress) error
@@ -39,4 +40,3 @@ type Repository interface {
 	// Database health check
 	Ping(ctx context.Context) error
 }
-

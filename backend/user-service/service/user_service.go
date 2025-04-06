@@ -32,9 +32,28 @@ type RateLimiter interface {
 }
 
 type TokenManager interface {
-	GenerateTokenPair(user *models.User) (string, string, *http.Cookie, error)
+	GenerateTokenPair(user *models.User) (string, string, string, *http.Cookie, error)
 	ValidateToken(token string) (*models.User, error)
-	GetRefreshTokenDuration() time.Duration // Added method signature
+	GetRefreshTokenDuration() time.Duration
+}
+
+type UserServiceI interface {
+	GetUser(ctx context.Context, id int64) (*models.User, error)
+	ListUsers(ctx context.Context, page, limit int32, filters map[string]interface{}) ([]*models.User, int64, error)
+	CreateUser(ctx context.Context, req *models.RegisterRequest) (*models.User, error)
+	UpdateUser(ctx context.Context, user *models.User) (*models.User, error)
+	UpdatePassword(ctx context.Context, email string, newPassword string) error
+	DeleteUser(ctx context.Context, id int64) error
+	Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error)
+	HealthCheck(ctx context.Context) error
+	GetUserByEmail(ctx context.Context, email string) (*models.User, error)
+	AddAddress(ctx context.Context, userID int64, address *models.UserAddress) (*models.UserAddress, error)
+	RefreshToken(ctx context.Context, refreshToken string) (*pb.RefreshTokenResponse, error)
+
+	Authenticate(ctx context.Context, email, password string) (*models.User, error)
+	UpdateRefreshTokenID(ctx context.Context, userID int64, refreshTokenID string) error
+	ValidateRefreshTokenID(ctx context.Context, userID int64, refreshTokenID string) (bool, error)
+	RotateRefreshTokenID(ctx context.Context, userID int64, oldRefreshTokenID, newRefreshTokenID string) error
 }
 
 func NewUserService(
@@ -42,7 +61,7 @@ func NewUserService(
 	cache *cache.UserCacheManager,
 	logger *zap.Logger,
 	rateLimiter RateLimiter,
-	tokenManager TokenManager,
+	tokenManager *JWTManager,
 ) *UserService {
 	repoWithLogger, ok := repo.(*repository.PostgresRepository)
 	if !ok {
@@ -56,6 +75,84 @@ func NewUserService(
 		tokenManager: tokenManager,
 		cacheManager: cache,
 	}
+}
+
+func (s *UserService) Authenticate(ctx context.Context, email, password string) (*models.User, error) {
+	s.logger.Info("Authenticating user", zap.String("email", email))
+
+	user, err := s.repo.GetUserByEmail(ctx, email)
+	if err != nil {
+		s.logger.Error("Failed to find user",
+			zap.String("email", email),
+			zap.Error(err))
+		return nil, status.Errorf(codes.NotFound, "user not found")
+	}
+
+	// Verify password
+	err = bcrypt.CompareHashAndPassword([]byte(user.HashedPassword), []byte(password))
+	if err != nil {
+		s.logger.Error("Password mismatch",
+			zap.String("email", email),
+			zap.Error(err))
+		return nil, status.Errorf(codes.Unauthenticated, "invalid credentials")
+	}
+
+	return user, nil
+}
+
+func (s *UserService) UpdateRefreshTokenID(ctx context.Context, userID int64, refreshTokenID string) error {
+	s.logger.Info("Updating refresh token ID", zap.Int64("userID", userID))
+
+	user, err := s.GetUser(ctx, userID)
+	if err != nil {
+		s.logger.Error("Failed to get user", zap.Int64("userID", userID), zap.Error(err))
+		return err
+	}
+
+	user.RefreshTokenID = refreshTokenID
+
+	if err := s.repo.UpdateUser(ctx, user); err != nil {
+		s.logger.Error("Failed to update user", zap.Int64("userID", userID), zap.Error(err))
+		return fmt.Errorf("failed to update user: %w", err)
+	}
+
+	return nil
+}
+
+func (s *UserService) ValidateRefreshTokenID(ctx context.Context, userID int64, refreshTokenID string) (bool, error) {
+	s.logger.Info("Validating refresh token ID", zap.Int64("userID", userID))
+
+	user, err := s.GetUser(ctx, userID)
+	if err != nil {
+		s.logger.Error("Failed to get user", zap.Int64("userID", userID), zap.Error(err))
+		return false, err
+	}
+
+	return user.RefreshTokenID == refreshTokenID, nil
+}
+
+func (s *UserService) RotateRefreshTokenID(ctx context.Context, userID int64, oldRefreshTokenID, newRefreshTokenID string) error {
+	s.logger.Info("Rotating refresh token ID", zap.Int64("userID", userID))
+
+	user, err := s.GetUser(ctx, userID)
+	if err != nil {
+		s.logger.Error("Failed to get user", zap.Int64("userID", userID), zap.Error(err))
+		return err
+	}
+
+	if user.RefreshTokenID != oldRefreshTokenID {
+		s.logger.Warn("Old refresh token ID does not match", zap.Int64("userID", userID))
+		return fmt.Errorf("old refresh token ID does not match")
+	}
+
+	user.RefreshTokenID = newRefreshTokenID
+
+	if err := s.repo.UpdateUser(ctx, user); err != nil {
+		s.logger.Error("Failed to update user", zap.Int64("userID", userID), zap.Error(err))
+		return fmt.Errorf("failed to update user: %w", err)
+	}
+
+	return nil
 }
 
 func (s *UserService) GetUser(ctx context.Context, id int64) (*models.User, error) {
@@ -224,7 +321,7 @@ func (s *UserService) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Logi
 	}
 
 	// Generate token pair
-	accessToken, _, refreshTokenCookie, err := s.tokenManager.GenerateTokenPair(user) // Ignore refreshToken string
+	accessToken, _, refreshTokenID, refreshTokenCookie, err := s.tokenManager.GenerateTokenPair(user) // Use blank identifier for refreshToken string
 	if err != nil {
 		s.logger.Error("Failed to generate tokens",
 			zap.String("email", req.Email),
@@ -232,10 +329,23 @@ func (s *UserService) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Logi
 		return nil, status.Errorf(codes.Internal, "failed to generate tokens")
 	}
 
+	// *** Store the new refresh token ID in the database ***
+	if err := s.repo.UpdateRefreshTokenID(ctx, user.UserID, refreshTokenID); err != nil {
+		s.logger.Error("Failed to store refresh token ID",
+			zap.Int64("userID", user.UserID),
+			zap.Error(err))
+		// Decide if this should be a fatal error for login. For now, log and continue.
+		// return nil, status.Errorf(codes.Internal, "failed to store refresh token state")
+	}
+
 	// Update last login
 	user.LastLogin = time.Now()
-	if err := s.repo.UpdateUser(ctx, user); err != nil {
-		s.logger.Error("Failed to update last login",
+	// Note: UpdateUser might overwrite RefreshTokenID if not careful.
+	// It's better to use UpdateRefreshTokenID separately or ensure UpdateUser handles it correctly.
+	// Since we already called UpdateRefreshTokenID, we might not need a full UpdateUser here
+	// unless other fields need updating during login. Let's keep it for now but be aware.
+	if err := s.repo.UpdateUser(ctx, user); err != nil { // Consider if this UpdateUser is still needed or if it conflicts
+		s.logger.Error("Failed to update last login/user details",
 			zap.String("email", req.Email),
 			zap.Error(err))
 		// Don't return error as login was successful
@@ -322,31 +432,42 @@ func (s *UserService) RefreshToken(ctx context.Context, refreshToken string) (*p
 	// Validate the refresh token
 	user, err := s.tokenManager.ValidateToken(refreshToken)
 	if err != nil {
-		return nil, status.Errorf(codes.Unauthenticated, "invalid refresh token")
+		s.logger.Error("Invalid refresh token provided", zap.Error(err))
+		return nil, status.Errorf(codes.Unauthenticated, "invalid or expired refresh token: %v", err)
 	}
 
-	// Generate new token pair
-	accessToken, newRefreshToken, _, err := s.tokenManager.GenerateTokenPair(user)
+	// Generate NEW token pair (this includes a new JTI)
+	accessToken, newRefreshTokenString, newRefreshTokenID, newRefreshTokenCookie, err := s.tokenManager.GenerateTokenPair(user)
 	if err != nil {
+		s.logger.Error("Failed to generate new token pair during refresh", zap.Int64("userID", user.UserID), zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to generate tokens: %v", err)
+	}
+
+	// *** Store the NEW refresh token ID, rotating the old one ***
+	if err := s.repo.UpdateRefreshTokenID(ctx, user.UserID, newRefreshTokenID); err != nil {
+		s.logger.Error("Failed to store new refresh token ID during refresh",
+			zap.Int64("userID", user.UserID),
+			zap.Error(err))
+		// This is critical. If we can't store the new ID, the user might be locked out after the old token expires.
+		return nil, status.Errorf(codes.Internal, "failed to update refresh token state")
 	}
 
 	// Prepare CookieInfo for the new refresh token
 	newCookieInfo := &pb.CookieInfo{
-		Name:     "refresh_token", // Assuming cookie name is standard
-		Value:    newRefreshToken,
-		MaxAge:   int32(s.tokenManager.GetRefreshTokenDuration().Seconds()), // Need a way to get duration from tokenManager
-		Path:     "/api/v1/users", // Path for refresh endpoint
-		Domain:   "", // Set domain appropriately in production
-		Secure:   true, // Should be true in production
-		HttpOnly: true,
+		Name:     newRefreshTokenCookie.Name, // Use the generated cookie details
+		Value:    newRefreshTokenString,      // Use the generated refresh token string
+		MaxAge:   int32(newRefreshTokenCookie.MaxAge),
+		Path:     newRefreshTokenCookie.Path,
+		Domain:   newRefreshTokenCookie.Domain,
+		Secure:   newRefreshTokenCookie.Secure,
+		HttpOnly: newRefreshTokenCookie.HttpOnly,
 	}
 
 	return &pb.RefreshTokenResponse{
 		Token:        accessToken,
-		User:         convertUserToProto(user), // Keep this one
-		Cookie:       newCookieInfo, // Add cookie info to response
-		// RefreshToken field is removed
+		User:         convertUserToProto(user),
+		Cookie:       newCookieInfo,
+		// RefreshToken field remains removed
 	}, nil
 }
 

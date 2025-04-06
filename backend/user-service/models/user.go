@@ -27,7 +27,8 @@ type User struct {
     CreatedAt      time.Time `json:"created_at" db:"created_at"`
     UpdatedAt      time.Time `json:"updated_at" db:"updated_at"`
     LastLogin      time.Time `json:"last_login" db:"last_login"`
-}
+    RefreshTokenID string    `json:"-" db:"refresh_token_id"` // JTI of the current valid refresh token
+   }
 
 type UserAddress struct {
     AddressID      int64     `json:"address_id"`

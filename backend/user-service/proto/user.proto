@@ -46,10 +46,10 @@ message RefreshTokenRequest {
 }
 
 message RefreshTokenResponse {
-    string token = 1; // New Access Token
-    // string refresh_token = 2; // Removed - Handled by cookie
+    string token = 1;
+    string refresh_token = 2;
     User user = 3;
-    CookieInfo cookie = 4; // New Refresh Token Cookie details
+    CookieInfo cookie = 4;
 }
 // User related messages
 message User {
@@ -123,12 +123,22 @@ message LoginRequest {
     string email = 1;
     string password = 2;
 }
-
 message LoginResponse {
     string token = 1; // Access Token
-    // string refresh_token = 2; // Removed - Handled by cookie
+    string refresh_token = 2;
     User user = 3;
     CookieInfo cookie = 4; // Refresh Token Cookie details
+}
+
+message Cookie {
+    string name = 1;
+    string value = 2;
+    int32 max_age = 3;
+    string path = 4;
+    string domain = 5;
+    bool secure = 6;
+    bool http_only = 7;
+    string samesite = 8;
 }
 
 message CookieInfo {

@@ -659,5 +659,30 @@ func (r *PostgresRepository) UpdatePreferences(ctx context.Context, prefs *model
 	).Scan(&prefs.UpdatedAt)
 }
 
+// UpdateRefreshTokenID updates the refresh token ID for a given user.
+func (r *PostgresRepository) UpdateRefreshTokenID(ctx context.Context, userID int64, refreshTokenID string) error {
+	query := `
+		UPDATE users
+		SET refresh_token_id = $1, updated_at = $2
+		WHERE user_id = $3`
 
+	result, err := r.db.ExecContext(ctx, query, refreshTokenID, time.Now(), userID)
+	if err != nil {
+		r.Logger.Error("Failed to update refresh token ID", zap.Int64("userID", userID), zap.Error(err))
+		return fmt.Errorf("failed to update refresh token ID: %w", err)
+	}
 
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		r.Logger.Error("Failed to get rows affected after updating refresh token ID", zap.Int64("userID", userID), zap.Error(err))
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		r.Logger.Warn("No user found to update refresh token ID", zap.Int64("userID", userID))
+		return fmt.Errorf("user not found")
+	}
+
+	r.Logger.Info("Successfully updated refresh token ID", zap.Int64("userID", userID), zap.String("refreshTokenID", refreshTokenID))
+	return nil
+}

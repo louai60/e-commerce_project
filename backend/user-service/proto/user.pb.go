@@ -119,11 +119,11 @@ func (x *RefreshTokenRequest) GetRefreshToken() string {
 }
 
 type RefreshTokenResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	Token string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"` // New Access Token
-	// string refresh_token = 2; // Removed - Handled by cookie
-	User          *User       `protobuf:"bytes,3,opt,name=user,proto3" json:"user,omitempty"`
-	Cookie        *CookieInfo `protobuf:"bytes,4,opt,name=cookie,proto3" json:"cookie,omitempty"` // New Refresh Token Cookie details
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+	RefreshToken  string                 `protobuf:"bytes,2,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
+	User          *User                  `protobuf:"bytes,3,opt,name=user,proto3" json:"user,omitempty"`
+	Cookie        *CookieInfo            `protobuf:"bytes,4,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -161,6 +161,13 @@ func (*RefreshTokenResponse) Descriptor() ([]byte, []int) {
 func (x *RefreshTokenResponse) GetToken() string {
 	if x != nil {
 		return x.Token
+	}
+	return ""
+}
+
+func (x *RefreshTokenResponse) GetRefreshToken() string {
+	if x != nil {
+		return x.RefreshToken
 	}
 	return ""
 }
@@ -862,11 +869,11 @@ func (x *LoginRequest) GetPassword() string {
 }
 
 type LoginResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	Token string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"` // Access Token
-	// string refresh_token = 2; // Removed - Handled by cookie
-	User          *User       `protobuf:"bytes,3,opt,name=user,proto3" json:"user,omitempty"`
-	Cookie        *CookieInfo `protobuf:"bytes,4,opt,name=cookie,proto3" json:"cookie,omitempty"` // Refresh Token Cookie details
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"` // Access Token
+	RefreshToken  string                 `protobuf:"bytes,2,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
+	User          *User                  `protobuf:"bytes,3,opt,name=user,proto3" json:"user,omitempty"`
+	Cookie        *CookieInfo            `protobuf:"bytes,4,opt,name=cookie,proto3" json:"cookie,omitempty"` // Refresh Token Cookie details
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -908,6 +915,13 @@ func (x *LoginResponse) GetToken() string {
 	return ""
 }
 
+func (x *LoginResponse) GetRefreshToken() string {
+	if x != nil {
+		return x.RefreshToken
+	}
+	return ""
+}
+
 func (x *LoginResponse) GetUser() *User {
 	if x != nil {
 		return x.User
@@ -920,6 +934,106 @@ func (x *LoginResponse) GetCookie() *CookieInfo {
 		return x.Cookie
 	}
 	return nil
+}
+
+type Cookie struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Value         string                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	MaxAge        int32                  `protobuf:"varint,3,opt,name=max_age,json=maxAge,proto3" json:"max_age,omitempty"`
+	Path          string                 `protobuf:"bytes,4,opt,name=path,proto3" json:"path,omitempty"`
+	Domain        string                 `protobuf:"bytes,5,opt,name=domain,proto3" json:"domain,omitempty"`
+	Secure        bool                   `protobuf:"varint,6,opt,name=secure,proto3" json:"secure,omitempty"`
+	HttpOnly      bool                   `protobuf:"varint,7,opt,name=http_only,json=httpOnly,proto3" json:"http_only,omitempty"`
+	Samesite      string                 `protobuf:"bytes,8,opt,name=samesite,proto3" json:"samesite,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Cookie) Reset() {
+	*x = Cookie{}
+	mi := &file_proto_user_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Cookie) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Cookie) ProtoMessage() {}
+
+func (x *Cookie) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Cookie.ProtoReflect.Descriptor instead.
+func (*Cookie) Descriptor() ([]byte, []int) {
+	return file_proto_user_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *Cookie) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Cookie) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+func (x *Cookie) GetMaxAge() int32 {
+	if x != nil {
+		return x.MaxAge
+	}
+	return 0
+}
+
+func (x *Cookie) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *Cookie) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+func (x *Cookie) GetSecure() bool {
+	if x != nil {
+		return x.Secure
+	}
+	return false
+}
+
+func (x *Cookie) GetHttpOnly() bool {
+	if x != nil {
+		return x.HttpOnly
+	}
+	return false
+}
+
+func (x *Cookie) GetSamesite() string {
+	if x != nil {
+		return x.Samesite
+	}
+	return ""
 }
 
 type CookieInfo struct {
@@ -937,7 +1051,7 @@ type CookieInfo struct {
 
 func (x *CookieInfo) Reset() {
 	*x = CookieInfo{}
-	mi := &file_proto_user_proto_msgTypes[14]
+	mi := &file_proto_user_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -949,7 +1063,7 @@ func (x *CookieInfo) String() string {
 func (*CookieInfo) ProtoMessage() {}
 
 func (x *CookieInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_proto_msgTypes[14]
+	mi := &file_proto_user_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -962,7 +1076,7 @@ func (x *CookieInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CookieInfo.ProtoReflect.Descriptor instead.
 func (*CookieInfo) Descriptor() ([]byte, []int) {
-	return file_proto_user_proto_rawDescGZIP(), []int{14}
+	return file_proto_user_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *CookieInfo) GetName() string {
@@ -1035,7 +1149,7 @@ type Address struct {
 
 func (x *Address) Reset() {
 	*x = Address{}
-	mi := &file_proto_user_proto_msgTypes[15]
+	mi := &file_proto_user_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1047,7 +1161,7 @@ func (x *Address) String() string {
 func (*Address) ProtoMessage() {}
 
 func (x *Address) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_proto_msgTypes[15]
+	mi := &file_proto_user_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1060,7 +1174,7 @@ func (x *Address) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Address.ProtoReflect.Descriptor instead.
 func (*Address) Descriptor() ([]byte, []int) {
-	return file_proto_user_proto_rawDescGZIP(), []int{15}
+	return file_proto_user_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *Address) GetAddressId() int64 {
@@ -1164,7 +1278,7 @@ type AddAddressRequest struct {
 
 func (x *AddAddressRequest) Reset() {
 	*x = AddAddressRequest{}
-	mi := &file_proto_user_proto_msgTypes[16]
+	mi := &file_proto_user_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1176,7 +1290,7 @@ func (x *AddAddressRequest) String() string {
 func (*AddAddressRequest) ProtoMessage() {}
 
 func (x *AddAddressRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_proto_msgTypes[16]
+	mi := &file_proto_user_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1189,7 +1303,7 @@ func (x *AddAddressRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddAddressRequest.ProtoReflect.Descriptor instead.
 func (*AddAddressRequest) Descriptor() ([]byte, []int) {
-	return file_proto_user_proto_rawDescGZIP(), []int{16}
+	return file_proto_user_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *AddAddressRequest) GetUserId() int64 {
@@ -1264,7 +1378,7 @@ type AddressResponse struct {
 
 func (x *AddressResponse) Reset() {
 	*x = AddressResponse{}
-	mi := &file_proto_user_proto_msgTypes[17]
+	mi := &file_proto_user_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1276,7 +1390,7 @@ func (x *AddressResponse) String() string {
 func (*AddressResponse) ProtoMessage() {}
 
 func (x *AddressResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_proto_msgTypes[17]
+	mi := &file_proto_user_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1289,7 +1403,7 @@ func (x *AddressResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddressResponse.ProtoReflect.Descriptor instead.
 func (*AddressResponse) Descriptor() ([]byte, []int) {
-	return file_proto_user_proto_rawDescGZIP(), []int{17}
+	return file_proto_user_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *AddressResponse) GetAddress() *Address {
@@ -1308,7 +1422,7 @@ type GetAddressesRequest struct {
 
 func (x *GetAddressesRequest) Reset() {
 	*x = GetAddressesRequest{}
-	mi := &file_proto_user_proto_msgTypes[18]
+	mi := &file_proto_user_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1320,7 +1434,7 @@ func (x *GetAddressesRequest) String() string {
 func (*GetAddressesRequest) ProtoMessage() {}
 
 func (x *GetAddressesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_proto_msgTypes[18]
+	mi := &file_proto_user_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1333,7 +1447,7 @@ func (x *GetAddressesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAddressesRequest.ProtoReflect.Descriptor instead.
 func (*GetAddressesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_user_proto_rawDescGZIP(), []int{18}
+	return file_proto_user_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *GetAddressesRequest) GetUserId() int64 {
@@ -1352,7 +1466,7 @@ type AddressListResponse struct {
 
 func (x *AddressListResponse) Reset() {
 	*x = AddressListResponse{}
-	mi := &file_proto_user_proto_msgTypes[19]
+	mi := &file_proto_user_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1364,7 +1478,7 @@ func (x *AddressListResponse) String() string {
 func (*AddressListResponse) ProtoMessage() {}
 
 func (x *AddressListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_proto_msgTypes[19]
+	mi := &file_proto_user_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1377,7 +1491,7 @@ func (x *AddressListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddressListResponse.ProtoReflect.Descriptor instead.
 func (*AddressListResponse) Descriptor() ([]byte, []int) {
-	return file_proto_user_proto_rawDescGZIP(), []int{19}
+	return file_proto_user_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *AddressListResponse) GetAddresses() []*Address {
@@ -1405,7 +1519,7 @@ type UpdateAddressRequest struct {
 
 func (x *UpdateAddressRequest) Reset() {
 	*x = UpdateAddressRequest{}
-	mi := &file_proto_user_proto_msgTypes[20]
+	mi := &file_proto_user_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1417,7 +1531,7 @@ func (x *UpdateAddressRequest) String() string {
 func (*UpdateAddressRequest) ProtoMessage() {}
 
 func (x *UpdateAddressRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_proto_msgTypes[20]
+	mi := &file_proto_user_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1430,7 +1544,7 @@ func (x *UpdateAddressRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateAddressRequest.ProtoReflect.Descriptor instead.
 func (*UpdateAddressRequest) Descriptor() ([]byte, []int) {
-	return file_proto_user_proto_rawDescGZIP(), []int{20}
+	return file_proto_user_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *UpdateAddressRequest) GetAddressId() int64 {
@@ -1513,7 +1627,7 @@ type DeleteAddressRequest struct {
 
 func (x *DeleteAddressRequest) Reset() {
 	*x = DeleteAddressRequest{}
-	mi := &file_proto_user_proto_msgTypes[21]
+	mi := &file_proto_user_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1525,7 +1639,7 @@ func (x *DeleteAddressRequest) String() string {
 func (*DeleteAddressRequest) ProtoMessage() {}
 
 func (x *DeleteAddressRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_proto_msgTypes[21]
+	mi := &file_proto_user_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1538,7 +1652,7 @@ func (x *DeleteAddressRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteAddressRequest.ProtoReflect.Descriptor instead.
 func (*DeleteAddressRequest) Descriptor() ([]byte, []int) {
-	return file_proto_user_proto_rawDescGZIP(), []int{21}
+	return file_proto_user_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *DeleteAddressRequest) GetAddressId() int64 {
@@ -1575,7 +1689,7 @@ type PaymentMethod struct {
 
 func (x *PaymentMethod) Reset() {
 	*x = PaymentMethod{}
-	mi := &file_proto_user_proto_msgTypes[22]
+	mi := &file_proto_user_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1587,7 +1701,7 @@ func (x *PaymentMethod) String() string {
 func (*PaymentMethod) ProtoMessage() {}
 
 func (x *PaymentMethod) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_proto_msgTypes[22]
+	mi := &file_proto_user_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1600,7 +1714,7 @@ func (x *PaymentMethod) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PaymentMethod.ProtoReflect.Descriptor instead.
 func (*PaymentMethod) Descriptor() ([]byte, []int) {
-	return file_proto_user_proto_rawDescGZIP(), []int{22}
+	return file_proto_user_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *PaymentMethod) GetPaymentMethodId() int64 {
@@ -1696,7 +1810,7 @@ type AddPaymentMethodRequest struct {
 
 func (x *AddPaymentMethodRequest) Reset() {
 	*x = AddPaymentMethodRequest{}
-	mi := &file_proto_user_proto_msgTypes[23]
+	mi := &file_proto_user_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1708,7 +1822,7 @@ func (x *AddPaymentMethodRequest) String() string {
 func (*AddPaymentMethodRequest) ProtoMessage() {}
 
 func (x *AddPaymentMethodRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_proto_msgTypes[23]
+	mi := &file_proto_user_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1721,7 +1835,7 @@ func (x *AddPaymentMethodRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddPaymentMethodRequest.ProtoReflect.Descriptor instead.
 func (*AddPaymentMethodRequest) Descriptor() ([]byte, []int) {
-	return file_proto_user_proto_rawDescGZIP(), []int{23}
+	return file_proto_user_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *AddPaymentMethodRequest) GetUserId() int64 {
@@ -1789,7 +1903,7 @@ type PaymentMethodResponse struct {
 
 func (x *PaymentMethodResponse) Reset() {
 	*x = PaymentMethodResponse{}
-	mi := &file_proto_user_proto_msgTypes[24]
+	mi := &file_proto_user_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1801,7 +1915,7 @@ func (x *PaymentMethodResponse) String() string {
 func (*PaymentMethodResponse) ProtoMessage() {}
 
 func (x *PaymentMethodResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_proto_msgTypes[24]
+	mi := &file_proto_user_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1814,7 +1928,7 @@ func (x *PaymentMethodResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PaymentMethodResponse.ProtoReflect.Descriptor instead.
 func (*PaymentMethodResponse) Descriptor() ([]byte, []int) {
-	return file_proto_user_proto_rawDescGZIP(), []int{24}
+	return file_proto_user_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *PaymentMethodResponse) GetPaymentMethod() *PaymentMethod {
@@ -1833,7 +1947,7 @@ type GetPaymentMethodsRequest struct {
 
 func (x *GetPaymentMethodsRequest) Reset() {
 	*x = GetPaymentMethodsRequest{}
-	mi := &file_proto_user_proto_msgTypes[25]
+	mi := &file_proto_user_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1845,7 +1959,7 @@ func (x *GetPaymentMethodsRequest) String() string {
 func (*GetPaymentMethodsRequest) ProtoMessage() {}
 
 func (x *GetPaymentMethodsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_proto_msgTypes[25]
+	mi := &file_proto_user_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1858,7 +1972,7 @@ func (x *GetPaymentMethodsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPaymentMethodsRequest.ProtoReflect.Descriptor instead.
 func (*GetPaymentMethodsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_user_proto_rawDescGZIP(), []int{25}
+	return file_proto_user_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *GetPaymentMethodsRequest) GetUserId() int64 {
@@ -1877,7 +1991,7 @@ type PaymentMethodListResponse struct {
 
 func (x *PaymentMethodListResponse) Reset() {
 	*x = PaymentMethodListResponse{}
-	mi := &file_proto_user_proto_msgTypes[26]
+	mi := &file_proto_user_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1889,7 +2003,7 @@ func (x *PaymentMethodListResponse) String() string {
 func (*PaymentMethodListResponse) ProtoMessage() {}
 
 func (x *PaymentMethodListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_proto_msgTypes[26]
+	mi := &file_proto_user_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1902,7 +2016,7 @@ func (x *PaymentMethodListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PaymentMethodListResponse.ProtoReflect.Descriptor instead.
 func (*PaymentMethodListResponse) Descriptor() ([]byte, []int) {
-	return file_proto_user_proto_rawDescGZIP(), []int{26}
+	return file_proto_user_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *PaymentMethodListResponse) GetPaymentMethods() []*PaymentMethod {
@@ -1925,7 +2039,7 @@ type UpdatePaymentMethodRequest struct {
 
 func (x *UpdatePaymentMethodRequest) Reset() {
 	*x = UpdatePaymentMethodRequest{}
-	mi := &file_proto_user_proto_msgTypes[27]
+	mi := &file_proto_user_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1937,7 +2051,7 @@ func (x *UpdatePaymentMethodRequest) String() string {
 func (*UpdatePaymentMethodRequest) ProtoMessage() {}
 
 func (x *UpdatePaymentMethodRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_proto_msgTypes[27]
+	mi := &file_proto_user_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1950,7 +2064,7 @@ func (x *UpdatePaymentMethodRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdatePaymentMethodRequest.ProtoReflect.Descriptor instead.
 func (*UpdatePaymentMethodRequest) Descriptor() ([]byte, []int) {
-	return file_proto_user_proto_rawDescGZIP(), []int{27}
+	return file_proto_user_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *UpdatePaymentMethodRequest) GetPaymentMethodId() int64 {
@@ -1998,7 +2112,7 @@ type DeletePaymentMethodRequest struct {
 
 func (x *DeletePaymentMethodRequest) Reset() {
 	*x = DeletePaymentMethodRequest{}
-	mi := &file_proto_user_proto_msgTypes[28]
+	mi := &file_proto_user_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2010,7 +2124,7 @@ func (x *DeletePaymentMethodRequest) String() string {
 func (*DeletePaymentMethodRequest) ProtoMessage() {}
 
 func (x *DeletePaymentMethodRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_proto_msgTypes[28]
+	mi := &file_proto_user_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2023,7 +2137,7 @@ func (x *DeletePaymentMethodRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeletePaymentMethodRequest.ProtoReflect.Descriptor instead.
 func (*DeletePaymentMethodRequest) Descriptor() ([]byte, []int) {
-	return file_proto_user_proto_rawDescGZIP(), []int{28}
+	return file_proto_user_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *DeletePaymentMethodRequest) GetPaymentMethodId() int64 {
@@ -2049,7 +2163,7 @@ type HealthCheckRequest struct {
 
 func (x *HealthCheckRequest) Reset() {
 	*x = HealthCheckRequest{}
-	mi := &file_proto_user_proto_msgTypes[29]
+	mi := &file_proto_user_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2061,7 +2175,7 @@ func (x *HealthCheckRequest) String() string {
 func (*HealthCheckRequest) ProtoMessage() {}
 
 func (x *HealthCheckRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_proto_msgTypes[29]
+	mi := &file_proto_user_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2074,7 +2188,7 @@ func (x *HealthCheckRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthCheckRequest.ProtoReflect.Descriptor instead.
 func (*HealthCheckRequest) Descriptor() ([]byte, []int) {
-	return file_proto_user_proto_rawDescGZIP(), []int{29}
+	return file_proto_user_proto_rawDescGZIP(), []int{30}
 }
 
 type HealthCheckResponse struct {
@@ -2086,7 +2200,7 @@ type HealthCheckResponse struct {
 
 func (x *HealthCheckResponse) Reset() {
 	*x = HealthCheckResponse{}
-	mi := &file_proto_user_proto_msgTypes[30]
+	mi := &file_proto_user_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2098,7 +2212,7 @@ func (x *HealthCheckResponse) String() string {
 func (*HealthCheckResponse) ProtoMessage() {}
 
 func (x *HealthCheckResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_proto_msgTypes[30]
+	mi := &file_proto_user_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2111,7 +2225,7 @@ func (x *HealthCheckResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthCheckResponse.ProtoReflect.Descriptor instead.
 func (*HealthCheckResponse) Descriptor() ([]byte, []int) {
-	return file_proto_user_proto_rawDescGZIP(), []int{30}
+	return file_proto_user_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *HealthCheckResponse) GetStatus() string {
@@ -2130,9 +2244,10 @@ const file_proto_user_proto_rawDesc = "" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\":\n" +
 	"\x13RefreshTokenRequest\x12#\n" +
-	"\rrefresh_token\x18\x01 \x01(\tR\frefreshToken\"v\n" +
+	"\rrefresh_token\x18\x01 \x01(\tR\frefreshToken\"\x9b\x01\n" +
 	"\x14RefreshTokenResponse\x12\x14\n" +
-	"\x05token\x18\x01 \x01(\tR\x05token\x12\x1e\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\x12#\n" +
+	"\rrefresh_token\x18\x02 \x01(\tR\frefreshToken\x12\x1e\n" +
 	"\x04user\x18\x03 \x01(\v2\n" +
 	".user.UserR\x04user\x12(\n" +
 	"\x06cookie\x18\x04 \x01(\v2\x10.user.CookieInfoR\x06cookie\"\xb3\x03\n" +
@@ -2194,12 +2309,22 @@ const file_proto_user_proto_rawDesc = "" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\"@\n" +
 	"\fLoginRequest\x12\x14\n" +
 	"\x05email\x18\x01 \x01(\tR\x05email\x12\x1a\n" +
-	"\bpassword\x18\x02 \x01(\tR\bpassword\"o\n" +
+	"\bpassword\x18\x02 \x01(\tR\bpassword\"\x94\x01\n" +
 	"\rLoginResponse\x12\x14\n" +
-	"\x05token\x18\x01 \x01(\tR\x05token\x12\x1e\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\x12#\n" +
+	"\rrefresh_token\x18\x02 \x01(\tR\frefreshToken\x12\x1e\n" +
 	"\x04user\x18\x03 \x01(\v2\n" +
 	".user.UserR\x04user\x12(\n" +
-	"\x06cookie\x18\x04 \x01(\v2\x10.user.CookieInfoR\x06cookie\"\xb0\x01\n" +
+	"\x06cookie\x18\x04 \x01(\v2\x10.user.CookieInfoR\x06cookie\"\xc8\x01\n" +
+	"\x06Cookie\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value\x12\x17\n" +
+	"\amax_age\x18\x03 \x01(\x05R\x06maxAge\x12\x12\n" +
+	"\x04path\x18\x04 \x01(\tR\x04path\x12\x16\n" +
+	"\x06domain\x18\x05 \x01(\tR\x06domain\x12\x16\n" +
+	"\x06secure\x18\x06 \x01(\bR\x06secure\x12\x1b\n" +
+	"\thttp_only\x18\a \x01(\bR\bhttpOnly\x12\x1a\n" +
+	"\bsamesite\x18\b \x01(\tR\bsamesite\"\xb0\x01\n" +
 	"\n" +
 	"CookieInfo\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
@@ -2347,7 +2472,7 @@ func file_proto_user_proto_rawDescGZIP() []byte {
 	return file_proto_user_proto_rawDescData
 }
 
-var file_proto_user_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
+var file_proto_user_proto_msgTypes = make([]protoimpl.MessageInfo, 32)
 var file_proto_user_proto_goTypes = []any{
 	(*DeleteResponse)(nil),             // 0: user.DeleteResponse
 	(*RefreshTokenRequest)(nil),        // 1: user.RefreshTokenRequest
@@ -2363,35 +2488,36 @@ var file_proto_user_proto_goTypes = []any{
 	(*DeleteUserRequest)(nil),          // 11: user.DeleteUserRequest
 	(*LoginRequest)(nil),               // 12: user.LoginRequest
 	(*LoginResponse)(nil),              // 13: user.LoginResponse
-	(*CookieInfo)(nil),                 // 14: user.CookieInfo
-	(*Address)(nil),                    // 15: user.Address
-	(*AddAddressRequest)(nil),          // 16: user.AddAddressRequest
-	(*AddressResponse)(nil),            // 17: user.AddressResponse
-	(*GetAddressesRequest)(nil),        // 18: user.GetAddressesRequest
-	(*AddressListResponse)(nil),        // 19: user.AddressListResponse
-	(*UpdateAddressRequest)(nil),       // 20: user.UpdateAddressRequest
-	(*DeleteAddressRequest)(nil),       // 21: user.DeleteAddressRequest
-	(*PaymentMethod)(nil),              // 22: user.PaymentMethod
-	(*AddPaymentMethodRequest)(nil),    // 23: user.AddPaymentMethodRequest
-	(*PaymentMethodResponse)(nil),      // 24: user.PaymentMethodResponse
-	(*GetPaymentMethodsRequest)(nil),   // 25: user.GetPaymentMethodsRequest
-	(*PaymentMethodListResponse)(nil),  // 26: user.PaymentMethodListResponse
-	(*UpdatePaymentMethodRequest)(nil), // 27: user.UpdatePaymentMethodRequest
-	(*DeletePaymentMethodRequest)(nil), // 28: user.DeletePaymentMethodRequest
-	(*HealthCheckRequest)(nil),         // 29: user.HealthCheckRequest
-	(*HealthCheckResponse)(nil),        // 30: user.HealthCheckResponse
+	(*Cookie)(nil),                     // 14: user.Cookie
+	(*CookieInfo)(nil),                 // 15: user.CookieInfo
+	(*Address)(nil),                    // 16: user.Address
+	(*AddAddressRequest)(nil),          // 17: user.AddAddressRequest
+	(*AddressResponse)(nil),            // 18: user.AddressResponse
+	(*GetAddressesRequest)(nil),        // 19: user.GetAddressesRequest
+	(*AddressListResponse)(nil),        // 20: user.AddressListResponse
+	(*UpdateAddressRequest)(nil),       // 21: user.UpdateAddressRequest
+	(*DeleteAddressRequest)(nil),       // 22: user.DeleteAddressRequest
+	(*PaymentMethod)(nil),              // 23: user.PaymentMethod
+	(*AddPaymentMethodRequest)(nil),    // 24: user.AddPaymentMethodRequest
+	(*PaymentMethodResponse)(nil),      // 25: user.PaymentMethodResponse
+	(*GetPaymentMethodsRequest)(nil),   // 26: user.GetPaymentMethodsRequest
+	(*PaymentMethodListResponse)(nil),  // 27: user.PaymentMethodListResponse
+	(*UpdatePaymentMethodRequest)(nil), // 28: user.UpdatePaymentMethodRequest
+	(*DeletePaymentMethodRequest)(nil), // 29: user.DeletePaymentMethodRequest
+	(*HealthCheckRequest)(nil),         // 30: user.HealthCheckRequest
+	(*HealthCheckResponse)(nil),        // 31: user.HealthCheckResponse
 }
 var file_proto_user_proto_depIdxs = []int32{
 	3,  // 0: user.RefreshTokenResponse.user:type_name -> user.User
-	14, // 1: user.RefreshTokenResponse.cookie:type_name -> user.CookieInfo
+	15, // 1: user.RefreshTokenResponse.cookie:type_name -> user.CookieInfo
 	3,  // 2: user.UserResponse.user:type_name -> user.User
 	3,  // 3: user.ListUsersResponse.users:type_name -> user.User
 	3,  // 4: user.LoginResponse.user:type_name -> user.User
-	14, // 5: user.LoginResponse.cookie:type_name -> user.CookieInfo
-	15, // 6: user.AddressResponse.address:type_name -> user.Address
-	15, // 7: user.AddressListResponse.addresses:type_name -> user.Address
-	22, // 8: user.PaymentMethodResponse.payment_method:type_name -> user.PaymentMethod
-	22, // 9: user.PaymentMethodListResponse.payment_methods:type_name -> user.PaymentMethod
+	15, // 5: user.LoginResponse.cookie:type_name -> user.CookieInfo
+	16, // 6: user.AddressResponse.address:type_name -> user.Address
+	16, // 7: user.AddressListResponse.addresses:type_name -> user.Address
+	23, // 8: user.PaymentMethodResponse.payment_method:type_name -> user.PaymentMethod
+	23, // 9: user.PaymentMethodListResponse.payment_methods:type_name -> user.PaymentMethod
 	4,  // 10: user.UserService.CreateUser:input_type -> user.CreateUserRequest
 	6,  // 11: user.UserService.GetUser:input_type -> user.GetUserRequest
 	8,  // 12: user.UserService.ListUsers:input_type -> user.ListUsersRequest
@@ -2400,15 +2526,15 @@ var file_proto_user_proto_depIdxs = []int32{
 	7,  // 15: user.UserService.GetUserByEmail:input_type -> user.GetUserByEmailRequest
 	12, // 16: user.UserService.Login:input_type -> user.LoginRequest
 	1,  // 17: user.UserService.RefreshToken:input_type -> user.RefreshTokenRequest
-	16, // 18: user.UserService.AddAddress:input_type -> user.AddAddressRequest
-	18, // 19: user.UserService.GetAddresses:input_type -> user.GetAddressesRequest
-	20, // 20: user.UserService.UpdateAddress:input_type -> user.UpdateAddressRequest
-	21, // 21: user.UserService.DeleteAddress:input_type -> user.DeleteAddressRequest
-	23, // 22: user.UserService.AddPaymentMethod:input_type -> user.AddPaymentMethodRequest
-	25, // 23: user.UserService.GetPaymentMethods:input_type -> user.GetPaymentMethodsRequest
-	27, // 24: user.UserService.UpdatePaymentMethod:input_type -> user.UpdatePaymentMethodRequest
-	28, // 25: user.UserService.DeletePaymentMethod:input_type -> user.DeletePaymentMethodRequest
-	29, // 26: user.UserService.HealthCheck:input_type -> user.HealthCheckRequest
+	17, // 18: user.UserService.AddAddress:input_type -> user.AddAddressRequest
+	19, // 19: user.UserService.GetAddresses:input_type -> user.GetAddressesRequest
+	21, // 20: user.UserService.UpdateAddress:input_type -> user.UpdateAddressRequest
+	22, // 21: user.UserService.DeleteAddress:input_type -> user.DeleteAddressRequest
+	24, // 22: user.UserService.AddPaymentMethod:input_type -> user.AddPaymentMethodRequest
+	26, // 23: user.UserService.GetPaymentMethods:input_type -> user.GetPaymentMethodsRequest
+	28, // 24: user.UserService.UpdatePaymentMethod:input_type -> user.UpdatePaymentMethodRequest
+	29, // 25: user.UserService.DeletePaymentMethod:input_type -> user.DeletePaymentMethodRequest
+	30, // 26: user.UserService.HealthCheck:input_type -> user.HealthCheckRequest
 	5,  // 27: user.UserService.CreateUser:output_type -> user.UserResponse
 	5,  // 28: user.UserService.GetUser:output_type -> user.UserResponse
 	9,  // 29: user.UserService.ListUsers:output_type -> user.ListUsersResponse
@@ -2417,15 +2543,15 @@ var file_proto_user_proto_depIdxs = []int32{
 	5,  // 32: user.UserService.GetUserByEmail:output_type -> user.UserResponse
 	13, // 33: user.UserService.Login:output_type -> user.LoginResponse
 	2,  // 34: user.UserService.RefreshToken:output_type -> user.RefreshTokenResponse
-	17, // 35: user.UserService.AddAddress:output_type -> user.AddressResponse
-	19, // 36: user.UserService.GetAddresses:output_type -> user.AddressListResponse
-	17, // 37: user.UserService.UpdateAddress:output_type -> user.AddressResponse
+	18, // 35: user.UserService.AddAddress:output_type -> user.AddressResponse
+	20, // 36: user.UserService.GetAddresses:output_type -> user.AddressListResponse
+	18, // 37: user.UserService.UpdateAddress:output_type -> user.AddressResponse
 	0,  // 38: user.UserService.DeleteAddress:output_type -> user.DeleteResponse
-	24, // 39: user.UserService.AddPaymentMethod:output_type -> user.PaymentMethodResponse
-	26, // 40: user.UserService.GetPaymentMethods:output_type -> user.PaymentMethodListResponse
-	24, // 41: user.UserService.UpdatePaymentMethod:output_type -> user.PaymentMethodResponse
+	25, // 39: user.UserService.AddPaymentMethod:output_type -> user.PaymentMethodResponse
+	27, // 40: user.UserService.GetPaymentMethods:output_type -> user.PaymentMethodListResponse
+	25, // 41: user.UserService.UpdatePaymentMethod:output_type -> user.PaymentMethodResponse
 	0,  // 42: user.UserService.DeletePaymentMethod:output_type -> user.DeleteResponse
-	30, // 43: user.UserService.HealthCheck:output_type -> user.HealthCheckResponse
+	31, // 43: user.UserService.HealthCheck:output_type -> user.HealthCheckResponse
 	27, // [27:44] is the sub-list for method output_type
 	10, // [10:27] is the sub-list for method input_type
 	10, // [10:10] is the sub-list for extension type_name
@@ -2444,7 +2570,7 @@ func file_proto_user_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_user_proto_rawDesc), len(file_proto_user_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   31,
+			NumMessages:   32,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -211,6 +211,8 @@ func main() {
 		publicKeyPath,
 		accessTokenDuration,
 		refreshTokenDuration,
+		repo,   // Pass the repository
+		logger, // Pass the logger
 	)
 	if err != nil {
 		logger.Fatal("Failed to initialize JWT manager", zap.Error(err))
