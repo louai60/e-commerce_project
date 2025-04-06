@@ -204,23 +204,40 @@ func (h *UserHandler) RefreshToken(ctx context.Context, req *pb.RefreshTokenRequ
 
 	// Extract claims from the refresh token
 	claims := jwt.MapClaims{}
-	// Use the new GetPublicKey method
 	publicKey, err := h.tokenManager.GetPublicKey()
 	if err != nil {
 		h.logger.Error("Failed to get public key for token validation", zap.Error(err))
 		return nil, status.Error(codes.Internal, "token validation setup error")
 	}
+
 	token, err := jwt.ParseWithClaims(req.RefreshToken, &claims, func(token *jwt.Token) (interface{}, error) {
-		// Validate the alg is what you expect:
 		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 		return publicKey, nil
 	})
 
-	if err != nil || !token.Valid {
+	// Explicit expiration check
+	if err != nil {
+		if ve, ok := err.(*jwt.ValidationError); ok {
+			if ve.Errors&jwt.ValidationErrorExpired != 0 {
+				h.logger.Warn("Refresh token has expired")
+				return nil, status.Error(codes.Unauthenticated, "refresh token has expired")
+			}
+		}
 		h.logger.Error("Invalid refresh token", zap.Error(err))
 		return nil, status.Error(codes.Unauthenticated, "invalid refresh token")
+	}
+
+	if !token.Valid {
+		h.logger.Error("Token validation failed")
+		return nil, status.Error(codes.Unauthenticated, "invalid refresh token")
+	}
+
+	// Double-check expiration explicitly
+	if exp, ok := claims["exp"].(float64); !ok || float64(time.Now().Unix()) > exp {
+		h.logger.Warn("Refresh token has expired (manual check)")
+		return nil, status.Error(codes.Unauthenticated, "refresh token has expired")
 	}
 
 	// Ensure user_id claim is treated as float64 as per standard JWT number encoding, then convert to int64

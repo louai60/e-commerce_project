@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt"
@@ -96,57 +97,54 @@ func validateToken(tokenString string, publicKey *rsa.PublicKey) (jwt.MapClaims,
 		return publicKey, nil
 	})
 
-    if err != nil {
-        // Handle specific validation errors
-        if ve, ok := err.(*jwt.ValidationError); ok {
-            if ve.Errors&jwt.ValidationErrorMalformed != 0 {
-                return nil, fmt.Errorf("malformed token")
-            } else if ve.Errors&jwt.ValidationErrorExpired != 0 {
-                // Token is expired
-                return nil, fmt.Errorf("token has expired")
-            } else if ve.Errors&jwt.ValidationErrorNotValidYet != 0 {
-                // Token not active yet
-                return nil, fmt.Errorf("token not active yet")
-            } else {
-                return nil, fmt.Errorf("couldn't handle this token: %w", err)
-            }
-        }
-        // Other parsing errors
-        return nil, fmt.Errorf("couldn't parse token: %w", err)
-    }
+	if err != nil {
+		// Explicit expiration check
+		if ve, ok := err.(*jwt.ValidationError); ok {
+			if ve.Errors&jwt.ValidationErrorExpired != 0 {
+				return nil, fmt.Errorf("token has expired")
+			} else if ve.Errors&jwt.ValidationErrorNotValidYet != 0 {
+				return nil, fmt.Errorf("token not active yet")
+			}
+		}
+		return nil, fmt.Errorf("invalid token: %w", err)
+	}
 
-    claims, ok := token.Claims.(jwt.MapClaims)
-    if !ok || !token.Valid {
-        return nil, fmt.Errorf("invalid token or claims")
-    }
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok || !token.Valid {
+		return nil, fmt.Errorf("invalid token claims")
+	}
 
-    // Ensure it's an access token
-    tokenType, ok := claims["type"].(string)
-    if !ok || tokenType != "access" {
-        return nil, fmt.Errorf("invalid token type: expected 'access'")
-    }
+	// Double-check expiration explicitly
+	if exp, ok := claims["exp"].(float64); !ok || time.Now().Unix() > int64(exp) {
+		return nil, fmt.Errorf("token has expired")
+	}
 
-    // Validate required claims for an access token
-    requiredClaims := []string{"user_id", "email", "username", "user_type", "role"}
-    for _, claim := range requiredClaims {
-        if claims[claim] == nil {
-            return nil, fmt.Errorf("missing required claim: %s", claim)
-        }
-    }
+	// Ensure it's an access token
+	tokenType, ok := claims["type"].(string)
+	if !ok || tokenType != "access" {
+		return nil, fmt.Errorf("invalid token type: expected 'access'")
+	}
 
-    // Check claim types (optional but recommended for robustness)
-    if _, ok := claims["user_id"].(float64); !ok { // JWT numbers are often float64
-         if _, ok := claims["user_id"].(int64); !ok { // Allow int64 as well
-            return nil, fmt.Errorf("invalid type for user_id claim")
-         }
-    }
-    if _, ok := claims["role"].(string); !ok {
-        return nil, fmt.Errorf("invalid type for role claim")
-    }
-     if _, ok := claims["email"].(string); !ok {
-        return nil, fmt.Errorf("invalid type for email claim")
-    }
+	// Validate required claims for an access token
+	requiredClaims := []string{"user_id", "email", "username", "user_type", "role"}
+	for _, claim := range requiredClaims {
+		if claims[claim] == nil {
+			return nil, fmt.Errorf("missing required claim: %s", claim)
+		}
+	}
 
+	// Check claim types (optional but recommended for robustness)
+	if _, ok := claims["user_id"].(float64); !ok { // JWT numbers are often float64
+		if _, ok := claims["user_id"].(int64); !ok { // Allow int64 as well
+			return nil, fmt.Errorf("invalid type for user_id claim")
+		}
+	}
+	if _, ok := claims["role"].(string); !ok {
+		return nil, fmt.Errorf("invalid type for role claim")
+	}
+	if _, ok := claims["email"].(string); !ok {
+		return nil, fmt.Errorf("invalid type for email claim")
+	}
 
-    return claims, nil
+	return claims, nil
 }

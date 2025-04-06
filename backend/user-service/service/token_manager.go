@@ -9,7 +9,8 @@ import (
 	"net/http"
 	"os"
 	"time"
-	"context" // Added for repository methods
+	"context" 
+	"github.com/google/uuid" 
 
 	"github.com/golang-jwt/jwt"
 	"github.com/louai60/e-commerce_project/backend/user-service/models"
@@ -92,19 +93,26 @@ func generateRandomJTI() (string, error) {
 }
 
 func (m *JWTManager) GenerateTokenPair(user *models.User) (string, string, string, *http.Cookie, error) {
+	// Generate refresh token ID (JTI)
+	refreshTokenID := uuid.New().String()
+
+	// Common claims
 	now := time.Now()
+	commonClaims := jwt.MapClaims{
+		"user_id":  user.UserID,
+		"email":    user.Email,
+		"username": user.Username,
+		"iat":      now.Unix(),
+	}
 
 	// Access token claims
-	accessClaims := jwt.MapClaims{
-		"user_id":   user.UserID,
-		"email":     user.Email,
-		"username":  user.Username,
-		"user_type": user.UserType,
-		"role":      user.Role,
-		"type":      "access",
-		"iat":       now.Unix(),
-		"exp":       now.Add(m.accessTokenDuration).Unix(),
+	accessExp := m.getTokenExpiration("access")
+	accessClaims := jwt.MapClaims{}
+	for k, v := range commonClaims {
+		accessClaims[k] = v
 	}
+	accessClaims["exp"] = accessExp.Unix()
+	accessClaims["type"] = "access"
 
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodRS256, accessClaims)
 	accessTokenString, err := accessToken.SignedString(m.privateKey)
@@ -112,20 +120,15 @@ func (m *JWTManager) GenerateTokenPair(user *models.User) (string, string, strin
 		return "", "", "", nil, fmt.Errorf("failed to sign access token: %w", err)
 	}
 
-	// Generate a unique JTI for the refresh token
-	jti, err := generateRandomJTI()
-	if err != nil {
-		return "", "", "", nil, fmt.Errorf("failed to generate JTI: %w", err)
-	}
-
 	// Refresh token claims
-	refreshClaims := jwt.MapClaims{
-		"user_id": user.UserID,
-		"type":    "refresh",
-		"iat":     now.Unix(),
-		"exp":     now.Add(m.refreshTokenDuration).Unix(),
-		"jti":     jti, // Include the JTI
+	refreshExp := m.getTokenExpiration("refresh")
+	refreshClaims := jwt.MapClaims{}
+	for k, v := range commonClaims {
+		refreshClaims[k] = v
 	}
+	refreshClaims["exp"] = refreshExp.Unix()
+	refreshClaims["type"] = "refresh"
+	refreshClaims["jti"] = refreshTokenID
 
 	refreshToken := jwt.NewWithClaims(jwt.SigningMethodRS256, refreshClaims)
 	refreshTokenString, err := refreshToken.SignedString(m.privateKey)
@@ -145,7 +148,7 @@ func (m *JWTManager) GenerateTokenPair(user *models.User) (string, string, strin
 		Domain:   "", // Set domain appropriately in production, e.g., ".yourdomain.com"
 	}
 
-	return accessTokenString, refreshTokenString, jti, refreshTokenCookie, nil
+	return accessTokenString, refreshTokenString, refreshTokenID, refreshTokenCookie, nil
 }
 
 // GetRefreshTokenDuration returns the configured duration for refresh tokens.
@@ -162,51 +165,44 @@ func (m *JWTManager) ValidateToken(tokenString string) (*models.User, error) {
 			m.logger.Error("Unexpected signing method", zap.Any("alg", token.Header["alg"]))
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		if m.publicKey == nil {
-			m.logger.Error("Public key not loaded for validation")
-			return nil, fmt.Errorf("public key not loaded for validation")
-		}
 		return m.publicKey, nil
 	})
 
 	if err != nil {
+		// Explicit handling of expiration errors
 		if ve, ok := err.(*jwt.ValidationError); ok {
 			if ve.Errors&jwt.ValidationErrorExpired != 0 {
-				m.logger.Warn("Token has expired", zap.Error(err))
+				m.logger.Warn("Token has expired")
 				return nil, fmt.Errorf("token has expired")
+			} else if ve.Errors&jwt.ValidationErrorNotValidYet != 0 {
+				m.logger.Warn("Token not active yet")
+				return nil, fmt.Errorf("token not active yet")
 			}
 		}
-		m.logger.Error("Invalid token during parsing", zap.Error(err))
+		m.logger.Error("Token validation failed", zap.Error(err))
 		return nil, fmt.Errorf("invalid token: %w", err)
 	}
 
-	if !token.Valid {
-		m.logger.Warn("Token marked as invalid")
-		return nil, fmt.Errorf("invalid token")
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok || !token.Valid {
+		m.logger.Error("Invalid token claims")
+		return nil, fmt.Errorf("invalid token claims")
 	}
 
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		m.logger.Error("Invalid token claims type")
-		return nil, fmt.Errorf("invalid token claims")
+	// Double-check expiration explicitly
+	if exp, ok := claims["exp"].(float64); !ok {
+		m.logger.Error("Missing expiration claim")
+		return nil, fmt.Errorf("missing expiration claim")
+	} else if time.Now().Unix() > int64(exp) {
+		m.logger.Warn("Token has expired (manual check)")
+		return nil, fmt.Errorf("token has expired")
 	}
 
 	// Check token type
 	tokenType, ok := claims["type"].(string)
 	if !ok || tokenType != "refresh" {
-		m.logger.Warn("Invalid token type or type missing", zap.Any("type", claims["type"]))
+		m.logger.Warn("Invalid token type", zap.String("expected", "refresh"), zap.Any("got", claims["type"]))
 		return nil, fmt.Errorf("invalid token type, expected 'refresh'")
-	}
-
-	// Check expiration (redundant check, Parse handles it, but good practice)
-	if exp, ok := claims["exp"].(float64); ok {
-		if float64(time.Now().Unix()) > exp {
-			m.logger.Warn("Token expired (manual check)")
-			return nil, fmt.Errorf("token has expired")
-		}
-	} else {
-		m.logger.Error("Invalid expiration claim type")
-		return nil, fmt.Errorf("invalid expiration claim")
 	}
 
 	// Extract user ID
@@ -250,4 +246,16 @@ func (m *JWTManager) ValidateToken(tokenString string) (*models.User, error) {
 
 	m.logger.Info("Refresh token validated successfully", zap.Int64("userID", userID), zap.String("jti", jti))
 	return user, nil // Return the user object on successful validation
+}
+
+// Add a new method to generate token expiration times
+func (m *JWTManager) getTokenExpiration(tokenType string) time.Time {
+	switch tokenType {
+	case "access":
+		return time.Now().Add(m.accessTokenDuration)
+	case "refresh":
+		return time.Now().Add(m.refreshTokenDuration)
+	default:
+		return time.Now().Add(time.Hour) // Default 1 hour
+	}
 }
