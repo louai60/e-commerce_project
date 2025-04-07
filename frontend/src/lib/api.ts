@@ -18,7 +18,8 @@ const processQueue = (error: AxiosError | null, token: string | null = null) => 
 
 
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1',
+  // Remove /api/v1 from the baseURL as it's already part of the routes
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -70,7 +71,7 @@ api.interceptors.response.use(
         console.log('Attempting token refresh...');
         // Use a separate axios instance or fetch for refresh to avoid interceptor loop
         const refreshResponse = await axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1'}/users/refresh`,
+          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/users/refresh`,
           {}, // No body needed, refresh token is in cookie
           { withCredentials: true } // Ensure cookies are sent
         );
@@ -116,3 +117,4 @@ api.interceptors.response.use(
 
 
 export default api;
+

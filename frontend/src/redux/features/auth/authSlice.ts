@@ -3,14 +3,12 @@ import { AuthService } from '@/services/auth.service';
 import { LoginCredentials, RegisterCredentials, User } from '@/types/auth';
 
 interface AuthState {
-  user: User | null;
   isAuthenticated: boolean;
   loading: boolean;
   error: string | null;
 }
 
 const initialState: AuthState = {
-  user: null,
   isAuthenticated: false,
   loading: false,
   error: null,
@@ -48,55 +46,49 @@ const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
-    logout: (state) => {
-      state.user = null;
-      state.isAuthenticated = false;
+    setAuthenticated: (state, action: PayloadAction<boolean>) => {
+      state.isAuthenticated = action.payload;
+    },
+    clearError: (state) => {
       state.error = null;
     },
     setError: (state, action: PayloadAction<string>) => {
       state.error = action.payload;
     },
-    clearError: (state) => {
-      state.error = null;
-    },
   },
   extraReducers: (builder) => {
     builder
-      // Login
+      // Login cases
       .addCase(login.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
-      .addCase(login.fulfilled, (state, action) => {
+      .addCase(login.fulfilled, (state) => {
         state.loading = false;
-        state.user = action.payload.user;
         state.isAuthenticated = true;
-        state.error = null;
       })
       .addCase(login.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
-        state.isAuthenticated = false;
       })
-      // Register
+      // Register cases
       .addCase(register.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
-      .addCase(register.fulfilled, (state, action) => {
+      .addCase(register.fulfilled, (state) => {
         state.loading = false;
-        state.user = action.payload.user;
         state.isAuthenticated = true;
-        state.error = null;
       })
       .addCase(register.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.error.message || 'Registration failed';
-        state.isAuthenticated = false;
+        state.error = action.payload as string;
       });
   },
 });
 
-export const { logout, setError, clearError } = authSlice.actions;
+export const { setAuthenticated, clearError, setError } = authSlice.actions;
 export default authSlice.reducer;
+
+
 
