@@ -1,7 +1,8 @@
 package models
 
 import (
-    "time"
+	"database/sql"
+	"time"
 )
 
 const (
@@ -24,10 +25,10 @@ type User struct {
     AccountStatus  string    `json:"account_status" db:"account_status"`
     EmailVerified  bool      `json:"email_verified" db:"email_verified"`
     PhoneVerified  bool      `json:"phone_verified" db:"phone_verified"`
-    CreatedAt      time.Time `json:"created_at" db:"created_at"`
-    UpdatedAt      time.Time `json:"updated_at" db:"updated_at"`
-    LastLogin      time.Time `json:"last_login" db:"last_login"`
-    RefreshTokenID string    `json:"-" db:"refresh_token_id"` // JTI of the current valid refresh token
+    CreatedAt      time.Time    `json:"created_at" db:"created_at"`
+    UpdatedAt      time.Time    `json:"updated_at" db:"updated_at"`
+    LastLogin      sql.NullTime `json:"last_login" db:"last_login"` // Changed to sql.NullTime
+    RefreshTokenID string       `json:"-" db:"refresh_token_id"` // JTI of the current valid refresh token
    }
 
 type UserAddress struct {
@@ -145,5 +146,3 @@ func IsValidRole(userType, role string) bool {
     }
     return false
 }
-
-

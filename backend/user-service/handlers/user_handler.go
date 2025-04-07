@@ -321,8 +321,9 @@ func convertUserToProto(user *models.User) *pb.User {
 		return nil
 	}
 	lastLoginStr := ""
-	if !user.LastLogin.IsZero() {
-		lastLoginStr = user.LastLogin.Format(time.RFC3339)
+	// Check if LastLogin is valid (not NULL) before formatting
+	if user.LastLogin.Valid {
+		lastLoginStr = user.LastLogin.Time.Format(time.RFC3339)
 	}
 	return &pb.User{
 		UserId:        user.UserID, // Assign int64 directly

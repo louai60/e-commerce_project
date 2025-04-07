@@ -116,10 +116,12 @@ func (r *PostgresRepository) UpdateUser(ctx context.Context, user *models.User) 
 		UPDATE users
 		SET username = $1, email = $2, first_name = $3, last_name = $4,
 			phone_number = $5, user_type = $6, role = $7, account_status = $8,
-			email_verified = $9, phone_verified = $10, updated_at = $11
-		WHERE user_id = $12
+			email_verified = $9, phone_verified = $10, 
+			refresh_token_id = $11, last_login = $12, updated_at = $13
+		WHERE user_id = $14
 		RETURNING updated_at`
-
+	
+	now := time.Now()
 	return r.db.QueryRowContext(ctx, query,
 		user.Username,
 		user.Email,
@@ -131,7 +133,9 @@ func (r *PostgresRepository) UpdateUser(ctx context.Context, user *models.User) 
 		user.AccountStatus,
 		user.EmailVerified,
 		user.PhoneVerified,
-		time.Now(),
+		user.RefreshTokenID, // Add RefreshTokenID
+		user.LastLogin,     // Add LastLogin
+		now,                // Use consistent timestamp for updated_at
 		user.UserID,
 	).Scan(&user.UpdatedAt)
 }

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"strings"
@@ -329,27 +330,25 @@ func (s *UserService) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Logi
 		return nil, status.Errorf(codes.Internal, "failed to generate tokens")
 	}
 
-	// *** Store the new refresh token ID in the database ***
-	if err := s.repo.UpdateRefreshTokenID(ctx, user.UserID, refreshTokenID); err != nil {
-		s.logger.Error("Failed to store refresh token ID",
+	// Update user object with new RefreshTokenID and LastLogin time
+	user.RefreshTokenID = refreshTokenID
+	user.LastLogin = sql.NullTime{Time: time.Now(), Valid: true}
+
+	// *** Perform a single update for both RefreshTokenID and LastLogin ***
+	// We need a repository function that updates these specific fields.
+	// Let's assume a function UpdateUserLoginDetails exists or modify UpdateUser.
+	// For now, let's modify the existing UpdateUser call to include RefreshTokenID.
+	// We'll need to adjust the UpdateUser function in the repository accordingly later if needed.
+	// NOTE: This assumes UpdateUser will be modified to handle RefreshTokenID and LastLogin.
+	// If UpdateUser cannot be modified, a new specific repository function is required.
+	if err := s.repo.UpdateUser(ctx, user); err != nil {
+		s.logger.Error("Failed to update user details (RefreshTokenID, LastLogin)",
 			zap.Int64("userID", user.UserID),
 			zap.Error(err))
-		// Decide if this should be a fatal error for login. For now, log and continue.
-		// return nil, status.Errorf(codes.Internal, "failed to store refresh token state")
+		// If storing the token state is critical, return an error.
+		return nil, status.Errorf(codes.Internal, "failed to update user state after login: %v", err)
 	}
 
-	// Update last login
-	user.LastLogin = time.Now()
-	// Note: UpdateUser might overwrite RefreshTokenID if not careful.
-	// It's better to use UpdateRefreshTokenID separately or ensure UpdateUser handles it correctly.
-	// Since we already called UpdateRefreshTokenID, we might not need a full UpdateUser here
-	// unless other fields need updating during login. Let's keep it for now but be aware.
-	if err := s.repo.UpdateUser(ctx, user); err != nil { // Consider if this UpdateUser is still needed or if it conflicts
-		s.logger.Error("Failed to update last login/user details",
-			zap.String("email", req.Email),
-			zap.Error(err))
-		// Don't return error as login was successful
-	}
 
 	// Prepare CookieInfo for gRPC response
 	cookieInfo := &pb.CookieInfo{
@@ -489,6 +488,6 @@ func convertUserToProto(user *models.User) *pb.User {
 		PhoneVerified: user.PhoneVerified,
 		CreatedAt:     user.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:     user.UpdatedAt.Format(time.RFC3339),
-		LastLogin:     user.LastLogin.Format(time.RFC3339),
+		LastLogin:     user.LastLogin.Time.Format(time.RFC3339), // Use the potentially empty string
 	}
 }
