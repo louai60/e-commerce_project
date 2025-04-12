@@ -12,3 +12,8 @@ database:
   name: "nexcart_product"
   user: "postgres"
   sslMode: "disable"
+
+
+redis:
+  host: "localhost"  # Changed from "redis" to "localhost"
+  port: "6379"
