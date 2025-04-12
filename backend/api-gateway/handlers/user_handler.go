@@ -326,9 +326,28 @@ func (h *UserHandler) Login(c *gin.Context) {
     // Return access token and user details in the response body
     // Refresh token is handled via HttpOnly cookie
     c.JSON(http.StatusOK, gin.H{
-    	"access_token": resp.Token,
-    	"user":         resp.User,
+    	"access_token": resp.Token, // Keep only one access_token key
+        "user":         resp.User,
     })
+}
+
+func (h *UserHandler) Logout(c *gin.Context) {
+	// Clear the refresh token cookie by setting its MaxAge to -1
+	// Use the same attributes (Path, Domain, Secure, HttpOnly) as when setting it
+	// Assuming the cookie name is "refresh_token" and path is "/" based on common practice
+	// TODO: Confirm cookie name and path from user-service if different
+	c.SetCookie(
+		"refresh_token", // Cookie name
+		"",              // Empty value
+		-1,              // MaxAge = -1 deletes the cookie
+		"/api/v1/users/refresh", // Path must match the one used when setting the cookie
+		"",              // Domain (leave empty for default)
+		true,            // Secure flag (should match setting)
+		true,            // HttpOnly flag (should match setting)
+	)
+
+	h.logger.Info("User logged out, refresh token cookie cleared")
+	c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
 }
 
 func (h *UserHandler) CreateAdmin(c *gin.Context) {
@@ -460,18 +479,20 @@ func (h *UserHandler) UpdateAddress(c *gin.Context) {
         return
     }
 
+    // Correctly populate the gRPC request struct
     grpcReq := &pb.UpdateAddressRequest{
-        UserId:         userID,      // Now using int64
-        AddressId:      addressID,   // Now using int64
-        AddressType:    req.AddressType,
-        StreetAddress1: req.StreetAddress1,
-        StreetAddress2: req.StreetAddress2,
-        City:           req.City,
-        State:          req.State,
-        PostalCode:     req.PostalCode,
-        Country:        req.Country,
-        IsDefault:      req.IsDefault,
+        UserId:         userID,
+        AddressId:      addressID,
+        AddressType:    req.AddressType,    // Assign value from req
+        StreetAddress1: req.StreetAddress1, // Assign value from req
+        StreetAddress2: req.StreetAddress2, // Assign value from req
+        City:           req.City,           // Assign value from req
+        State:          req.State,          // Assign value from req
+        PostalCode:     req.PostalCode,     // Assign value from req
+        Country:        req.Country,        // Assign value from req
+        IsDefault:      req.IsDefault,      // Assign value from req
     }
+
 
     resp, err := h.client.UpdateAddress(c.Request.Context(), grpcReq)
     if err != nil {
@@ -558,17 +579,26 @@ func (h *UserHandler) AddPaymentMethod(c *gin.Context) {
 }
 
 func (h *UserHandler) RefreshToken(c *gin.Context) {
-    var req struct {
-        RefreshToken string `json:"refresh_token" binding:"required"`
+    // Read the refresh token from the cookie
+    refreshToken, err := c.Cookie("refresh_token")
+    if err != nil {
+        h.logger.Error("Refresh token cookie not found", zap.Error(err))
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Refresh token cookie not found"})
+        return
     }
-
-    if err := c.ShouldBindJSON(&req); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+    if refreshToken == "" {
+        h.logger.Error("Refresh token cookie is empty")
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Refresh token cookie is empty"})
         return
     }
 
-    resp, err := h.client.RefreshToken(c.Request.Context(), &pb.RefreshTokenRequest{
-        RefreshToken: req.RefreshToken,
+    h.logger.Info("Attempting token refresh via cookie")
+
+    ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+    defer cancel()
+
+    resp, err := h.client.RefreshToken(ctx, &pb.RefreshTokenRequest{
+        RefreshToken: refreshToken, // Use token from cookie
     })
     if err != nil {
         h.handleGRPCError(c, err, "Failed to refresh token")
@@ -588,9 +618,10 @@ func (h *UserHandler) RefreshToken(c *gin.Context) {
         )
     }
 
+    // Only return the new access token and user details in the body.
+    // The new refresh token is handled by the HttpOnly cookie set above.
     c.JSON(http.StatusOK, gin.H{
-        "access_token":  resp.Token,
-        "refresh_token": resp.RefreshToken,
-        "user":         resp.User,
+        "access_token": resp.Token,
+        "user":         resp.User, // Include user details if needed by frontend after refresh
     })
 }

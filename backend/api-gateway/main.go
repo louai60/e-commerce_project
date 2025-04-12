@@ -1,23 +1,26 @@
 package main
 
 import (
-    "log"
+	"log"
+	"os"
 
-    "github.com/gin-gonic/gin"
-    "go.uber.org/zap"
-    "google.golang.org/grpc"
-    "google.golang.org/grpc/credentials/insecure"
-    "github.com/louai60/e-commerce_project/backend/api-gateway/handlers"
-    "github.com/louai60/e-commerce_project/backend/api-gateway/middleware"
-    productpb "github.com/louai60/e-commerce_project/backend/product-service/proto"
-    "github.com/joho/godotenv"
+	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv" // Added godotenv back
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
+	"github.com/louai60/e-commerce_project/backend/api-gateway/handlers"
+	"github.com/louai60/e-commerce_project/backend/api-gateway/middleware"
+	adminpb "github.com/louai60/e-commerce_project/backend/admin-service/proto"
+	productpb "github.com/louai60/e-commerce_project/backend/product-service/proto"
 )
 
 func main() {
-    // Load .env file before anything else
-    if err := godotenv.Load(); err != nil {
-        log.Fatal("Error loading .env file")
-    }
+	// Load .env file before anything else
+	if err := godotenv.Load(); err != nil { // Use godotenv here
+		log.Fatal("Error loading .env file")
+	}
 
     // Initialize logger
     logger, err := zap.NewProduction()
@@ -44,9 +47,25 @@ func main() {
     }
     defer userConn.Close()
 
+    // Connect to Admin Service
+    adminServiceAddr := os.Getenv("ADMIN_SERVICE_ADDR")
+    if adminServiceAddr == "" {
+        logger.Fatal("ADMIN_SERVICE_ADDR environment variable is required")
+    }
+    adminConn, err := grpc.Dial(adminServiceAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+    if err != nil {
+        logger.Fatal("Failed to connect to admin service", zap.Error(err))
+    }
+    defer adminConn.Close()
+
     // Initialize handlers
     productClient := productpb.NewProductServiceClient(productConn)
     productHandler := handlers.NewProductHandler(productClient, logger)
+
+    adminClient := adminpb.NewAdminServiceClient(adminConn) // Create admin client
+    // The adminHandler needs to be defined in the handlers package for the gateway
+    // For now, we comment this out until we create the gateway's admin handler
+    adminHandler := handlers.NewAdminHandler(adminClient, logger) // Uncommented: Initialize the gateway's admin handler
 
     userHandler, err := handlers.NewUserHandler("localhost:50052", logger)
     if err != nil {
@@ -74,10 +93,11 @@ func main() {
         users := v1.Group("/users")
         {
             users.POST("/register", userHandler.Register)
-            users.POST("/login", userHandler.Login)     
+            users.POST("/login", userHandler.Login)
+            users.POST("/logout", userHandler.Logout) // Add logout route
             users.POST("/refresh", userHandler.RefreshToken)
             users.POST("/admin", middleware.AdminKeyRequired(), userHandler.CreateAdmin)
-            
+
             // Protected routes
             authenticated := users.Group("/", middleware.AuthRequired())
             {
@@ -105,6 +125,13 @@ func main() {
                 }
             }
         }
+
+        // Admin Dashboard routes (protected)
+        adminDashboard := v1.Group("/admin/dashboard", middleware.AuthRequired(), middleware.AdminRequired())
+        {
+            adminDashboard.GET("/stats", adminHandler.GetDashboardStats)
+            // Add more admin dashboard routes here later
+        }
     }
 
     // Start server
@@ -114,8 +141,3 @@ func main() {
         logger.Fatal("Failed to start server", zap.Error(err))
     }
 }
-
-
-
-
-

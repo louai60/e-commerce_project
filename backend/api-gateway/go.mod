@@ -6,12 +6,13 @@ require (
 	github.com/gin-gonic/gin v1.10.0
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/joho/godotenv v1.5.1
+	github.com/louai60/e-commerce_project/backend/admin-service v0.0.0 // Add admin-service dependency
 	github.com/louai60/e-commerce_project/backend/product-service v0.0.0
 	github.com/louai60/e-commerce_project/backend/shared v0.0.0
 	github.com/louai60/e-commerce_project/backend/user-service v0.0.0
 	github.com/spf13/viper v1.20.0
 	go.uber.org/zap v1.27.0
-	google.golang.org/grpc v1.71.0
+	google.golang.org/grpc v1.71.1
 )
 
 replace github.com/louai60/e-commerce_project/backend/shared => ../shared
@@ -25,6 +26,8 @@ require (
 replace github.com/louai60/e-commerce_project/backend/product-service => ../product-service
 
 replace github.com/louai60/e-commerce_project/backend/user-service => ../user-service
+
+replace github.com/louai60/e-commerce_project/backend/admin-service => ../admin-service // Add replace directive for admin-service
 
 require (
 	github.com/bytedance/sonic v1.12.6 // indirect
