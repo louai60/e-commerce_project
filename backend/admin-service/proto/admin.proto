@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package admin;
+
+option go_package = "github.com/louai60/e-commerce_project/backend/admin-service/proto";
+
+// Placeholder for Admin Service definition
+// We can add RPC methods here later as needed for the dashboard
+service AdminService {
+  // Example RPC method (can be expanded later)
+  rpc GetDashboardStats (GetDashboardStatsRequest) returns (GetDashboardStatsResponse);
+}
+
+// Request message for GetDashboardStats
+message GetDashboardStatsRequest {
+  // Could include filters like date range, etc.
+}
+
+// Response message for GetDashboardStats
+message GetDashboardStatsResponse {
+  int64 total_users = 1;
+  int64 total_products = 2;
+  double total_revenue = 3;
+  int64 total_orders = 4;
+  // Add more stats as needed
+}
