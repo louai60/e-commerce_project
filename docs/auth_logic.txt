@@ -1,0 +1,64 @@
+# Authentication and Token Analysis (API Gateway & User Service)
+
+This document outlines the authentication flow, token types, algorithms, and refresh mechanism implemented across the API Gateway and User Service.
+
+## Summary
+
+The system uses an asymmetric RSA key pair (RS256 algorithm) for JWT signing and verification. The User Service holds the private key for signing, while the API Gateway holds the public key for verification. Two types of tokens are used: short-lived access tokens for API requests and longer-lived refresh tokens for obtaining new access tokens. Refresh token rotation is implemented using a unique JWT ID (JTI) stored in the database.
+
+## Token Generation (User Service - `service/token_manager.go`)
+
+*   **Keys:**
+    *   Uses an RSA private key loaded from `JWT_PRIVATE_KEY_PATH` (default: `certificates/private_key.pem`) for signing.
+    *   Loads the corresponding public key as well.
+*   **Algorithm:** RS256 (RSA Signature with SHA-256).
+*   **Access Token:**
+    *   Generated on login/refresh.
+    *   Payload Claims: `user_id`, `email`, `username`, `iat` (issued at), `exp` (expiration), `type: "access"`.
+    *   Duration: Configured via `JWT_ACCESS_TOKEN_DURATION` environment variable.
+    *   Delivery: Sent in the API response body.
+*   **Refresh Token:**
+    *   Generated alongside the access token.
+    *   Payload Claims: `user_id`, `email`, `username`, `iat`, `exp`, `type: "refresh"`, `jti` (unique JWT ID).
+    *   Duration: Configured via `JWT_REFRESH_TOKEN_DURATION` environment variable.
+    *   `jti` Storage: The unique `jti` is stored in the user's database record (likely `RefreshTokenID` field).
+    *   Delivery: Sent primarily as a secure, HttpOnly cookie (`refresh_token`) scoped to `/api/v1/users/refresh`. Also included in the response body.
+
+## Token Validation (API Gateway - `middleware/auth.go`)
+
+*   **Keys:**
+    *   Uses the RSA public key loaded from `JWT_PUBLIC_KEY_PATH` (default: `certificates/public_key.pem`) for verification. Must match the User Service's private key.
+*   **Algorithm:** Expects and verifies RS256 signatures.
+*   **Middleware (`AuthRequired`):** Applied to protected routes.
+*   **Process:**
+    1.  Extracts token from `Authorization: Bearer <token>` header.
+    2.  Verifies signature using the public key.
+    3.  Checks standard claims like expiration (`exp`).
+    4.  Ensures token `type` is `"access"`.
+    5.  Validates presence of required claims (`user_id`, `email`, `username`, `user_type`, `role`).
+    6.  If valid, adds `user_id`, `role`, `email` to the request context.
+
+## Refresh Mechanism
+
+1.  **Client Request:** Client sends the `refresh_token` cookie to the API Gateway's refresh endpoint (`/api/v1/users/refresh`).
+2.  **Forwarding:** API Gateway forwards the request (with cookie) to the User Service.
+3.  **User Service Validation (`service/token_manager.go` -> `ValidateToken`):**
+    *   Verifies the refresh token's signature, expiration, and `type: "refresh"`.
+    *   Extracts `user_id` and `jti`.
+    *   Fetches the user record from the database using `user_id`.
+    *   **Rotation Check:** Compares the token's `jti` with the `RefreshTokenID` stored in the fetched user record. **This is the core security check.** A mismatch fails the refresh.
+4.  **Token Issuance (If Valid):**
+    *   Generates a *new* access token.
+    *   Generates a *new* refresh token with a *new* unique `jti`.
+    *   Updates the user's `RefreshTokenID` in the database with the *new* `jti`.
+    *   Sends the new tokens (access token in body, refresh token in body and new cookie) back to the client via the API Gateway.
+
+## Security Considerations
+
+*   **Asymmetric Keys:** Using RSA (RS256) prevents the API Gateway from being able to sign tokens, enhancing security as only the User Service needs the private key.
+*   **Short-lived Access Tokens:** Reduces the window of opportunity if an access token is compromised.
+*   **Refresh Token Rotation:** The `jti` comparison helps detect potential refresh token theft or reuse. If an attacker steals and uses a refresh token, the legitimate user's subsequent refresh attempt (with the same stolen token) might fail if the attacker already rotated it, or the attacker's attempt will fail if the user rotated it first. Storing the JTI is crucial.
+*   **HttpOnly Cookie:** Protects the refresh token from being accessed by client-side JavaScript (XSS mitigation).
+*   **Secure Flag:** The `Secure` flag on the cookie ensures it's only sent over HTTPS.
+*   **SameSite Flag:** `SameSite=StrictMode` provides strong protection against CSRF attacks involving the refresh token cookie.
+*   **Path Scoping:** The cookie is scoped specifically to the refresh endpoint, limiting its exposure.
