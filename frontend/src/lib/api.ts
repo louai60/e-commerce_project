@@ -1,11 +1,11 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { getSession, signIn, signOut } from 'next-auth/react';
+// Remove getSession, signOut
+import { AuthService } from '@/services/auth.service'; // Import for logout
 
-// Flag to prevent infinite refresh loops
 let isRefreshing = false;
-let failedQueue: { resolve: (value: unknown) => void; reject: (reason?: any) => void; }[] = [];
+let failedQueue: any[] = [];
 
-const processQueue = (error: AxiosError | null, token: string | null = null) => {
+const processQueue = (error: any, token: string | null = null) => {
   failedQueue.forEach(prom => {
     if (error) {
       prom.reject(error);
@@ -16,52 +16,47 @@ const processQueue = (error: AxiosError | null, token: string | null = null) => 
   failedQueue = [];
 };
 
-
-const api = axios.create({
-  // Remove /api/v1 from the baseURL as it's already part of the routes
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080',
+export const api = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true,
+  withCredentials: true, // Important for cookies
 });
 
-// Request interceptor for adding auth token
-api.interceptors.request.use(async (config) => {
-  const session = await getSession();
-  if (session?.accessToken) {
-    config.headers.Authorization = `Bearer ${session.accessToken}`;
-  }
-  return config;
-}, (error) => {
-  return Promise.reject(error);
-});
-
-// Response interceptor for handling token refresh
-api.interceptors.response.use(
-  (response) => {
-    // Any status code that lie within the range of 2xx cause this function to trigger
-    return response;
+// Request interceptor
+api.interceptors.request.use(
+  (config) => {
+    // Read token from localStorage instead of session
+    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
   },
+  (error) => Promise.reject(error)
+);
+
+// Response interceptor
+api.interceptors.response.use(
+  (response) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
-
-    // Check if it's a 401 error and not a retry request already
+    
+    // Check for 401 Unauthorized and ensure it's not a retry
     if (error.response?.status === 401 && !originalRequest._retry) {
-
-      // Prevent multiple refresh calls simultaneously
       if (isRefreshing) {
-        // Add the original request to a queue to be retried later
-        return new Promise(function(resolve, reject) {
+        // If already refreshing, queue the request
+        return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
-        }).then(token => {
-          if (originalRequest.headers) {
-            originalRequest.headers['Authorization'] = 'Bearer ' + token;
-          }
-          return api(originalRequest);
-        }).catch(err => {
-          return Promise.reject(err); // Propagate the error if refresh fails
-        });
+        })
+          .then(token => {
+            if (originalRequest.headers) { // Check if headers exist
+                 originalRequest.headers.Authorization = `Bearer ${token}`;
+            }
+            return api(originalRequest);
+          })
+          .catch(err => Promise.reject(err));
       }
 
       originalRequest._retry = true; // Mark as retry
@@ -69,52 +64,51 @@ api.interceptors.response.use(
 
       try {
         console.log('Attempting token refresh...');
-        // Use a separate axios instance or fetch for refresh to avoid interceptor loop
-        const refreshResponse = await axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/users/refresh`,
-          {}, // No body needed, refresh token is in cookie
-          { withCredentials: true } // Ensure cookies are sent
-        );
+        // Attempt to refresh the token using the refresh endpoint
+        const response = await api.post('/users/refresh', {}, {
+          withCredentials: true // Ensure cookies (refresh_token) are sent
+        });
 
-        const { access_token: newAccessToken } = refreshResponse.data;
-
-        if (!newAccessToken) {
-          throw new Error('No new access token received');
-        }
-
+        const { access_token: newAccessToken } = response.data;
         console.log('Token refresh successful.');
 
-        // Update the session - This is tricky with NextAuth client-side.
-        // Re-triggering signIn might be the most reliable way, though not ideal.
-        // Alternatively, force a session refetch, hoping it picks up the new cookie implicitly?
-        // Update the original request header
-        if (originalRequest.headers) {
-          originalRequest.headers['Authorization'] = `Bearer ${newAccessToken}`;
+        if (!newAccessToken) {
+          throw new Error('No new access token received during refresh');
         }
+
+        // Store the new token in localStorage
+        localStorage.setItem('accessToken', newAccessToken);
+
+        // Update the Authorization header for the original request
+         if (originalRequest.headers) { // Check if headers exist
+             originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+         }
 
         // Process the queue with the new token
         processQueue(null, newAccessToken);
 
-        // Retry the original request
+        // Retry the original request with the new token
         return api(originalRequest);
 
       } catch (refreshError: any) {
         console.error('Token refresh failed:', refreshError);
-        // Process the queue with the error
-        processQueue(refreshError, null);
-        // Sign out the user if refresh fails
-        await signOut({ redirect: false }); // Avoid redirect loop if signout page needs auth
+        processQueue(refreshError, null); // Reject queued requests
+
+        // Logout the user: clear storage and redirect
+        AuthService.logout(); // Use the logout method to clear storage
+        // Redirect to sign-in page (client-side only)
+        if (typeof window !== 'undefined') {
+            window.location.href = '/signin'; // Force redirect
+        }
+
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
       }
     }
-
-    // For errors other than 401 or if it's already a retry, reject the promise
+    
     return Promise.reject(error);
   }
 );
 
-
-export default api;
 

@@ -2,12 +2,15 @@
 import React, { useState, useReducer, useMemo, useCallback, Suspense } from "react";
 
 import Link from "next/link";
-import { useDispatch, useSelector } from 'react-redux';
-import { login, clearError } from '@/redux/features/auth/authSlice';
+// Remove Redux imports
+// import { useDispatch, useSelector } from 'react-redux';
+// import { login, clearError } from '@/redux/features/auth/authSlice';
 import { useRouter, useSearchParams } from 'next/navigation';
-import type { RootState } from '@/redux/store';
-import { AppDispatch } from '@/redux/store';
+// import type { RootState } from '@/redux/store';
+// import { AppDispatch } from '@/redux/store';
 import { Eye, EyeOff } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
+import { AuthService } from '@/services/auth.service'; // Import AuthService
 
 const Breadcrumb = React.lazy(() => import("@/components/Common/Breadcrumb"));
 
@@ -55,10 +58,16 @@ const reducer = (state, action) => {
 };
 
 const Signin = () => {
-  const dispatch = useDispatch<AppDispatch>();
+  // Remove Redux hooks
+  // const dispatch = useDispatch<AppDispatch>();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { loading, error } = useSelector((state: RootState) => state.auth);
+  // const { loading, error } = useSelector((state: RootState) => state.auth);
+  const { login: contextLogin } = useAuth(); // Get login function from context
+
+  // Local state for loading and error during sign-in attempt
+  const [localLoading, setLocalLoading] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
 
   const [state, dispatchState] = useReducer(reducer, initialState);
   const [showPassword, setShowPassword] = useState(false);
@@ -86,43 +95,59 @@ const Signin = () => {
   }, []);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    if (error) dispatch(clearError());
+    // Clear local error on change
+    if (localError) setLocalError(null);
     const { name, value } = e.target;
     dispatchState({ type: 'SET_FORM_DATA', name, value });
 
     if (state.touched[name]) {
       validateField(name, value);
     }
-  }, [error, state.touched]);
+  }, [localError, state.touched]);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
+    setLocalError(null); // Clear previous errors
 
     let isFormValid = true;
     const newTouched = {} as Record<string, boolean>;
 
     Object.keys(state.formData).forEach(key => {
-      newTouched[key] = true;
+      newTouched[key] = true; // Mark all as touched on submit attempt
       const fieldValid = validateField(key, state.formData[key as keyof typeof state.formData]);
       if (!fieldValid) isFormValid = false;
     });
 
-    dispatchState({ type: 'SET_TOUCHED', name: newTouched });
+    // Update touched state for all fields at once
+    dispatchState({ type: 'SET_TOUCHED', name: '', value: newTouched }); // Adjust reducer if needed or set individually
 
     if (!isFormValid) {
       return;
     }
 
+    setLocalLoading(true); // Start loading indicator
     try {
-      const result = await dispatch(login(state.formData)).unwrap();
-      if (result) {
+      // Call AuthService directly
+      const response = await AuthService.login(state.formData);
+
+      if (response.access_token && response.user) {
+        // Call context login to update global state and localStorage
+        contextLogin(response.access_token, response.user);
+
+        // Redirect after successful login
         const callbackUrl = searchParams?.get('callbackUrl') || '/';
         router.push(callbackUrl);
+      } else {
+         // Should not happen if AuthService.login throws on failure, but good practice
+         setLocalError('Login failed. Please try again.');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login error:', error);
+      setLocalError(error.message || 'An unexpected error occurred.'); // Set local error state
+    } finally {
+      setLocalLoading(false); // Stop loading indicator
     }
-  }, [dispatch, state.formData, router, searchParams]);
+  }, [contextLogin, state.formData, router, searchParams, validateField]); // Added validateField dependency
 
   const getInputClasses = useMemo(() => (fieldName: string) => {
     const baseClasses = "rounded-lg border bg-gray-1 placeholder:text-dark-5 w-full py-3 px-5 outline-none duration-200 focus:border-transparent focus:shadow-input focus:ring-2 focus:ring-blue/20";
@@ -147,9 +172,10 @@ const Signin = () => {
                 Sign In to Your Account
               </h2>
               <p className="text-gray-600">Welcome back! Please enter your credentials</p>
-              {error && (
-                <div className="mt-4 p-3 rounded-lg bg-red-50 text-red-600">
-                  {error}
+              {/* Use localError for display */}
+              {localError && (
+                <div className="mt-4 p-3 rounded-lg bg-red-light-5 text-red">
+                  {localError}
                 </div>
               )}
             </div>
@@ -222,19 +248,20 @@ const Signin = () => {
 
                 <button
                    type="submit"
-                   disabled={loading}
+                   disabled={localLoading} // Use localLoading
                    className="w-full flex justify-center font-medium text-blue-600 bg-blue-600 py-3.5 px-6 rounded-lg transition-all duration-200 hover:bg-blue-700 active:bg-blue-800 mt-7.5 disabled:opacity-50 disabled:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 relative overflow-hidden group"
                    aria-label="Sign in to your account"
                 >
-                  {loading ? (
+                  {/* Use localLoading for button text/spinner */}
+                  {localLoading ? (
                     <>
-                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
-                      <span className="text-blue-600">Signing in...</span>
+                      <span className="text-white">Signing in...</span>
                     </>
-                  ) : <span className="text-blue-600">Sign in</span>}
+                  ) : <span className="text-white">Sign in</span>}
                 </button>
 
                 <div className="mt-8 relative flex items-center justify-center">

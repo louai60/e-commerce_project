@@ -1,18 +1,18 @@
 'use client';
 
-import { SessionProvider } from 'next-auth/react';
+// Remove SessionProvider import
 import { Provider as ReduxProvider } from 'react-redux';
 import { store } from '@/redux/store';
 import { AuthProvider } from '@/contexts/AuthContext';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <SessionProvider>
-      <AuthProvider>
-        <ReduxProvider store={store}>
+    // Remove SessionProvider wrapper
+      <ReduxProvider store={store}>
+        <AuthProvider>
           {children}
-        </ReduxProvider>
-      </AuthProvider>
-    </SessionProvider>
+        </AuthProvider>
+      </ReduxProvider>
+    // Remove SessionProvider wrapper
   );
 }

@@ -4,9 +4,10 @@ export interface User {
   username: string;
   firstName: string;
   lastName: string;
-  phoneNumber?: string;
+  phoneNumber: string;
   role: string;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface LoginCredentials {
@@ -24,15 +25,9 @@ export interface RegisterCredentials {
 }
 
 export interface AuthResponse {
-  user: {
-    id: string;
-    email: string;
-    username: string;
-    firstName: string;
-    lastName: string;
-    role: string;
-  };
-  message?: string;
+  user: User;
+  access_token: string;
 }
+
 
 

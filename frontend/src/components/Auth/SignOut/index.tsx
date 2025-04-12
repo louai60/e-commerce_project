@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AuthService } from '@/services/auth.service';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface SignOutButtonProps {
   className?: string;
@@ -12,14 +12,16 @@ interface SignOutButtonProps {
 export default function SignOutButton({ className, children }: SignOutButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const { logout } = useAuth();
 
   const handleSignOut = async () => {
     try {
       setIsLoading(true);
-    //   await AuthService.logout();
-      // The redirect will be handled by NextAuth signOut
+      await logout();
+      router.push('/signin');
     } catch (error) {
       console.error('Error signing out:', error);
+    } finally {
       setIsLoading(false);
     }
   };
