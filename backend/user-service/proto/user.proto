@@ -67,6 +67,7 @@ message User {
     string created_at = 12;
     string updated_at = 13;
     string last_login = 14;
+    string refresh_token_id = 15;
 }
 
 message CreateUserRequest {

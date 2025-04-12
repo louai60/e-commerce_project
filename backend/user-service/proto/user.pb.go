@@ -188,23 +188,24 @@ func (x *RefreshTokenResponse) GetCookie() *CookieInfo {
 
 // User related messages
 type User struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
-	Username      string                 `protobuf:"bytes,3,opt,name=username,proto3" json:"username,omitempty"`
-	FirstName     string                 `protobuf:"bytes,4,opt,name=first_name,json=firstName,proto3" json:"first_name,omitempty"`
-	LastName      string                 `protobuf:"bytes,5,opt,name=last_name,json=lastName,proto3" json:"last_name,omitempty"`
-	PhoneNumber   string                 `protobuf:"bytes,6,opt,name=phone_number,json=phoneNumber,proto3" json:"phone_number,omitempty"`
-	UserType      string                 `protobuf:"bytes,7,opt,name=user_type,json=userType,proto3" json:"user_type,omitempty"`
-	Role          string                 `protobuf:"bytes,8,opt,name=role,proto3" json:"role,omitempty"`
-	AccountStatus string                 `protobuf:"bytes,9,opt,name=account_status,json=accountStatus,proto3" json:"account_status,omitempty"`
-	EmailVerified bool                   `protobuf:"varint,10,opt,name=email_verified,json=emailVerified,proto3" json:"email_verified,omitempty"`
-	PhoneVerified bool                   `protobuf:"varint,11,opt,name=phone_verified,json=phoneVerified,proto3" json:"phone_verified,omitempty"`
-	CreatedAt     string                 `protobuf:"bytes,12,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	UpdatedAt     string                 `protobuf:"bytes,13,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	LastLogin     string                 `protobuf:"bytes,14,opt,name=last_login,json=lastLogin,proto3" json:"last_login,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	UserId         int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Email          string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
+	Username       string                 `protobuf:"bytes,3,opt,name=username,proto3" json:"username,omitempty"`
+	FirstName      string                 `protobuf:"bytes,4,opt,name=first_name,json=firstName,proto3" json:"first_name,omitempty"`
+	LastName       string                 `protobuf:"bytes,5,opt,name=last_name,json=lastName,proto3" json:"last_name,omitempty"`
+	PhoneNumber    string                 `protobuf:"bytes,6,opt,name=phone_number,json=phoneNumber,proto3" json:"phone_number,omitempty"`
+	UserType       string                 `protobuf:"bytes,7,opt,name=user_type,json=userType,proto3" json:"user_type,omitempty"`
+	Role           string                 `protobuf:"bytes,8,opt,name=role,proto3" json:"role,omitempty"`
+	AccountStatus  string                 `protobuf:"bytes,9,opt,name=account_status,json=accountStatus,proto3" json:"account_status,omitempty"`
+	EmailVerified  bool                   `protobuf:"varint,10,opt,name=email_verified,json=emailVerified,proto3" json:"email_verified,omitempty"`
+	PhoneVerified  bool                   `protobuf:"varint,11,opt,name=phone_verified,json=phoneVerified,proto3" json:"phone_verified,omitempty"`
+	CreatedAt      string                 `protobuf:"bytes,12,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt      string                 `protobuf:"bytes,13,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	LastLogin      string                 `protobuf:"bytes,14,opt,name=last_login,json=lastLogin,proto3" json:"last_login,omitempty"`
+	RefreshTokenId string                 `protobuf:"bytes,15,opt,name=refresh_token_id,json=refreshTokenId,proto3" json:"refresh_token_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *User) Reset() {
@@ -331,6 +332,13 @@ func (x *User) GetUpdatedAt() string {
 func (x *User) GetLastLogin() string {
 	if x != nil {
 		return x.LastLogin
+	}
+	return ""
+}
+
+func (x *User) GetRefreshTokenId() string {
+	if x != nil {
+		return x.RefreshTokenId
 	}
 	return ""
 }
@@ -2250,7 +2258,7 @@ const file_proto_user_proto_rawDesc = "" +
 	"\rrefresh_token\x18\x02 \x01(\tR\frefreshToken\x12\x1e\n" +
 	"\x04user\x18\x03 \x01(\v2\n" +
 	".user.UserR\x04user\x12(\n" +
-	"\x06cookie\x18\x04 \x01(\v2\x10.user.CookieInfoR\x06cookie\"\xb3\x03\n" +
+	"\x06cookie\x18\x04 \x01(\v2\x10.user.CookieInfoR\x06cookie\"\xdd\x03\n" +
 	"\x04User\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1a\n" +
@@ -2270,7 +2278,8 @@ const file_proto_user_proto_rawDesc = "" +
 	"\n" +
 	"updated_at\x18\r \x01(\tR\tupdatedAt\x12\x1d\n" +
 	"\n" +
-	"last_login\x18\x0e \x01(\tR\tlastLogin\"\xf1\x01\n" +
+	"last_login\x18\x0e \x01(\tR\tlastLogin\x12(\n" +
+	"\x10refresh_token_id\x18\x0f \x01(\tR\x0erefreshTokenId\"\xf1\x01\n" +
 	"\x11CreateUserRequest\x12\x14\n" +
 	"\x05email\x18\x01 \x01(\tR\x05email\x12\x1a\n" +
 	"\busername\x18\x02 \x01(\tR\busername\x12\x1a\n" +
