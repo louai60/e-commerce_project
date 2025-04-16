@@ -3,6 +3,7 @@ package models
 import (
 	"database/sql"
 	"time"
+	"github.com/google/uuid"
 )
 
 const (
@@ -13,65 +14,65 @@ const (
 )
 
 type User struct {
-    UserID         int64     `json:"user_id" db:"user_id"`
-    Email          string    `json:"email" db:"email"`
-    Username       string    `json:"username" db:"username"`
-    HashedPassword string    `json:"-" db:"hashed_password"`
-    FirstName      string    `json:"first_name" db:"first_name"`
-    LastName       string    `json:"last_name" db:"last_name"`
-    PhoneNumber    string    `json:"phone_number" db:"phone_number"`
-    UserType       string    `json:"user_type" db:"user_type"`
-    Role           string    `json:"role" db:"role"`
-    AccountStatus  string    `json:"account_status" db:"account_status"`
-    EmailVerified  bool      `json:"email_verified" db:"email_verified"`
-    PhoneVerified  bool      `json:"phone_verified" db:"phone_verified"`
-    CreatedAt      time.Time    `json:"created_at" db:"created_at"`
-    UpdatedAt      time.Time    `json:"updated_at" db:"updated_at"`
+    UserID         uuid.UUID  `json:"user_id" db:"user_id"`
+    Email          string     `json:"email" db:"email"`
+    Username       string     `json:"username" db:"username"`
+    HashedPassword string     `json:"-" db:"hashed_password"`
+    FirstName      string     `json:"first_name" db:"first_name"`
+    LastName       string     `json:"last_name" db:"last_name"`
+    PhoneNumber    string     `json:"phone_number" db:"phone_number"`
+    UserType       string     `json:"user_type" db:"user_type"`
+    Role           string     `json:"role" db:"role"`
+    AccountStatus  string     `json:"account_status" db:"account_status"`
+    EmailVerified  bool       `json:"email_verified" db:"email_verified"`
+    PhoneVerified  bool       `json:"phone_verified" db:"phone_verified"`
+    CreatedAt      time.Time  `json:"created_at" db:"created_at"`
+    UpdatedAt      time.Time  `json:"updated_at" db:"updated_at"`
     LastLogin      sql.NullTime `json:"last_login" db:"last_login"` // Changed to sql.NullTime
-    RefreshTokenID string       `json:"-" db:"refresh_token_id"` // JTI of the current valid refresh token
+    RefreshTokenID string     `json:"-" db:"refresh_token_id"` // JTI of the current valid refresh token
    }
 
 type UserAddress struct {
-    AddressID      int64     `json:"address_id"`
-    UserID         int64     `json:"user_id"`
-    AddressType    string    `json:"address_type"`
-    StreetAddress1 string    `json:"street_address1"`
-    StreetAddress2 string    `json:"street_address2"`
-    City           string    `json:"city"`
-    State          string    `json:"state"`
-    PostalCode     string    `json:"postal_code"`
-    Country        string    `json:"country"`
-    IsDefault      bool      `json:"is_default"`
-    CreatedAt      time.Time `json:"created_at"`
-    UpdatedAt      time.Time `json:"updated_at"`
+    AddressID      uuid.UUID  `json:"address_id" db:"address_id"`
+    UserID         uuid.UUID  `json:"user_id" db:"user_id"`
+    AddressType    string     `json:"address_type" db:"address_type"`
+    StreetAddress1 string     `json:"street_address1" db:"street_address1"`
+    StreetAddress2 string     `json:"street_address2" db:"street_address2"`
+    City           string     `json:"city" db:"city"`
+    State          string     `json:"state" db:"state"`
+    PostalCode     string     `json:"postal_code" db:"postal_code"`
+    Country        string     `json:"country" db:"country"`
+    IsDefault      bool       `json:"is_default" db:"is_default"`
+    CreatedAt      time.Time  `json:"created_at" db:"created_at"`
+    UpdatedAt      time.Time  `json:"updated_at" db:"updated_at"`
 }
 
 type PaymentMethod struct {
-    PaymentMethodID  int64     `json:"payment_method_id"`
-    UserID          int64     `json:"user_id"`
-    PaymentType     string    `json:"payment_type"`
-    CardLastFour    string    `json:"card_last_four,omitempty"`
-    CardBrand       string    `json:"card_brand,omitempty"`
-    ExpirationMonth int16     `json:"expiration_month,omitempty"`
-    ExpirationYear  int16     `json:"expiration_year,omitempty"`
-    IsDefault       bool      `json:"is_default"`
-    BillingAddressID *int64    `json:"billing_address_id,omitempty"`
-    Token           string    `json:"token"`
-    CreatedAt       time.Time `json:"created_at"`
-    UpdatedAt       time.Time `json:"updated_at"`
+    PaymentMethodID uuid.UUID  `json:"payment_method_id" db:"payment_method_id"`
+    UserID          uuid.UUID  `json:"user_id" db:"user_id"`
+    PaymentType     string     `json:"payment_type" db:"payment_type"`
+    CardLastFour    string     `json:"card_last_four,omitempty" db:"card_last_four"`
+    CardBrand       string     `json:"card_brand,omitempty" db:"card_brand"`
+    ExpirationMonth int16      `json:"expiration_month,omitempty" db:"expiration_month"`
+    ExpirationYear  int16      `json:"expiration_year,omitempty" db:"expiration_year"`
+    IsDefault       bool       `json:"is_default" db:"is_default"`
+    BillingAddressID *uuid.UUID `json:"billing_address_id,omitempty" db:"billing_address_id"`
+    Token           string     `json:"token" db:"token"`
+    CreatedAt       time.Time  `json:"created_at" db:"created_at"`
+    UpdatedAt       time.Time  `json:"updated_at" db:"updated_at"`
 }
 
 type UserPreferences struct {
-    PreferenceID     int64     `json:"preference_id"`
-    UserID           int64     `json:"user_id"`
-    Language         string    `json:"language"`
-    Currency         string    `json:"currency"`
-    NotificationEmail bool     `json:"notification_email"`
-    NotificationSMS  bool     `json:"notification_sms"`
-    CreatedAt        time.Time `json:"created_at"`
-    UpdatedAt        time.Time `json:"updated_at"`
-    Theme            string    `json:"theme"`
-    Timezone         string    `json:"timezone"`
+    PreferenceID     uuid.UUID `json:"preference_id" db:"preference_id"`
+    UserID           uuid.UUID `json:"user_id" db:"user_id"`
+    Language         string    `json:"language" db:"language"`
+    Currency         string    `json:"currency" db:"currency"`
+    NotificationEmail bool     `json:"notification_email" db:"notification_email"`
+    NotificationSMS  bool      `json:"notification_sms" db:"notification_sms"`
+    Theme            string    `json:"theme" db:"theme"`
+    Timezone         string    `json:"timezone" db:"timezone"`
+    CreatedAt        time.Time `json:"created_at" db:"created_at"`
+    UpdatedAt        time.Time `json:"updated_at" db:"updated_at"`
 }
 
 type RegisterRequest struct {

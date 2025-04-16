@@ -53,7 +53,7 @@ message RefreshTokenResponse {
 }
 // User related messages
 message User {
-    int64 user_id = 1;
+    string user_id = 1;          // UUID string
     string email = 2;
     string username = 3;
     string first_name = 4;
@@ -64,21 +64,19 @@ message User {
     string account_status = 9;
     bool email_verified = 10;
     bool phone_verified = 11;
-    string created_at = 12;
-    string updated_at = 13;
-    string last_login = 14;
+    string created_at = 12;      // RFC3339 formatted timestamp
+    string updated_at = 13;      // RFC3339 formatted timestamp
+    string last_login = 14;      // RFC3339 formatted timestamp
     string refresh_token_id = 15;
 }
 
 message CreateUserRequest {
     string email = 1;
-    string username = 2;
-    string password = 3;
-    string first_name = 4;
-    string last_name = 5;
-    string phone_number = 6;
-    string user_type = 7;
-    string role = 8;
+    string password = 2;
+    string first_name = 3;
+    string last_name = 4;
+    string user_type = 5;
+    string role = 6;
 }
 
 message UserResponse {
@@ -86,7 +84,7 @@ message UserResponse {
 }
 
 message GetUserRequest {
-    int64 user_id = 1;
+    string user_id = 1;          // UUID string
 }
 
 message GetUserByEmailRequest {
@@ -107,7 +105,7 @@ message ListUsersResponse {
 }
 
 message UpdateUserRequest {
-    int64 user_id = 1;
+    string user_id = 1;          // UUID string
     string username = 2;
     string first_name = 3;
     string last_name = 4;
@@ -115,7 +113,7 @@ message UpdateUserRequest {
 }
 
 message DeleteUserRequest {
-    int64 user_id = 1;
+    string user_id = 1;          // UUID string
 }
 
 
@@ -154,8 +152,8 @@ message CookieInfo {
 
 // Address related messages
 message Address {
-    int64 address_id = 1;  // Changed from string to int64
-    int64 user_id = 2;
+    string address_id = 1;       // UUID string
+    string user_id = 2;          // UUID string
     string address_type = 3;
     string street_address1 = 4;
     string street_address2 = 5;
@@ -164,12 +162,12 @@ message Address {
     string postal_code = 8;
     string country = 9;
     bool is_default = 10;
-    string created_at = 11;
-    string updated_at = 12;
+    string created_at = 11;      // RFC3339 formatted timestamp
+    string updated_at = 12;      // RFC3339 formatted timestamp
 }
 
 message AddAddressRequest {
-    int64 user_id = 1;
+    string user_id = 1;          // UUID string
     string address_type = 2;
     string street_address1 = 3;
     string street_address2 = 4;
@@ -185,7 +183,7 @@ message AddressResponse {
 }
 
 message GetAddressesRequest {
-    int64 user_id = 1;
+    string user_id = 1;          // UUID string
 }
 
 message AddressListResponse {
@@ -193,8 +191,8 @@ message AddressListResponse {
 }
 
 message UpdateAddressRequest {
-    int64 address_id = 1;  // Changed from string to int64
-    int64 user_id = 2;
+    string address_id = 1;       // UUID string
+    string user_id = 2;          // UUID string
     string address_type = 3;
     string street_address1 = 4;
     string street_address2 = 5;
@@ -206,14 +204,14 @@ message UpdateAddressRequest {
 }
 
 message DeleteAddressRequest {
-    int64 address_id = 1;  // Changed from string to int64
-    int64 user_id = 2;
+    string address_id = 1;       // UUID string
+    string user_id = 2;          // UUID string
 }
 
 // Payment method related messages
 message PaymentMethod {
-    int64 payment_method_id = 1;  // Changed from string to int64
-    int64 user_id = 2;
+    string payment_method_id = 1; // UUID string
+    string user_id = 2;          // UUID string
     string payment_type = 3;
     string card_last_four = 4;
     string card_brand = 5;
@@ -221,12 +219,12 @@ message PaymentMethod {
     int32 expiration_year = 7;
     bool is_default = 8;
     string token = 9;
-    string created_at = 10;
-    string updated_at = 11;
+    string created_at = 10;      // RFC3339 formatted timestamp
+    string updated_at = 11;      // RFC3339 formatted timestamp
 }
 
 message AddPaymentMethodRequest {
-    int64 user_id = 1;
+    string user_id = 1;          // UUID string
     string payment_type = 2;
     string card_last_four = 3;
     string card_brand = 4;
@@ -241,7 +239,7 @@ message PaymentMethodResponse {
 }
 
 message GetPaymentMethodsRequest {
-    int64 user_id = 1;  // Changed from string to int64
+    string user_id = 1;          // UUID string
 }
 
 message PaymentMethodListResponse {
@@ -249,16 +247,16 @@ message PaymentMethodListResponse {
 }
 
 message UpdatePaymentMethodRequest {
-    int64 payment_method_id = 1;  // Changed from string to int64
-    int64 user_id = 2;
+    string payment_method_id = 1; // UUID string
+    string user_id = 2;          // UUID string
     int32 expiration_month = 3;
     int32 expiration_year = 4;
     bool is_default = 5;
 }
 
 message DeletePaymentMethodRequest {
-    int64 payment_method_id = 1;  // Changed from string to int64
-    int64 user_id = 2;
+    string payment_method_id = 1; // UUID string
+    string user_id = 2;          // UUID string
 }
 
 // Health check messages

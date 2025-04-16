@@ -8,8 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/louai60/e-commerce_project/backend/user-service/repository"
+	"github.com/google/uuid"
 	pb "github.com/louai60/e-commerce_project/backend/user-service/proto"
+	"github.com/louai60/e-commerce_project/backend/user-service/repository"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -39,22 +40,22 @@ type TokenManager interface {
 }
 
 type UserServiceI interface {
-	GetUser(ctx context.Context, id int64) (*models.User, error)
+	GetUser(ctx context.Context, id uuid.UUID) (*models.User, error)
 	ListUsers(ctx context.Context, page, limit int32, filters map[string]interface{}) ([]*models.User, int64, error)
 	CreateUser(ctx context.Context, req *models.RegisterRequest) (*models.User, error)
 	UpdateUser(ctx context.Context, user *models.User) (*models.User, error)
 	UpdatePassword(ctx context.Context, email string, newPassword string) error
-	DeleteUser(ctx context.Context, id int64) error
+	DeleteUser(ctx context.Context, id uuid.UUID) error
 	Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error)
 	HealthCheck(ctx context.Context) error
 	GetUserByEmail(ctx context.Context, email string) (*models.User, error)
-	AddAddress(ctx context.Context, userID int64, address *models.UserAddress) (*models.UserAddress, error)
+	AddAddress(ctx context.Context, userID uuid.UUID, address *models.UserAddress) (*models.UserAddress, error)
 	RefreshToken(ctx context.Context, refreshToken string) (*pb.RefreshTokenResponse, error)
 
 	Authenticate(ctx context.Context, email, password string) (*models.User, error)
-	UpdateRefreshTokenID(ctx context.Context, userID int64, refreshTokenID string) error
-	ValidateRefreshTokenID(ctx context.Context, userID int64, refreshTokenID string) (bool, error)
-	RotateRefreshTokenID(ctx context.Context, userID int64, oldRefreshTokenID, newRefreshTokenID string) error
+	UpdateRefreshTokenID(ctx context.Context, userID uuid.UUID, refreshTokenID string) error
+	ValidateRefreshTokenID(ctx context.Context, userID uuid.UUID, refreshTokenID string) (bool, error)
+	RotateRefreshTokenID(ctx context.Context, userID uuid.UUID, oldRefreshTokenID, newRefreshTokenID string) error
 }
 
 func NewUserService(
@@ -101,66 +102,71 @@ func (s *UserService) Authenticate(ctx context.Context, email, password string) 
 	return user, nil
 }
 
-func (s *UserService) UpdateRefreshTokenID(ctx context.Context, userID int64, refreshTokenID string) error {
-	s.logger.Info("Updating refresh token ID", zap.Int64("userID", userID))
+func (s *UserService) UpdateRefreshTokenID(ctx context.Context, userID uuid.UUID, refreshTokenID string) error {
+	s.logger.Info("Updating refresh token ID", 
+		zap.String("userID", userID.String()))
 
 	user, err := s.GetUser(ctx, userID)
 	if err != nil {
-		s.logger.Error("Failed to get user", zap.Int64("userID", userID), zap.Error(err))
+		s.logger.Error("Failed to get user", 
+			zap.String("userID", userID.String()), 
+			zap.Error(err))
 		return err
 	}
 
 	user.RefreshTokenID = refreshTokenID
 
 	if err := s.repo.UpdateUser(ctx, user); err != nil {
-		s.logger.Error("Failed to update user", zap.Int64("userID", userID), zap.Error(err))
+		s.logger.Error("Failed to update user", 
+			zap.String("userID", userID.String()), 
+			zap.Error(err))
 		return fmt.Errorf("failed to update user: %w", err)
 	}
 
 	return nil
 }
 
-func (s *UserService) ValidateRefreshTokenID(ctx context.Context, userID int64, refreshTokenID string) (bool, error) {
-	s.logger.Info("Validating refresh token ID", zap.Int64("userID", userID))
+func (s *UserService) ValidateRefreshTokenID(ctx context.Context, userID uuid.UUID, refreshTokenID string) (bool, error) {
+	s.logger.Info("Validating refresh token ID", zap.String("userID", userID.String()))
 
 	user, err := s.GetUser(ctx, userID)
 	if err != nil {
-		s.logger.Error("Failed to get user", zap.Int64("userID", userID), zap.Error(err))
+		s.logger.Error("Failed to get user", zap.String("userID", userID.String()), zap.Error(err))
 		return false, err
 	}
 
 	return user.RefreshTokenID == refreshTokenID, nil
 }
 
-func (s *UserService) RotateRefreshTokenID(ctx context.Context, userID int64, oldRefreshTokenID, newRefreshTokenID string) error {
-	s.logger.Info("Rotating refresh token ID", zap.Int64("userID", userID))
+func (s *UserService) RotateRefreshTokenID(ctx context.Context, userID uuid.UUID, oldRefreshTokenID, newRefreshTokenID string) error {
+	s.logger.Info("Rotating refresh token ID", zap.String("userID", userID.String()))
 
 	user, err := s.GetUser(ctx, userID)
 	if err != nil {
-		s.logger.Error("Failed to get user", zap.Int64("userID", userID), zap.Error(err))
+		s.logger.Error("Failed to get user", zap.String("userID", userID.String()), zap.Error(err))
 		return err
 	}
 
 	if user.RefreshTokenID != oldRefreshTokenID {
-		s.logger.Warn("Old refresh token ID does not match", zap.Int64("userID", userID))
+		s.logger.Warn("Old refresh token ID does not match", zap.String("userID", userID.String()))
 		return fmt.Errorf("old refresh token ID does not match")
 	}
 
 	user.RefreshTokenID = newRefreshTokenID
 
 	if err := s.repo.UpdateUser(ctx, user); err != nil {
-		s.logger.Error("Failed to update user", zap.Int64("userID", userID), zap.Error(err))
+		s.logger.Error("Failed to update user", zap.String("userID", userID.String()), zap.Error(err))
 		return fmt.Errorf("failed to update user: %w", err)
 	}
 
 	return nil
 }
 
-func (s *UserService) GetUser(ctx context.Context, id int64) (*models.User, error) {
+func (s *UserService) GetUser(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	// Try to get from cache first
-	user, err := s.cacheManager.GetUser(ctx, fmt.Sprintf("%d", id))
+	user, err := s.cacheManager.GetUser(ctx, id.String())
 	if err == nil {
-		s.logger.Debug("Cache hit for user", zap.Int64("id", id))
+		s.logger.Debug("Cache hit for user", zap.String("id", id.String()))
 		return user, nil
 	}
 
@@ -217,53 +223,62 @@ func (s *UserService) ListUsers(ctx context.Context, page, limit int32, filters 
 }
 
 func (s *UserService) CreateUser(ctx context.Context, req *models.RegisterRequest) (*models.User, error) {
-	s.logger.Info("Creating user with type and role", 
+	s.logger.Info("Creating user with type and role",
+		zap.String("email", req.Email), // Log email
 		zap.String("userType", req.UserType),
 		zap.String("role", req.Role))
 
 	// Validate user type and role
 	if !models.IsValidUserType(req.UserType) {
-		return nil, fmt.Errorf("invalid user type: %s", req.UserType)
+		s.logger.Error("Invalid user type provided", zap.String("userType", req.UserType))
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user type: %s", req.UserType)
 	}
 
 	if !models.IsValidRole(req.UserType, req.Role) {
-		return nil, fmt.Errorf("invalid role %s for user type %s", req.Role, req.UserType)
+		s.logger.Error("Invalid role for user type", zap.String("role", req.Role), zap.String("userType", req.UserType))
+		return nil, status.Errorf(codes.InvalidArgument, "invalid role %s for user type %s", req.Role, req.UserType)
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
+		s.logger.Error("Failed to hash password", zap.Error(err))
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
 	user := &models.User{
 		Email:         strings.ToLower(req.Email),
-		Username:      req.Username,
+		// Username will be set to email by default in repository if empty
 		HashedPassword: string(hashedPassword),
 		FirstName:     req.FirstName,
 		LastName:      req.LastName,
-		PhoneNumber:   req.PhoneNumber,
-		UserType:      req.UserType,
-		Role:         req.Role,
-		AccountStatus: "active",
+		// PhoneNumber is omitted
+		UserType:      req.UserType, // Use provided UserType
+		Role:          req.Role,     // Use provided Role
+		AccountStatus: "active",   // Default AccountStatus
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
 	}
 
-	s.logger.Info("Attempting to create user", 
+	s.logger.Info("Attempting to create user in repository",
 		zap.String("email", user.Email),
 		zap.String("userType", user.UserType),
 		zap.String("role", user.Role))
 
 	if err := s.repo.CreateUser(ctx, user); err != nil {
-		s.logger.Error("Failed to create user", zap.Error(err))
-		return nil, fmt.Errorf("failed to create user: %w", err)
+		s.logger.Error("Failed to create user in repository", zap.Error(err))
+		// Check for specific errors like duplicate email/username
+		if strings.Contains(err.Error(), "already exists") {
+			// Use the specific error message from the repository if available
+			return nil, status.Errorf(codes.AlreadyExists, err.Error())
+		}
+		return nil, status.Errorf(codes.Internal, "failed to create user: %v", err)
 	}
 
 	return user, nil
 }
 
 func (s *UserService) UpdateUser(ctx context.Context, user *models.User) (*models.User, error) {
-	s.logger.Debug("Updating user", zap.Int64("id", user.UserID))
+	s.logger.Debug("Updating user", zap.String("id", user.UserID.String()))
 
 	if err := s.repo.UpdateUser(ctx, user); err != nil {
 		s.logger.Error("Failed to update user", zap.Error(err))
@@ -295,8 +310,8 @@ func (s *UserService) UpdatePassword(ctx context.Context, email string, newPassw
 	return nil
 }
 
-func (s *UserService) DeleteUser(ctx context.Context, id int64) error {
-	s.logger.Debug("Deleting user", zap.Int64("id", id))
+func (s *UserService) DeleteUser(ctx context.Context, id uuid.UUID) error {
+	s.logger.Debug("Deleting user", zap.String("id", id.String()))
 	return s.repo.DeleteUser(ctx, id)
 }
 
@@ -343,7 +358,7 @@ func (s *UserService) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Logi
 	// If UpdateUser cannot be modified, a new specific repository function is required.
 	if err := s.repo.UpdateUser(ctx, user); err != nil {
 		s.logger.Error("Failed to update user details (RefreshTokenID, LastLogin)",
-			zap.Int64("userID", user.UserID),
+			zap.String("userID", user.UserID.String()),
 			zap.Error(err))
 		// If storing the token state is critical, return an error.
 		return nil, status.Errorf(codes.Internal, "failed to update user state after login: %v", err)
@@ -385,16 +400,16 @@ func (s *UserService) GetUserByEmail(ctx context.Context, email string) (*models
 
 // Add Address Ads a new address to User's Profile
 
-func (s *UserService) AddAddress(ctx context.Context, userID int64, address *models.UserAddress) (*models.UserAddress, error) {
+func (s *UserService) AddAddress(ctx context.Context, userID uuid.UUID, address *models.UserAddress) (*models.UserAddress, error) {
 	s.logger.Debug("adding address for user", 
-		zap.Int64("user_id", userID), 
+		zap.String("user_id", userID.String()), 
 		zap.String("address_type", address.AddressType))
 
 	// Verify user exists
 	_, err := s.repo.GetUser(ctx, userID)
 	if err != nil {
 		s.logger.Error("user not found when adding address", 
-			zap.Int64("user_id", userID), 
+			zap.String("user_id", userID.String()), 
 			zap.Error(err))
 		return nil, fmt.Errorf("user not found: %w", err)
 	}
@@ -408,7 +423,7 @@ func (s *UserService) AddAddress(ctx context.Context, userID int64, address *mod
 	if address.IsDefault {
 		if err := s.repo.UpdateAddress(ctx, address); err != nil {
 			s.logger.Warn("failed to update existing default addresses", 
-				zap.Int64("user_id", userID),
+				zap.String("user_id", userID.String()),
 				zap.Error(err))
 		}
 	}
@@ -416,13 +431,13 @@ func (s *UserService) AddAddress(ctx context.Context, userID int64, address *mod
 	// Add address to database
 	if err := s.repo.CreateAddress(ctx, address); err != nil {
 		s.logger.Error("failed to add address to database",
-			zap.Int64("user_id", userID),
+			zap.String("user_id", userID.String()),
 			zap.Error(err))
 		return nil, fmt.Errorf("failed to add address: %w", err)
 	}
 
 	s.logger.Info("successfully added address",
-		zap.Int64("address_id", address.AddressID), 
+		zap.String("address_id", address.AddressID.String()), 
 		zap.String("address_type", address.AddressType))
 	return address, nil
 }
@@ -438,14 +453,14 @@ func (s *UserService) RefreshToken(ctx context.Context, refreshToken string) (*p
 	// Generate NEW token pair (this includes a new JTI)
 	accessToken, newRefreshTokenString, newRefreshTokenID, newRefreshTokenCookie, err := s.tokenManager.GenerateTokenPair(user)
 	if err != nil {
-		s.logger.Error("Failed to generate new token pair during refresh", zap.Int64("userID", user.UserID), zap.Error(err))
+		s.logger.Error("Failed to generate new token pair during refresh", zap.String("userID", user.UserID.String()), zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to generate tokens: %v", err)
 	}
 
 	// *** Store the NEW refresh token ID, rotating the old one ***
 	if err := s.repo.UpdateRefreshTokenID(ctx, user.UserID, newRefreshTokenID); err != nil {
 		s.logger.Error("Failed to store new refresh token ID during refresh",
-			zap.Int64("userID", user.UserID),
+			zap.String("userID", user.UserID.String()),
 			zap.Error(err))
 		// This is critical. If we can't store the new ID, the user might be locked out after the old token expires.
 		return nil, status.Errorf(codes.Internal, "failed to update refresh token state")
@@ -475,7 +490,7 @@ func convertUserToProto(user *models.User) *pb.User {
 		return nil
 	}
 	return &pb.User{
-		UserId:        user.UserID,
+		UserId:        user.UserID.String(),
 		Email:         user.Email,
 		Username:      user.Username,
 		FirstName:     user.FirstName,

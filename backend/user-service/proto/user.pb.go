@@ -189,7 +189,7 @@ func (x *RefreshTokenResponse) GetCookie() *CookieInfo {
 // User related messages
 type User struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	UserId         int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId         string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // UUID string
 	Email          string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
 	Username       string                 `protobuf:"bytes,3,opt,name=username,proto3" json:"username,omitempty"`
 	FirstName      string                 `protobuf:"bytes,4,opt,name=first_name,json=firstName,proto3" json:"first_name,omitempty"`
@@ -200,9 +200,9 @@ type User struct {
 	AccountStatus  string                 `protobuf:"bytes,9,opt,name=account_status,json=accountStatus,proto3" json:"account_status,omitempty"`
 	EmailVerified  bool                   `protobuf:"varint,10,opt,name=email_verified,json=emailVerified,proto3" json:"email_verified,omitempty"`
 	PhoneVerified  bool                   `protobuf:"varint,11,opt,name=phone_verified,json=phoneVerified,proto3" json:"phone_verified,omitempty"`
-	CreatedAt      string                 `protobuf:"bytes,12,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	UpdatedAt      string                 `protobuf:"bytes,13,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	LastLogin      string                 `protobuf:"bytes,14,opt,name=last_login,json=lastLogin,proto3" json:"last_login,omitempty"`
+	CreatedAt      string                 `protobuf:"bytes,12,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"` // RFC3339 formatted timestamp
+	UpdatedAt      string                 `protobuf:"bytes,13,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"` // RFC3339 formatted timestamp
+	LastLogin      string                 `protobuf:"bytes,14,opt,name=last_login,json=lastLogin,proto3" json:"last_login,omitempty"` // RFC3339 formatted timestamp
 	RefreshTokenId string                 `protobuf:"bytes,15,opt,name=refresh_token_id,json=refreshTokenId,proto3" json:"refresh_token_id,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
@@ -238,11 +238,11 @@ func (*User) Descriptor() ([]byte, []int) {
 	return file_proto_user_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *User) GetUserId() int64 {
+func (x *User) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 func (x *User) GetEmail() string {
@@ -346,13 +346,11 @@ func (x *User) GetRefreshTokenId() string {
 type CreateUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Email         string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
-	Username      string                 `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
-	Password      string                 `protobuf:"bytes,3,opt,name=password,proto3" json:"password,omitempty"`
-	FirstName     string                 `protobuf:"bytes,4,opt,name=first_name,json=firstName,proto3" json:"first_name,omitempty"`
-	LastName      string                 `protobuf:"bytes,5,opt,name=last_name,json=lastName,proto3" json:"last_name,omitempty"`
-	PhoneNumber   string                 `protobuf:"bytes,6,opt,name=phone_number,json=phoneNumber,proto3" json:"phone_number,omitempty"`
-	UserType      string                 `protobuf:"bytes,7,opt,name=user_type,json=userType,proto3" json:"user_type,omitempty"`
-	Role          string                 `protobuf:"bytes,8,opt,name=role,proto3" json:"role,omitempty"`
+	Password      string                 `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
+	FirstName     string                 `protobuf:"bytes,3,opt,name=first_name,json=firstName,proto3" json:"first_name,omitempty"`
+	LastName      string                 `protobuf:"bytes,4,opt,name=last_name,json=lastName,proto3" json:"last_name,omitempty"`
+	UserType      string                 `protobuf:"bytes,5,opt,name=user_type,json=userType,proto3" json:"user_type,omitempty"`
+	Role          string                 `protobuf:"bytes,6,opt,name=role,proto3" json:"role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -394,13 +392,6 @@ func (x *CreateUserRequest) GetEmail() string {
 	return ""
 }
 
-func (x *CreateUserRequest) GetUsername() string {
-	if x != nil {
-		return x.Username
-	}
-	return ""
-}
-
 func (x *CreateUserRequest) GetPassword() string {
 	if x != nil {
 		return x.Password
@@ -418,13 +409,6 @@ func (x *CreateUserRequest) GetFirstName() string {
 func (x *CreateUserRequest) GetLastName() string {
 	if x != nil {
 		return x.LastName
-	}
-	return ""
-}
-
-func (x *CreateUserRequest) GetPhoneNumber() string {
-	if x != nil {
-		return x.PhoneNumber
 	}
 	return ""
 }
@@ -489,7 +473,7 @@ func (x *UserResponse) GetUser() *User {
 
 type GetUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // UUID string
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -524,11 +508,11 @@ func (*GetUserRequest) Descriptor() ([]byte, []int) {
 	return file_proto_user_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *GetUserRequest) GetUserId() int64 {
+func (x *GetUserRequest) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 type GetUserByEmailRequest struct {
@@ -705,7 +689,7 @@ func (x *ListUsersResponse) GetLimit() int32 {
 
 type UpdateUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // UUID string
 	Username      string                 `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
 	FirstName     string                 `protobuf:"bytes,3,opt,name=first_name,json=firstName,proto3" json:"first_name,omitempty"`
 	LastName      string                 `protobuf:"bytes,4,opt,name=last_name,json=lastName,proto3" json:"last_name,omitempty"`
@@ -744,11 +728,11 @@ func (*UpdateUserRequest) Descriptor() ([]byte, []int) {
 	return file_proto_user_proto_rawDescGZIP(), []int{10}
 }
 
-func (x *UpdateUserRequest) GetUserId() int64 {
+func (x *UpdateUserRequest) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 func (x *UpdateUserRequest) GetUsername() string {
@@ -781,7 +765,7 @@ func (x *UpdateUserRequest) GetPhoneNumber() string {
 
 type DeleteUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // UUID string
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -816,11 +800,11 @@ func (*DeleteUserRequest) Descriptor() ([]byte, []int) {
 	return file_proto_user_proto_rawDescGZIP(), []int{11}
 }
 
-func (x *DeleteUserRequest) GetUserId() int64 {
+func (x *DeleteUserRequest) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 // Login related messages
@@ -1139,8 +1123,8 @@ func (x *CookieInfo) GetHttpOnly() bool {
 // Address related messages
 type Address struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	AddressId      int64                  `protobuf:"varint,1,opt,name=address_id,json=addressId,proto3" json:"address_id,omitempty"` // Changed from string to int64
-	UserId         int64                  `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	AddressId      string                 `protobuf:"bytes,1,opt,name=address_id,json=addressId,proto3" json:"address_id,omitempty"` // UUID string
+	UserId         string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`          // UUID string
 	AddressType    string                 `protobuf:"bytes,3,opt,name=address_type,json=addressType,proto3" json:"address_type,omitempty"`
 	StreetAddress1 string                 `protobuf:"bytes,4,opt,name=street_address1,json=streetAddress1,proto3" json:"street_address1,omitempty"`
 	StreetAddress2 string                 `protobuf:"bytes,5,opt,name=street_address2,json=streetAddress2,proto3" json:"street_address2,omitempty"`
@@ -1149,8 +1133,8 @@ type Address struct {
 	PostalCode     string                 `protobuf:"bytes,8,opt,name=postal_code,json=postalCode,proto3" json:"postal_code,omitempty"`
 	Country        string                 `protobuf:"bytes,9,opt,name=country,proto3" json:"country,omitempty"`
 	IsDefault      bool                   `protobuf:"varint,10,opt,name=is_default,json=isDefault,proto3" json:"is_default,omitempty"`
-	CreatedAt      string                 `protobuf:"bytes,11,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	UpdatedAt      string                 `protobuf:"bytes,12,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	CreatedAt      string                 `protobuf:"bytes,11,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"` // RFC3339 formatted timestamp
+	UpdatedAt      string                 `protobuf:"bytes,12,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"` // RFC3339 formatted timestamp
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -1185,18 +1169,18 @@ func (*Address) Descriptor() ([]byte, []int) {
 	return file_proto_user_proto_rawDescGZIP(), []int{16}
 }
 
-func (x *Address) GetAddressId() int64 {
+func (x *Address) GetAddressId() string {
 	if x != nil {
 		return x.AddressId
 	}
-	return 0
+	return ""
 }
 
-func (x *Address) GetUserId() int64 {
+func (x *Address) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 func (x *Address) GetAddressType() string {
@@ -1271,7 +1255,7 @@ func (x *Address) GetUpdatedAt() string {
 
 type AddAddressRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	UserId         int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId         string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // UUID string
 	AddressType    string                 `protobuf:"bytes,2,opt,name=address_type,json=addressType,proto3" json:"address_type,omitempty"`
 	StreetAddress1 string                 `protobuf:"bytes,3,opt,name=street_address1,json=streetAddress1,proto3" json:"street_address1,omitempty"`
 	StreetAddress2 string                 `protobuf:"bytes,4,opt,name=street_address2,json=streetAddress2,proto3" json:"street_address2,omitempty"`
@@ -1314,11 +1298,11 @@ func (*AddAddressRequest) Descriptor() ([]byte, []int) {
 	return file_proto_user_proto_rawDescGZIP(), []int{17}
 }
 
-func (x *AddAddressRequest) GetUserId() int64 {
+func (x *AddAddressRequest) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 func (x *AddAddressRequest) GetAddressType() string {
@@ -1423,7 +1407,7 @@ func (x *AddressResponse) GetAddress() *Address {
 
 type GetAddressesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // UUID string
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1458,11 +1442,11 @@ func (*GetAddressesRequest) Descriptor() ([]byte, []int) {
 	return file_proto_user_proto_rawDescGZIP(), []int{19}
 }
 
-func (x *GetAddressesRequest) GetUserId() int64 {
+func (x *GetAddressesRequest) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 type AddressListResponse struct {
@@ -1511,8 +1495,8 @@ func (x *AddressListResponse) GetAddresses() []*Address {
 
 type UpdateAddressRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	AddressId      int64                  `protobuf:"varint,1,opt,name=address_id,json=addressId,proto3" json:"address_id,omitempty"` // Changed from string to int64
-	UserId         int64                  `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	AddressId      string                 `protobuf:"bytes,1,opt,name=address_id,json=addressId,proto3" json:"address_id,omitempty"` // UUID string
+	UserId         string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`          // UUID string
 	AddressType    string                 `protobuf:"bytes,3,opt,name=address_type,json=addressType,proto3" json:"address_type,omitempty"`
 	StreetAddress1 string                 `protobuf:"bytes,4,opt,name=street_address1,json=streetAddress1,proto3" json:"street_address1,omitempty"`
 	StreetAddress2 string                 `protobuf:"bytes,5,opt,name=street_address2,json=streetAddress2,proto3" json:"street_address2,omitempty"`
@@ -1555,18 +1539,18 @@ func (*UpdateAddressRequest) Descriptor() ([]byte, []int) {
 	return file_proto_user_proto_rawDescGZIP(), []int{21}
 }
 
-func (x *UpdateAddressRequest) GetAddressId() int64 {
+func (x *UpdateAddressRequest) GetAddressId() string {
 	if x != nil {
 		return x.AddressId
 	}
-	return 0
+	return ""
 }
 
-func (x *UpdateAddressRequest) GetUserId() int64 {
+func (x *UpdateAddressRequest) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 func (x *UpdateAddressRequest) GetAddressType() string {
@@ -1627,8 +1611,8 @@ func (x *UpdateAddressRequest) GetIsDefault() bool {
 
 type DeleteAddressRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	AddressId     int64                  `protobuf:"varint,1,opt,name=address_id,json=addressId,proto3" json:"address_id,omitempty"` // Changed from string to int64
-	UserId        int64                  `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	AddressId     string                 `protobuf:"bytes,1,opt,name=address_id,json=addressId,proto3" json:"address_id,omitempty"` // UUID string
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`          // UUID string
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1663,25 +1647,25 @@ func (*DeleteAddressRequest) Descriptor() ([]byte, []int) {
 	return file_proto_user_proto_rawDescGZIP(), []int{22}
 }
 
-func (x *DeleteAddressRequest) GetAddressId() int64 {
+func (x *DeleteAddressRequest) GetAddressId() string {
 	if x != nil {
 		return x.AddressId
 	}
-	return 0
+	return ""
 }
 
-func (x *DeleteAddressRequest) GetUserId() int64 {
+func (x *DeleteAddressRequest) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 // Payment method related messages
 type PaymentMethod struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
-	PaymentMethodId int64                  `protobuf:"varint,1,opt,name=payment_method_id,json=paymentMethodId,proto3" json:"payment_method_id,omitempty"` // Changed from string to int64
-	UserId          int64                  `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	PaymentMethodId string                 `protobuf:"bytes,1,opt,name=payment_method_id,json=paymentMethodId,proto3" json:"payment_method_id,omitempty"` // UUID string
+	UserId          string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`                              // UUID string
 	PaymentType     string                 `protobuf:"bytes,3,opt,name=payment_type,json=paymentType,proto3" json:"payment_type,omitempty"`
 	CardLastFour    string                 `protobuf:"bytes,4,opt,name=card_last_four,json=cardLastFour,proto3" json:"card_last_four,omitempty"`
 	CardBrand       string                 `protobuf:"bytes,5,opt,name=card_brand,json=cardBrand,proto3" json:"card_brand,omitempty"`
@@ -1689,8 +1673,8 @@ type PaymentMethod struct {
 	ExpirationYear  int32                  `protobuf:"varint,7,opt,name=expiration_year,json=expirationYear,proto3" json:"expiration_year,omitempty"`
 	IsDefault       bool                   `protobuf:"varint,8,opt,name=is_default,json=isDefault,proto3" json:"is_default,omitempty"`
 	Token           string                 `protobuf:"bytes,9,opt,name=token,proto3" json:"token,omitempty"`
-	CreatedAt       string                 `protobuf:"bytes,10,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	UpdatedAt       string                 `protobuf:"bytes,11,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	CreatedAt       string                 `protobuf:"bytes,10,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"` // RFC3339 formatted timestamp
+	UpdatedAt       string                 `protobuf:"bytes,11,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"` // RFC3339 formatted timestamp
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -1725,18 +1709,18 @@ func (*PaymentMethod) Descriptor() ([]byte, []int) {
 	return file_proto_user_proto_rawDescGZIP(), []int{23}
 }
 
-func (x *PaymentMethod) GetPaymentMethodId() int64 {
+func (x *PaymentMethod) GetPaymentMethodId() string {
 	if x != nil {
 		return x.PaymentMethodId
 	}
-	return 0
+	return ""
 }
 
-func (x *PaymentMethod) GetUserId() int64 {
+func (x *PaymentMethod) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 func (x *PaymentMethod) GetPaymentType() string {
@@ -1804,7 +1788,7 @@ func (x *PaymentMethod) GetUpdatedAt() string {
 
 type AddPaymentMethodRequest struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
-	UserId          int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId          string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // UUID string
 	PaymentType     string                 `protobuf:"bytes,2,opt,name=payment_type,json=paymentType,proto3" json:"payment_type,omitempty"`
 	CardLastFour    string                 `protobuf:"bytes,3,opt,name=card_last_four,json=cardLastFour,proto3" json:"card_last_four,omitempty"`
 	CardBrand       string                 `protobuf:"bytes,4,opt,name=card_brand,json=cardBrand,proto3" json:"card_brand,omitempty"`
@@ -1846,11 +1830,11 @@ func (*AddPaymentMethodRequest) Descriptor() ([]byte, []int) {
 	return file_proto_user_proto_rawDescGZIP(), []int{24}
 }
 
-func (x *AddPaymentMethodRequest) GetUserId() int64 {
+func (x *AddPaymentMethodRequest) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 func (x *AddPaymentMethodRequest) GetPaymentType() string {
@@ -1948,7 +1932,7 @@ func (x *PaymentMethodResponse) GetPaymentMethod() *PaymentMethod {
 
 type GetPaymentMethodsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // Changed from string to int64
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // UUID string
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1983,11 +1967,11 @@ func (*GetPaymentMethodsRequest) Descriptor() ([]byte, []int) {
 	return file_proto_user_proto_rawDescGZIP(), []int{26}
 }
 
-func (x *GetPaymentMethodsRequest) GetUserId() int64 {
+func (x *GetPaymentMethodsRequest) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 type PaymentMethodListResponse struct {
@@ -2036,8 +2020,8 @@ func (x *PaymentMethodListResponse) GetPaymentMethods() []*PaymentMethod {
 
 type UpdatePaymentMethodRequest struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
-	PaymentMethodId int64                  `protobuf:"varint,1,opt,name=payment_method_id,json=paymentMethodId,proto3" json:"payment_method_id,omitempty"` // Changed from string to int64
-	UserId          int64                  `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	PaymentMethodId string                 `protobuf:"bytes,1,opt,name=payment_method_id,json=paymentMethodId,proto3" json:"payment_method_id,omitempty"` // UUID string
+	UserId          string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`                              // UUID string
 	ExpirationMonth int32                  `protobuf:"varint,3,opt,name=expiration_month,json=expirationMonth,proto3" json:"expiration_month,omitempty"`
 	ExpirationYear  int32                  `protobuf:"varint,4,opt,name=expiration_year,json=expirationYear,proto3" json:"expiration_year,omitempty"`
 	IsDefault       bool                   `protobuf:"varint,5,opt,name=is_default,json=isDefault,proto3" json:"is_default,omitempty"`
@@ -2075,18 +2059,18 @@ func (*UpdatePaymentMethodRequest) Descriptor() ([]byte, []int) {
 	return file_proto_user_proto_rawDescGZIP(), []int{28}
 }
 
-func (x *UpdatePaymentMethodRequest) GetPaymentMethodId() int64 {
+func (x *UpdatePaymentMethodRequest) GetPaymentMethodId() string {
 	if x != nil {
 		return x.PaymentMethodId
 	}
-	return 0
+	return ""
 }
 
-func (x *UpdatePaymentMethodRequest) GetUserId() int64 {
+func (x *UpdatePaymentMethodRequest) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 func (x *UpdatePaymentMethodRequest) GetExpirationMonth() int32 {
@@ -2112,8 +2096,8 @@ func (x *UpdatePaymentMethodRequest) GetIsDefault() bool {
 
 type DeletePaymentMethodRequest struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
-	PaymentMethodId int64                  `protobuf:"varint,1,opt,name=payment_method_id,json=paymentMethodId,proto3" json:"payment_method_id,omitempty"` // Changed from string to int64
-	UserId          int64                  `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	PaymentMethodId string                 `protobuf:"bytes,1,opt,name=payment_method_id,json=paymentMethodId,proto3" json:"payment_method_id,omitempty"` // UUID string
+	UserId          string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`                              // UUID string
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -2148,18 +2132,18 @@ func (*DeletePaymentMethodRequest) Descriptor() ([]byte, []int) {
 	return file_proto_user_proto_rawDescGZIP(), []int{29}
 }
 
-func (x *DeletePaymentMethodRequest) GetPaymentMethodId() int64 {
+func (x *DeletePaymentMethodRequest) GetPaymentMethodId() string {
 	if x != nil {
 		return x.PaymentMethodId
 	}
-	return 0
+	return ""
 }
 
-func (x *DeletePaymentMethodRequest) GetUserId() int64 {
+func (x *DeletePaymentMethodRequest) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 // Health check messages
@@ -2260,7 +2244,7 @@ const file_proto_user_proto_rawDesc = "" +
 	".user.UserR\x04user\x12(\n" +
 	"\x06cookie\x18\x04 \x01(\v2\x10.user.CookieInfoR\x06cookie\"\xdd\x03\n" +
 	"\x04User\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x14\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1a\n" +
 	"\busername\x18\x03 \x01(\tR\busername\x12\x1d\n" +
 	"\n" +
@@ -2279,22 +2263,20 @@ const file_proto_user_proto_rawDesc = "" +
 	"updated_at\x18\r \x01(\tR\tupdatedAt\x12\x1d\n" +
 	"\n" +
 	"last_login\x18\x0e \x01(\tR\tlastLogin\x12(\n" +
-	"\x10refresh_token_id\x18\x0f \x01(\tR\x0erefreshTokenId\"\xf1\x01\n" +
+	"\x10refresh_token_id\x18\x0f \x01(\tR\x0erefreshTokenId\"\xb2\x01\n" +
 	"\x11CreateUserRequest\x12\x14\n" +
 	"\x05email\x18\x01 \x01(\tR\x05email\x12\x1a\n" +
-	"\busername\x18\x02 \x01(\tR\busername\x12\x1a\n" +
-	"\bpassword\x18\x03 \x01(\tR\bpassword\x12\x1d\n" +
+	"\bpassword\x18\x02 \x01(\tR\bpassword\x12\x1d\n" +
 	"\n" +
-	"first_name\x18\x04 \x01(\tR\tfirstName\x12\x1b\n" +
-	"\tlast_name\x18\x05 \x01(\tR\blastName\x12!\n" +
-	"\fphone_number\x18\x06 \x01(\tR\vphoneNumber\x12\x1b\n" +
-	"\tuser_type\x18\a \x01(\tR\buserType\x12\x12\n" +
-	"\x04role\x18\b \x01(\tR\x04role\".\n" +
+	"first_name\x18\x03 \x01(\tR\tfirstName\x12\x1b\n" +
+	"\tlast_name\x18\x04 \x01(\tR\blastName\x12\x1b\n" +
+	"\tuser_type\x18\x05 \x01(\tR\buserType\x12\x12\n" +
+	"\x04role\x18\x06 \x01(\tR\x04role\".\n" +
 	"\fUserResponse\x12\x1e\n" +
 	"\x04user\x18\x01 \x01(\v2\n" +
 	".user.UserR\x04user\")\n" +
 	"\x0eGetUserRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\"-\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"-\n" +
 	"\x15GetUserByEmailRequest\x12\x14\n" +
 	"\x05email\x18\x01 \x01(\tR\x05email\"T\n" +
 	"\x10ListUsersRequest\x12\x12\n" +
@@ -2308,14 +2290,14 @@ const file_proto_user_proto_rawDesc = "" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x14\n" +
 	"\x05limit\x18\x04 \x01(\x05R\x05limit\"\xa7\x01\n" +
 	"\x11UpdateUserRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x1a\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1a\n" +
 	"\busername\x18\x02 \x01(\tR\busername\x12\x1d\n" +
 	"\n" +
 	"first_name\x18\x03 \x01(\tR\tfirstName\x12\x1b\n" +
 	"\tlast_name\x18\x04 \x01(\tR\blastName\x12!\n" +
 	"\fphone_number\x18\x05 \x01(\tR\vphoneNumber\",\n" +
 	"\x11DeleteUserRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\"@\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"@\n" +
 	"\fLoginRequest\x12\x14\n" +
 	"\x05email\x18\x01 \x01(\tR\x05email\x12\x1a\n" +
 	"\bpassword\x18\x02 \x01(\tR\bpassword\"\x94\x01\n" +
@@ -2345,8 +2327,8 @@ const file_proto_user_proto_rawDesc = "" +
 	"\thttp_only\x18\a \x01(\bR\bhttpOnly\"\xf8\x02\n" +
 	"\aAddress\x12\x1d\n" +
 	"\n" +
-	"address_id\x18\x01 \x01(\x03R\taddressId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\x03R\x06userId\x12!\n" +
+	"address_id\x18\x01 \x01(\tR\taddressId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12!\n" +
 	"\faddress_type\x18\x03 \x01(\tR\vaddressType\x12'\n" +
 	"\x0fstreet_address1\x18\x04 \x01(\tR\x0estreetAddress1\x12'\n" +
 	"\x0fstreet_address2\x18\x05 \x01(\tR\x0estreetAddress2\x12\x12\n" +
@@ -2363,7 +2345,7 @@ const file_proto_user_proto_rawDesc = "" +
 	"\n" +
 	"updated_at\x18\f \x01(\tR\tupdatedAt\"\xa5\x02\n" +
 	"\x11AddAddressRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12!\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12!\n" +
 	"\faddress_type\x18\x02 \x01(\tR\vaddressType\x12'\n" +
 	"\x0fstreet_address1\x18\x03 \x01(\tR\x0estreetAddress1\x12'\n" +
 	"\x0fstreet_address2\x18\x04 \x01(\tR\x0estreetAddress2\x12\x12\n" +
@@ -2377,13 +2359,13 @@ const file_proto_user_proto_rawDesc = "" +
 	"\x0fAddressResponse\x12'\n" +
 	"\aaddress\x18\x01 \x01(\v2\r.user.AddressR\aaddress\".\n" +
 	"\x13GetAddressesRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\"B\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"B\n" +
 	"\x13AddressListResponse\x12+\n" +
 	"\taddresses\x18\x01 \x03(\v2\r.user.AddressR\taddresses\"\xc7\x02\n" +
 	"\x14UpdateAddressRequest\x12\x1d\n" +
 	"\n" +
-	"address_id\x18\x01 \x01(\x03R\taddressId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\x03R\x06userId\x12!\n" +
+	"address_id\x18\x01 \x01(\tR\taddressId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12!\n" +
 	"\faddress_type\x18\x03 \x01(\tR\vaddressType\x12'\n" +
 	"\x0fstreet_address1\x18\x04 \x01(\tR\x0estreetAddress1\x12'\n" +
 	"\x0fstreet_address2\x18\x05 \x01(\tR\x0estreetAddress2\x12\x12\n" +
@@ -2397,11 +2379,11 @@ const file_proto_user_proto_rawDesc = "" +
 	" \x01(\bR\tisDefault\"N\n" +
 	"\x14DeleteAddressRequest\x12\x1d\n" +
 	"\n" +
-	"address_id\x18\x01 \x01(\x03R\taddressId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\x03R\x06userId\"\x83\x03\n" +
+	"address_id\x18\x01 \x01(\tR\taddressId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\"\x83\x03\n" +
 	"\rPaymentMethod\x12*\n" +
-	"\x11payment_method_id\x18\x01 \x01(\x03R\x0fpaymentMethodId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\x03R\x06userId\x12!\n" +
+	"\x11payment_method_id\x18\x01 \x01(\tR\x0fpaymentMethodId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12!\n" +
 	"\fpayment_type\x18\x03 \x01(\tR\vpaymentType\x12$\n" +
 	"\x0ecard_last_four\x18\x04 \x01(\tR\fcardLastFour\x12\x1d\n" +
 	"\n" +
@@ -2417,7 +2399,7 @@ const file_proto_user_proto_rawDesc = "" +
 	"\n" +
 	"updated_at\x18\v \x01(\tR\tupdatedAt\"\xa3\x02\n" +
 	"\x17AddPaymentMethodRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12!\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12!\n" +
 	"\fpayment_type\x18\x02 \x01(\tR\vpaymentType\x12$\n" +
 	"\x0ecard_last_four\x18\x03 \x01(\tR\fcardLastFour\x12\x1d\n" +
 	"\n" +
@@ -2430,19 +2412,19 @@ const file_proto_user_proto_rawDesc = "" +
 	"\x15PaymentMethodResponse\x12:\n" +
 	"\x0epayment_method\x18\x01 \x01(\v2\x13.user.PaymentMethodR\rpaymentMethod\"3\n" +
 	"\x18GetPaymentMethodsRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\"Y\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"Y\n" +
 	"\x19PaymentMethodListResponse\x12<\n" +
 	"\x0fpayment_methods\x18\x01 \x03(\v2\x13.user.PaymentMethodR\x0epaymentMethods\"\xd4\x01\n" +
 	"\x1aUpdatePaymentMethodRequest\x12*\n" +
-	"\x11payment_method_id\x18\x01 \x01(\x03R\x0fpaymentMethodId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\x03R\x06userId\x12)\n" +
+	"\x11payment_method_id\x18\x01 \x01(\tR\x0fpaymentMethodId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12)\n" +
 	"\x10expiration_month\x18\x03 \x01(\x05R\x0fexpirationMonth\x12'\n" +
 	"\x0fexpiration_year\x18\x04 \x01(\x05R\x0eexpirationYear\x12\x1d\n" +
 	"\n" +
 	"is_default\x18\x05 \x01(\bR\tisDefault\"a\n" +
 	"\x1aDeletePaymentMethodRequest\x12*\n" +
-	"\x11payment_method_id\x18\x01 \x01(\x03R\x0fpaymentMethodId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\x03R\x06userId\"\x14\n" +
+	"\x11payment_method_id\x18\x01 \x01(\tR\x0fpaymentMethodId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\"\x14\n" +
 	"\x12HealthCheckRequest\"-\n" +
 	"\x13HealthCheckResponse\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\tR\x06status2\x89\t\n" +

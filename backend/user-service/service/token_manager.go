@@ -140,9 +140,13 @@ func (m *JWTManager) ValidateToken(tokenString string) (*models.User, error) {
 	}
 
 	// Extract and validate required claims
-	userID, ok := claims["user_id"].(float64)
+	userIDStr, ok := claims["user_id"].(string)
 	if !ok {
-		return nil, fmt.Errorf("invalid user identifier")
+		return nil, fmt.Errorf("user_id claim is not a string or is missing")
+	}
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user_id format in token: %w", err)
 	}
 
 	tokenID, ok := claims["jti"].(string)
@@ -151,7 +155,7 @@ func (m *JWTManager) ValidateToken(tokenString string) (*models.User, error) {
 	}
 
 	// Retrieve user data and verify token against stored record
-	user, err := m.repo.GetUser(context.Background(), int64(userID))
+	user, err := m.repo.GetUser(context.Background(), userID)
 	if err != nil {
 		return nil, fmt.Errorf("user verification failed: %w", err)
 	}

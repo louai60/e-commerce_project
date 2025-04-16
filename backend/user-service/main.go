@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	"github.com/louai60/e-commerce_project/backend/user-service/cache"
 	"github.com/louai60/e-commerce_project/backend/user-service/config"
@@ -178,7 +179,9 @@ func main() {
 
 	// Initialize repository
 	logger.Info("Initializing repository...")
-	repo := repository.NewPostgresRepository(db, logger)
+	// Initialize sqlx.DB from sql.DB
+	dbx := sqlx.NewDb(db, "postgres")
+	repo := repository.NewPostgresRepository(dbx, logger)
 
 	// Initialize rate limiter
 	rateLimiter := service.NewSimpleRateLimiter(

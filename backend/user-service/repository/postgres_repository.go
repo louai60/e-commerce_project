@@ -5,23 +5,23 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 	"github.com/louai60/e-commerce_project/backend/user-service/models"
+	"go.uber.org/zap"
 )
 
-import "go.uber.org/zap"
-
 type PostgresRepository struct {
-	db *sql.DB
+	db     *sqlx.DB  // Change from *sql.DB to *sqlx.DB
 	Logger *zap.Logger
 }
 
-func NewPostgresRepository(db *sql.DB, logger *zap.Logger) *PostgresRepository {
+func NewPostgresRepository(db *sqlx.DB, logger *zap.Logger) *PostgresRepository {
 	return &PostgresRepository{
-		db: db,
+		db:     db,
 		Logger: logger,
 	}
 }
@@ -33,10 +33,24 @@ func (r *PostgresRepository) Ping(ctx context.Context) error {
 // User operations
 
 func (r *PostgresRepository) CreateUser(ctx context.Context, user *models.User) error {
+	if user.Username == "" {
+		user.Username = user.FirstName + " " + user.LastName
+	}
+	if user.AccountStatus == "" {
+		user.AccountStatus = "active"
+	}
+	// Initialize other optional fields with default values
+	if user.PhoneNumber == "" {
+		user.PhoneNumber = "" // Explicit empty string
+	}
+	if user.LastLogin.Time.IsZero() {
+		user.LastLogin = sql.NullTime{Time: time.Now(), Valid: true}
+	}
+
 	query := `
 		INSERT INTO users (
-			username, email, hashed_password, first_name, last_name, 
-			phone_number, user_type, role, account_status, 
+			username, email, hashed_password, first_name, last_name,
+			phone_number, user_type, role, account_status,
 			email_verified, phone_verified
 		)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
@@ -57,16 +71,8 @@ func (r *PostgresRepository) CreateUser(ctx context.Context, user *models.User) 
 	).Scan(&user.UserID, &user.CreatedAt, &user.UpdatedAt)
 
 	if err != nil {
-		if pqErr, ok := err.(*pq.Error); ok {
-			switch pqErr.Code.Name() {
-			case "unique_violation":
-				if strings.Contains(pqErr.Constraint, "users_email_key") {
-					return fmt.Errorf("email already exists")
-				}
-				if strings.Contains(pqErr.Constraint, "users_username_key") {
-					return fmt.Errorf("username already exists")
-				}
-			}
+		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
+			return fmt.Errorf("user with email %s already exists", user.Email)
 		}
 		return fmt.Errorf("failed to create user: %w", err)
 	}
@@ -74,16 +80,21 @@ func (r *PostgresRepository) CreateUser(ctx context.Context, user *models.User) 
 	return nil
 }
 
-func (r *PostgresRepository) GetUser(ctx context.Context, userID int64) (*models.User, error) {
+func (r *PostgresRepository) GetUser(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	query := `
-		SELECT user_id, username, email, hashed_password, first_name, last_name, 
-			   phone_number, user_type, role, account_status, email_verified, 
-			   phone_verified, created_at, updated_at, last_login
-		FROM users
+		SELECT 
+			user_id, username, email, hashed_password, first_name, last_name,
+			COALESCE(phone_number, ''),
+			user_type, role, account_status,
+			email_verified, phone_verified,
+			COALESCE(refresh_token_id, ''),
+			created_at, updated_at,
+			COALESCE(last_login, created_at)
+		FROM users 
 		WHERE user_id = $1`
-
+	
 	user := &models.User{}
-	err := r.db.QueryRowContext(ctx, query, userID).Scan(
+	if err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&user.UserID,
 		&user.Username,
 		&user.Email,
@@ -96,18 +107,17 @@ func (r *PostgresRepository) GetUser(ctx context.Context, userID int64) (*models
 		&user.AccountStatus,
 		&user.EmailVerified,
 		&user.PhoneVerified,
+		&user.RefreshTokenID,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 		&user.LastLogin,
-	)
-
-	if err != nil {
+	); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("user not found")
 		}
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
-
+	
 	return user, nil
 }
 
@@ -140,7 +150,7 @@ func (r *PostgresRepository) UpdateUser(ctx context.Context, user *models.User) 
 	).Scan(&user.UpdatedAt)
 }
 
-func (r *PostgresRepository) DeleteUser(ctx context.Context, userID int64) error {
+func (r *PostgresRepository) DeleteUser(ctx context.Context, userID uuid.UUID) error {
 	query := `DELETE FROM users WHERE user_id = $1`
 	result, err := r.db.ExecContext(ctx, query, userID)
 	if err != nil {
@@ -164,21 +174,13 @@ func (r *PostgresRepository) GetUserByEmail(ctx context.Context, email string) (
 
 	query := `
 		SELECT 
-			user_id, 
-			username, 
-			email, 
-			hashed_password,  
-			first_name, 
-			last_name, 
-			phone_number, 
-			user_type, 
-			role, 
-			account_status, 
-			email_verified, 
-			phone_verified, 
-			created_at, 
-			updated_at, 
-			COALESCE(last_login, created_at) as last_login
+			user_id, username, email, hashed_password, first_name, last_name,
+			COALESCE(phone_number, ''),
+			user_type, role, account_status,
+			email_verified, phone_verified,
+			COALESCE(refresh_token_id, ''),
+			created_at, updated_at,
+			COALESCE(last_login, created_at)
 		FROM users 
 		WHERE LOWER(email) = LOWER($1)`
 
@@ -187,7 +189,7 @@ func (r *PostgresRepository) GetUserByEmail(ctx context.Context, email string) (
 		&user.UserID,
 		&user.Username,
 		&user.Email,
-		&user.HashedPassword,  
+		&user.HashedPassword,
 		&user.FirstName,
 		&user.LastName,
 		&user.PhoneNumber,
@@ -196,6 +198,7 @@ func (r *PostgresRepository) GetUserByEmail(ctx context.Context, email string) (
 		&user.AccountStatus,
 		&user.EmailVerified,
 		&user.PhoneVerified,
+		&user.RefreshTokenID,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 		&user.LastLogin,
@@ -212,7 +215,7 @@ func (r *PostgresRepository) GetUserByEmail(ctx context.Context, email string) (
 
 	r.Logger.Info("User found", 
 		zap.String("email", email),
-		zap.Int64("userId", user.UserID))
+		zap.String("userId", user.UserID.String()))
 	return user, nil
 }
 
@@ -333,7 +336,7 @@ func (r *PostgresRepository) CreateAddress(ctx context.Context, address *models.
 	).Scan(&address.AddressID, &address.CreatedAt, &address.UpdatedAt)
 }
 
-func (r *PostgresRepository) GetAddresses(ctx context.Context, userID int64) ([]models.UserAddress, error) {
+func (r *PostgresRepository) GetAddresses(ctx context.Context, userID uuid.UUID) ([]models.UserAddress, error) {
 	query := `
 		SELECT address_id, user_id, address_type, street_address1, street_address2,
 			   city, state, postal_code, country, is_default, created_at, updated_at
@@ -400,7 +403,7 @@ func (r *PostgresRepository) UpdateAddress(ctx context.Context, address *models.
 	).Scan(&address.UpdatedAt)
 }
 
-func (r *PostgresRepository) DeleteAddress(ctx context.Context, addressID, userID int64) error {
+func (r *PostgresRepository) DeleteAddress(ctx context.Context, addressID uuid.UUID, userID uuid.UUID) error {
 	query := `DELETE FROM user_addresses WHERE address_id = $1 AND user_id = $2`
 	result, err := r.db.ExecContext(ctx, query, addressID, userID)
 	if err != nil {
@@ -419,7 +422,7 @@ func (r *PostgresRepository) DeleteAddress(ctx context.Context, addressID, userI
 	return nil
 }
 
-func (r *PostgresRepository) GetDefaultAddress(ctx context.Context, userID int64) (*models.UserAddress, error) {
+func (r *PostgresRepository) GetDefaultAddress(ctx context.Context, userID uuid.UUID) (*models.UserAddress, error) {
 	query := `
 		SELECT address_id, user_id, address_type, street_address1, street_address2,
 			   city, state, postal_code, country, is_default, created_at, updated_at
@@ -470,9 +473,9 @@ func (r *PostgresRepository) CreatePaymentMethod(ctx context.Context, payment *m
 	).Scan(&payment.PaymentMethodID, &payment.CreatedAt, &payment.UpdatedAt)
 }
 
-func (r *PostgresRepository) GetPaymentMethods(ctx context.Context, userID int64) ([]models.PaymentMethod, error) {
+func (r *PostgresRepository) GetPaymentMethods(ctx context.Context, userID uuid.UUID) ([]models.PaymentMethod, error) {
 	query := `
-		SELECT payment_method_id, user_id, payment_type, card_last_four, 
+		SELECT payment_method_id, user_id, payment_type, card_last_four,
 			   card_brand, expiration_month, expiration_year, is_default,
 			   billing_address_id, token, created_at, updated_at
 		FROM payment_methods
@@ -538,7 +541,7 @@ func (r *PostgresRepository) UpdatePaymentMethod(ctx context.Context, payment *m
 	).Scan(&payment.UpdatedAt)
 }
 
-func (r *PostgresRepository) DeletePaymentMethod(ctx context.Context, paymentID, userID int64) error {
+func (r *PostgresRepository) DeletePaymentMethod(ctx context.Context, paymentID uuid.UUID, userID uuid.UUID) error {
 	query := `DELETE FROM payment_methods WHERE payment_method_id = $1 AND user_id = $2`
 	result, err := r.db.ExecContext(ctx, query, paymentID, userID)
 	if err != nil {
@@ -557,9 +560,9 @@ func (r *PostgresRepository) DeletePaymentMethod(ctx context.Context, paymentID,
 	return nil
 }
 
-func (r *PostgresRepository) GetDefaultPaymentMethod(ctx context.Context, userID int64) (*models.PaymentMethod, error) {
+func (r *PostgresRepository) GetDefaultPaymentMethod(ctx context.Context, userID uuid.UUID) (*models.PaymentMethod, error) {
 	query := `
-		SELECT payment_method_id, user_id, payment_type, card_last_four, 
+		SELECT payment_method_id, user_id, payment_type, card_last_four,
 			   card_brand, expiration_month, expiration_year, is_default,
 			   billing_address_id, token, created_at, updated_at
 		FROM payment_methods
@@ -613,9 +616,9 @@ func (r *PostgresRepository) CreatePreferences(ctx context.Context, prefs *model
 	).Scan(&prefs.CreatedAt, &prefs.UpdatedAt)
 }
 
-func (r *PostgresRepository) GetPreferences(ctx context.Context, userID int64) (*models.UserPreferences, error) {
+func (r *PostgresRepository) GetPreferences(ctx context.Context, userID uuid.UUID) (*models.UserPreferences, error) {
 	query := `
-		SELECT user_id, language, currency, notification_email, 
+		SELECT user_id, language, currency, notification_email,
 			   notification_sms, theme, timezone, created_at, updated_at
 		FROM user_preferences
 		WHERE user_id = $1`
@@ -664,29 +667,28 @@ func (r *PostgresRepository) UpdatePreferences(ctx context.Context, prefs *model
 }
 
 // UpdateRefreshTokenID updates the refresh token ID for a given user.
-func (r *PostgresRepository) UpdateRefreshTokenID(ctx context.Context, userID int64, refreshTokenID string) error {
+func (r *PostgresRepository) UpdateRefreshTokenID(ctx context.Context, userID uuid.UUID, refreshTokenID string) error {
 	query := `
 		UPDATE users
-		SET refresh_token_id = $1, updated_at = $2
+		SET refresh_token_id = NULLIF($1, ''), updated_at = $2
 		WHERE user_id = $3`
 
 	result, err := r.db.ExecContext(ctx, query, refreshTokenID, time.Now(), userID)
 	if err != nil {
-		r.Logger.Error("Failed to update refresh token ID", zap.Int64("userID", userID), zap.Error(err))
+		r.Logger.Error("Failed to update refresh token ID", 
+			zap.String("userID", userID.String()), 
+			zap.Error(err))
 		return fmt.Errorf("failed to update refresh token ID: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		r.Logger.Error("Failed to get rows affected after updating refresh token ID", zap.Int64("userID", userID), zap.Error(err))
 		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
-		r.Logger.Warn("No user found to update refresh token ID", zap.Int64("userID", userID))
 		return fmt.Errorf("user not found")
 	}
 
-	r.Logger.Info("Successfully updated refresh token ID", zap.Int64("userID", userID), zap.String("refreshTokenID", refreshTokenID))
 	return nil
 }
