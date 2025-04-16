@@ -5,8 +5,8 @@ server:
 
 services:
   product:
-    host: "localhost"
-    port: "50051"
+    host: "${PRODUCT_SERVICE_HOST:-localhost}"
+    port: "${PRODUCT_SERVICE_PORT:-50051}"
   user:
     host: "localhost"
     port: "50052"
@@ -40,5 +40,6 @@ services:
   recommendation:
     host: "localhost"
     port: "50062"
+
 
 

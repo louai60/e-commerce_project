@@ -32,7 +32,13 @@ func (h *ProductHandler) GetProduct(c *gin.Context) {
         return
     }
 
-    req := &pb.GetProductRequest{Id: id}
+    // Create the request with the correct field structure
+    req := &pb.GetProductRequest{
+        Identifier: &pb.GetProductRequest_Id{
+            Id: id,
+        },
+    }
+
     resp, err := h.client.GetProduct(context.Background(), req)
     if err != nil {
         st, ok := status.FromError(err)
@@ -117,14 +123,20 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 
 func (h *ProductHandler) UpdateProduct(c *gin.Context) {
     id := c.Param("id")
-    var req pb.UpdateProductRequest
-    if err := c.ShouldBindJSON(&req); err != nil {
+    var product pb.Product
+    if err := c.ShouldBindJSON(&product); err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
-    req.Id = id
+    
+    // Set the ID from the URL parameter
+    product.Id = id
 
-    resp, err := h.client.UpdateProduct(context.Background(), &req)
+    req := &pb.UpdateProductRequest{
+        Product: &product,
+    }
+
+    resp, err := h.client.UpdateProduct(context.Background(), req)
     if err != nil {
         st, ok := status.FromError(err)
         if ok {
@@ -161,5 +173,155 @@ func (h *ProductHandler) DeleteProduct(c *gin.Context) {
     }
 
     c.Status(http.StatusNoContent)
+}
+
+// Brand handlers
+func (h *ProductHandler) CreateBrand(c *gin.Context) {
+    var req pb.Brand
+    if err := c.ShouldBindJSON(&req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
+    resp, err := h.client.CreateBrand(context.Background(), &pb.CreateBrandRequest{Brand: &req})
+    if err != nil {
+        st, ok := status.FromError(err)
+        if ok && st.Code() == codes.InvalidArgument {
+            c.JSON(http.StatusBadRequest, gin.H{"error": st.Message()})
+            return
+        }
+        h.logger.Error("Failed to create brand", zap.Error(err))
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+        return
+    }
+
+    c.JSON(http.StatusCreated, resp)
+}
+
+func (h *ProductHandler) GetBrand(c *gin.Context) {
+    id := c.Param("id")
+    req := &pb.GetBrandRequest{
+        Identifier: &pb.GetBrandRequest_Id{Id: id},
+    }
+
+    resp, err := h.client.GetBrand(context.Background(), req)
+    if err != nil {
+        st, ok := status.FromError(err)
+        if ok && st.Code() == codes.NotFound {
+            c.JSON(http.StatusNotFound, gin.H{"error": "brand not found"})
+            return
+        }
+        h.logger.Error("Failed to get brand", zap.Error(err))
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+        return
+    }
+
+    c.JSON(http.StatusOK, resp)
+}
+
+func (h *ProductHandler) ListBrands(c *gin.Context) {
+    pageStr := c.DefaultQuery("page", "1")
+    limitStr := c.DefaultQuery("limit", "10")
+
+    page, err := strconv.Atoi(pageStr)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid page number"})
+        return
+    }
+
+    limit, err := strconv.Atoi(limitStr)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid limit number"})
+        return
+    }
+
+    req := &pb.ListBrandsRequest{
+        Page: int32(page),
+        Limit: int32(limit),
+    }
+
+    resp, err := h.client.ListBrands(context.Background(), req)
+    if err != nil {
+        h.logger.Error("Failed to list brands", zap.Error(err))
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+        return
+    }
+
+    c.JSON(http.StatusOK, resp)
+}
+
+// Category handlers
+func (h *ProductHandler) CreateCategory(c *gin.Context) {
+    var req pb.CreateCategoryRequest
+    if err := c.ShouldBindJSON(&req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
+    resp, err := h.client.CreateCategory(context.Background(), &req)
+    if err != nil {
+        st, ok := status.FromError(err)
+        if ok && st.Code() == codes.InvalidArgument {
+            c.JSON(http.StatusBadRequest, gin.H{"error": st.Message()})
+            return
+        }
+        h.logger.Error("Failed to create category", zap.Error(err))
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+        return
+    }
+
+    c.JSON(http.StatusCreated, resp)
+}
+
+func (h *ProductHandler) GetCategory(c *gin.Context) {
+    id := c.Param("id")
+    req := &pb.GetCategoryRequest{
+        Identifier: &pb.GetCategoryRequest_Id{Id: id},
+    }
+
+    resp, err := h.client.GetCategory(context.Background(), req)
+    if err != nil {
+        st, ok := status.FromError(err)
+        if ok && st.Code() == codes.NotFound {
+            c.JSON(http.StatusNotFound, gin.H{"error": "category not found"})
+            return
+        }
+        h.logger.Error("Failed to get category", zap.Error(err))
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+        return
+    }
+
+    c.JSON(http.StatusOK, resp)
+}
+
+func (h *ProductHandler) ListCategories(c *gin.Context) {
+    pageStr := c.DefaultQuery("page", "1")
+    limitStr := c.DefaultQuery("limit", "10")
+
+    page, err := strconv.Atoi(pageStr)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid page number"})
+        return
+    }
+
+    limit, err := strconv.Atoi(limitStr)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid limit number"})
+        return
+    }
+
+    req := &pb.ListCategoriesRequest{
+        Page: int32(page),
+        Limit: int32(limit),
+    }
+
+    resp, err := h.client.ListCategories(context.Background(), req)
+    if err != nil {
+        h.logger.Error("Failed to list categories", zap.Error(err))
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+        return
+    }
+
+    c.JSON(http.StatusOK, resp)
 }
 

@@ -13,9 +13,12 @@ require (
 	github.com/spf13/viper v1.20.0
 	go.uber.org/zap v1.27.0
 	google.golang.org/grpc v1.71.1
+
 )
 
 replace github.com/louai60/e-commerce_project/backend/shared => ../shared
+
+require github.com/google/uuid v1.6.0
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect

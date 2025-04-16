@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt"
+	"github.com/google/uuid"
 )
 
 // Global variable to hold the parsed public key
@@ -93,12 +94,10 @@ func validateToken(tokenString string, publicKey *rsa.PublicKey) (jwt.MapClaims,
 		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		// Return the public key for verification
 		return publicKey, nil
 	})
 
 	if err != nil {
-		// Explicit expiration check
 		if ve, ok := err.(*jwt.ValidationError); ok {
 			if ve.Errors&jwt.ValidationErrorExpired != 0 {
 				return nil, fmt.Errorf("token has expired")
@@ -133,17 +132,14 @@ func validateToken(tokenString string, publicKey *rsa.PublicKey) (jwt.MapClaims,
 		}
 	}
 
-	// Check claim types (optional but recommended for robustness)
-	if _, ok := claims["user_id"].(float64); !ok { // JWT numbers are often float64
-		if _, ok := claims["user_id"].(int64); !ok { // Allow int64 as well
-			return nil, fmt.Errorf("invalid type for user_id claim")
+	// Modified user_id validation to handle string UUID
+	if userID, ok := claims["user_id"].(string); !ok {
+		return nil, fmt.Errorf("invalid type for user_id claim: expected string UUID")
+	} else {
+		// Validate that it's a valid UUID
+		if _, err := uuid.Parse(userID); err != nil {
+			return nil, fmt.Errorf("invalid user_id format: not a valid UUID")
 		}
-	}
-	if _, ok := claims["role"].(string); !ok {
-		return nil, fmt.Errorf("invalid type for role claim")
-	}
-	if _, ok := claims["email"].(string); !ok {
-		return nil, fmt.Errorf("invalid type for email claim")
 	}
 
 	return claims, nil

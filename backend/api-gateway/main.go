@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv" // Added godotenv back
@@ -35,11 +36,32 @@ func main() {
     }
    
     // Initialize gRPC connections
-    productConn, err := grpc.Dial("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
-    if err != nil {
-        logger.Fatal("Failed to connect to product service", zap.Error(err))
+    productServiceAddr := os.Getenv("PRODUCT_SERVICE_ADDR")
+    if productServiceAddr == "" {
+        productServiceAddr = "localhost:50051" // fallback to default
     }
-    defer productConn.Close()
+    
+    var productConn *grpc.ClientConn
+    var productClient productpb.ProductServiceClient
+    
+    // Try to connect to product service but don't block startup
+    productConn, err = grpc.Dial(
+        productServiceAddr,
+        grpc.WithTransportCredentials(insecure.NewCredentials()),
+        grpc.WithBlock(),
+        grpc.WithTimeout(2*time.Second), // Reduced timeout
+    )
+    if err != nil {
+        logger.Error("Failed to connect to product service - some functionality will be unavailable", 
+            zap.String("address", productServiceAddr),
+            zap.Error(err))
+    } else {
+        defer productConn.Close()
+        productClient = productpb.NewProductServiceClient(productConn)
+    }
+
+    // Initialize product handler with potential nil client
+    productHandler := handlers.NewProductHandler(productClient, logger)
 
     userConn, err := grpc.Dial("localhost:50052", grpc.WithTransportCredentials(insecure.NewCredentials()))
     if err != nil {
@@ -57,10 +79,6 @@ func main() {
         logger.Fatal("Failed to connect to admin service", zap.Error(err))
     }
     defer adminConn.Close()
-
-    // Initialize handlers
-    productClient := productpb.NewProductServiceClient(productConn)
-    productHandler := handlers.NewProductHandler(productClient, logger)
 
     adminClient := adminpb.NewAdminServiceClient(adminConn) // Create admin client
     // The adminHandler needs to be defined in the handlers package for the gateway
@@ -87,6 +105,22 @@ func main() {
             products.POST("", middleware.AuthRequired(), middleware.AdminRequired(), productHandler.CreateProduct)
             products.PUT("/:id", middleware.AuthRequired(), middleware.AdminRequired(), productHandler.UpdateProduct)
             products.DELETE("/:id", middleware.AuthRequired(), middleware.AdminRequired(), productHandler.DeleteProduct)
+        }
+
+        // Brand routes
+        brands := v1.Group("/brands")
+        {
+            brands.GET("", productHandler.ListBrands)
+            brands.GET("/:id", productHandler.GetBrand)
+            brands.POST("", middleware.AuthRequired(), middleware.AdminRequired(), productHandler.CreateBrand)
+        }
+
+        // Category routes
+        categories := v1.Group("/categories")
+        {
+            categories.GET("", productHandler.ListCategories)
+            categories.GET("/:id", productHandler.GetCategory)
+            categories.POST("", middleware.AuthRequired(), middleware.AdminRequired(), productHandler.CreateCategory)
         }
 
         // User routes
