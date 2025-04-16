@@ -1,0 +1,24 @@
+
+## Features
+
+### Admin Dashboard Overview
+The **Admin Dashboard** provides a comprehensive view of key metrics and allows the admin to manage the entire platform. Key features include:
+
+- **Dashboard Overview:** Displays key statistics such as total users, products, revenue, and orders.
+- **User Management:** View, edit, activate, deactivate, and manage user roles.
+- **Product Management:** Add, edit, and remove products, manage stock levels, and monitor product performance.
+- **Order Management:** Track, update, and manage orders, including processing and shipping statuses.
+- **Inventory Management:** Monitor product stock levels, receive low-stock alerts, and adjust stock.
+- **Revenue and Finance Management:** View revenue trends, track expenses, and manage payment gateways.
+- **Analytics & Reporting:** Generate detailed reports and visualizations for product performance, user behavior, and sales.
+- **Discount and Coupon Management:** Create and manage discount codes and promotions.
+- **Role-based Permissions:** Manage roles and permissions for different users (e.g., Admin, Customer Support).
+
+### Admin Actions
+- **Add/Edit Products:** Full CRUD functionality for product listings.
+- **User Role Management:** Change user roles (Admin, Vendor, Customer) and manage permissions.
+- **Order Status Updates:** Update order statuses (Pending, Shipped, Delivered).
+- **Financial Reports:** Generate detailed financial and transaction reports.
+- **Inventory Alerts:** Set thresholds for low-stock warnings and adjust stock levels.
+- **Analytics:** Visual representations of key metrics such as revenue, sales trends, and top-performing products.
+

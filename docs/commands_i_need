@@ -3,8 +3,12 @@ rm -rf proto/*.pb.go  # Clean old generated files
 protoc --go_out=. --go-grpc_out=. --go_opt=paths=source_relative --go-grpc_opt=paths=source_relative proto/user.proto
 
 # Migrate database
-cd /migrates
+cd /migrations
+#user db
 migrate -path . -database "postgres://postgres:root@localhost:5432/nexcart_user?sslmode=disable" up
+
+#product db
+migrate -path . -database "postgres://postgres:root@localhost:5432/nexcart_product?sslmode=disable" up
 
 # Run the service
 air
