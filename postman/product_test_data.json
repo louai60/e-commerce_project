@@ -1,0 +1,124 @@
+{
+    "Create Product": {
+        "method": "POST",
+        "endpoint": "{{base_url}}/api/v1/products",
+        "body": {
+            "title": "MacBook Pro M2 14-inch",
+            "slug": "macbook-pro-m2-14-inch",
+            "description": "The most powerful MacBook Pro ever with the M2 chip, featuring up to 12-core CPU and 19-core GPU",
+            "short_description": "Latest MacBook Pro with M2 chip",
+            "price": 1999.99,
+            "discount_price": 1899.99,
+            "sku": "MBPM2-14-512",
+            "inventory_qty": 50,
+            "weight": 1.6,
+            "is_published": true,
+            "brand_id": "apple-brand-uuid",
+            "categories": [
+                {
+                    "id": "laptops-category-uuid",
+                    "name": "Laptops"
+                }
+            ],
+            "images": [
+                {
+                    "url": "https://example.com/images/macbook-pro-m2-1.jpg",
+                    "alt_text": "MacBook Pro M2 Front View",
+                    "position": 1
+                },
+                {
+                    "url": "https://example.com/images/macbook-pro-m2-2.jpg",
+                    "alt_text": "MacBook Pro M2 Side View",
+                    "position": 2
+                }
+            ]
+        }
+    },
+
+    "Update Product": {
+        "method": "PUT",
+        "endpoint": "{{base_url}}/api/v1/products/{{product_id}}",
+        "body": {
+            "title": "MacBook Pro M2 14-inch (Updated)",
+            "price": 1899.99,
+            "discount_price": 1799.99,
+            "inventory_qty": 45,
+            "is_published": true
+        }
+    },
+
+    "Create Gaming Laptop": {
+        "method": "POST",
+        "endpoint": "{{base_url}}/api/v1/products",
+        "body": {
+            "title": "ASUS ROG Strix G15",
+            "slug": "asus-rog-strix-g15",
+            "description": "Gaming laptop featuring NVIDIA RTX 3070, AMD Ryzen 9 5900HX, 32GB RAM, 1TB NVMe SSD",
+            "short_description": "High-performance gaming laptop",
+            "price": 1799.99,
+            "discount_price": 1699.99,
+            "sku": "ROG-G15-3070",
+            "inventory_qty": 25,
+            "weight": 2.3,
+            "is_published": true,
+            "brand_id": "asus-brand-uuid",
+            "categories": [
+                {
+                    "id": "laptops-category-uuid",
+                    "name": "Laptops"
+                },
+                {
+                    "id": "gaming-category-uuid",
+                    "name": "Gaming"
+                }
+            ],
+            "images": [
+                {
+                    "url": "https://example.com/images/rog-strix-g15-1.jpg",
+                    "alt_text": "ROG Strix G15 Front View",
+                    "position": 1
+                }
+            ]
+        }
+    },
+
+    "Create Smartphone": {
+        "method": "POST",
+        "endpoint": "{{base_url}}/api/v1/products",
+        "body": {
+            "title": "Samsung Galaxy S23 Ultra",
+            "slug": "samsung-galaxy-s23-ultra",
+            "description": "Latest flagship smartphone with 200MP camera, S Pen, and Snapdragon 8 Gen 2",
+            "short_description": "Premium Android smartphone",
+            "price": 1199.99,
+            "discount_price": 1099.99,
+            "sku": "SM-S23U-256",
+            "inventory_qty": 100,
+            "weight": 0.234,
+            "is_published": true,
+            "brand_id": "samsung-brand-uuid",
+            "categories": [
+                {
+                    "id": "smartphones-category-uuid",
+                    "name": "Smartphones"
+                },
+                {
+                    "id": "electronics-category-uuid",
+                    "name": "Electronics"
+                }
+            ],
+            "images": [
+                {
+                    "url": "https://example.com/images/s23-ultra-1.jpg",
+                    "alt_text": "Galaxy S23 Ultra Front",
+                    "position": 1
+                },
+                {
+                    "url": "https://example.com/images/s23-ultra-2.jpg",
+                    "alt_text": "Galaxy S23 Ultra Back",
+                    "position": 2
+                }
+            ]
+        }
+    }
+}

@@ -1,0 +1,163 @@
+{
+  "products": [
+    {
+      "id": "bfedf50a-75fe-468a-88f5-5601bcf1e580",
+      "title": "MacBook Pro M2 14-inch",
+      "slug": "macbook-pro-m2-14-inch",
+      "description": "The most powerful MacBook Pro ever with the M2 chip.",
+      "short_description": "Latest MacBook Pro with M2 chip",
+      "default_variant_id": "var-001",
+      "price": {
+        "current": {
+          "USD": 1999.99,
+          "EUR": 1699.99
+        },
+        "currency": "USD",
+        "savings_percentage": 5
+      },
+      "sku": "MBPM2-14-512",
+      "attributes": [
+        { "name": "Brand", "value": "Apple" },
+        { "name": "Display", "value": "14-inch Liquid Retina XDR" },
+        { "name": "Processor", "value": "Apple M2 Pro" }
+      ],
+      "variants": [
+        {
+          "id": "var-001",
+          "product_id": "bfedf50a-75fe-468a-88f5-5601bcf1e580",
+          "sku": "MBPM2-14-512-GRAY",
+          "title": "Space Gray - 512GB - 16GB RAM",
+          "price": 1999.99,
+          "discount_price": 1899.99,
+          "inventory_qty": 15,
+          "attributes": [
+            { "name": "Color", "value": "Space Gray" },
+            { "name": "Storage", "value": "512GB" },
+            { "name": "RAM", "value": "16GB" }
+          ],
+          "created_at": "2024-01-16T12:00:57Z",
+          "updated_at": "2024-01-16T12:00:57Z"
+        },
+        {
+          "id": "var-002",
+          "product_id": "bfedf50a-75fe-468a-88f5-5601bcf1e580",
+          "sku": "MBPM2-14-512-SILVER",
+          "title": "Silver - 512GB - 16GB RAM",
+          "price": 1999.99,
+          "discount_price": 1899.99,
+          "inventory_qty": 4,
+          "attributes": [
+            { "name": "Color", "value": "Silver" },
+            { "name": "Storage", "value": "512GB" },
+            { "name": "RAM", "value": "16GB" }
+          ],
+          "created_at": "2024-01-16T12:00:57Z",
+          "updated_at": "2024-01-16T12:00:57Z"
+        }
+      ],
+      "images": [
+        {
+          "id": "img-001",
+          "url": "https://example.com/images/macbook-pro-m2-1.jpg",
+          "alt_text": "MacBook Pro M2 Front View",
+          "position": 1,
+          "view_type": "front",
+          "is_thumbnail": true
+        }
+      ],
+      "reviews": {
+        "summary": {
+          "average_rating": 4.8,
+          "total_reviews": 127,
+          "rating_distribution": {
+            "5": 98,
+            "4": 20,
+            "3": 5,
+            "2": 2,
+            "1": 2
+          }
+        },
+        "items": [
+          {
+            "id": "rev-001",
+            "user": {
+              "id": "u-123",
+              "name": "John Doe",
+              "verified_purchaser": true
+            },
+            "rating": 5,
+            "title": "Amazing Performance!",
+            "comment": "Incredible performance and battery life!",
+            "date": "2024-02-20T10:00:00Z",
+            "helpful_votes": 15
+          }
+        ]
+      },
+      "tags": [
+        "M2 Chip",
+        "Retina Display",
+        "Laptop",
+        "2024"
+      ],
+      "specifications": {
+        "weight": {
+          "value": 1.6,
+          "unit": "kg"
+        },
+        "dimensions": [31.26, 22.12, 1.55, "cm"]
+      },
+      "brand": {
+        "id": "1acfd968-9b99-4c2e-8239-3b6e99add12e",
+        "name": "Apple",
+        "slug": "apple"
+      },
+      "categories": [
+        {
+          "id": "laptops-category-uuid",
+          "name": "Laptops",
+          "slug": "laptops"
+        }
+      ],
+      "inventory": {
+        "status": "IN_STOCK",
+        "available": true,
+        "quantity": 20,
+        "locations": [
+          { "warehouse_id": "A1", "quantity": 10 },
+          { "warehouse_id": "B2", "quantity": 10 }
+        ]
+      },
+      "metadata": {
+        "is_published": true,
+        "created_at": 1673860857,
+        "updated_at": 1673860857
+      },
+      "seo": {
+        "meta_title": "MacBook Pro M2 14-inch - Latest Model",
+        "meta_description": "Buy the latest MacBook Pro with M2 chip",
+        "keywords": ["macbook", "laptop", "apple", "m2"],
+        "meta_tags": ["buy", "best laptop", "MacBook Pro"]
+      },
+      "shipping": {
+        "free_shipping": true,
+        "estimated_days": "2-3",
+        "express_shipping_available": true,
+        "express_shipping_days": "1-2"
+      },
+      "discounts": [
+        {
+          "type": "percentage",
+          "value": 5,
+          "expires_at": "2024-12-31"
+        }
+      ]
+    }
+  ],
+  "total": 1,
+  "pagination": {
+    "current_page": 1,
+    "total_pages": 1,
+    "per_page": 10,
+    "total_items": 1
+  }
+}
