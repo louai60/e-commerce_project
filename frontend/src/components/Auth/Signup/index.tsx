@@ -4,7 +4,7 @@ import React, { useState, useEffect, useReducer, useMemo, useCallback } from "re
 import Breadcrumb from "@/components/Common/Breadcrumb";
 import Link from "next/link";
 import { useDispatch, useSelector } from 'react-redux';
-import { login, register, clearError, setError } from '@/redux/features/auth/authSlice';
+import { register, clearError, setError } from '@/redux/features/auth/authSlice';
 import { useRouter } from 'next/navigation';
 import type { RootState } from '@/redux/store';
 import { AppDispatch } from '@/redux/store';
