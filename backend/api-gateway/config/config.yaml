@@ -1,21 +1,60 @@
 server:
-  port: "8080"
+  port: 8080
   environment: "development"
   jwtSecret: "${JWT_SECRET}"
+  timeout: 30s
+  cors:
+    allowed_origins:
+      - http://localhost:3000
+      - http://localhost:8080
+    allowed_methods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - OPTIONS
+    allowed_headers:
+      - Content-Type
+      - Authorization
+    max_age: 24h
 
 services:
   product:
-    host: "${PRODUCT_SERVICE_HOST:-localhost}"
-    port: "${PRODUCT_SERVICE_PORT:-50051}"
-  user:
-    host: "localhost"
-    port: "50052"
+    host: localhost
+    port: 50051
+    timeout: 5s
+    retry:
+      max_attempts: 3
+      initial_interval: 100ms
+      max_interval: 1s
+      multiplier: 2.0
+  auth:
+    host: localhost
+    port: 50052
+    timeout: 5s
+    retry:
+      max_attempts: 3
+      initial_interval: 100ms
+      max_interval: 1s
+      multiplier: 2.0
   order:
-    host: "localhost"
-    port: "50053"
+    host: localhost
+    port: 50053
+    timeout: 5s
+    retry:
+      max_attempts: 3
+      initial_interval: 100ms
+      max_interval: 1s
+      multiplier: 2.0
   payment:
-    host: "localhost"
-    port: "50054"
+    host: localhost
+    port: 50054
+    timeout: 5s
+    retry:
+      max_attempts: 3
+      initial_interval: 100ms
+      max_interval: 1s
+      multiplier: 2.0
   inventory:
     host: "localhost"
     port: "50055"
@@ -29,8 +68,14 @@ services:
     host: "localhost"
     port: "50058"
   notification:
-    host: "localhost"
-    port: "50059"
+    host: localhost
+    port: 50055
+    timeout: 5s
+    retry:
+      max_attempts: 3
+      initial_interval: 100ms
+      max_interval: 1s
+      multiplier: 2.0
   shipping:
     host: "localhost"
     port: "50060"
@@ -40,6 +85,24 @@ services:
   recommendation:
     host: "localhost"
     port: "50062"
+
+logging:
+  level: info
+  format: json
+  output: stdout
+
+metrics:
+  enabled: true
+  port: 9090
+  path: /metrics
+
+tracing:
+  enabled: true
+  sampler: 1.0
+  exporter: jaeger
+  jaeger:
+    host: localhost
+    port: 14268
 
 
 
