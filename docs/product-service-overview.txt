@@ -1,0 +1,87 @@
+Product Service Technical Overview
+================================
+
+Architecture & Technology Stack
+-----------------------------
+- Microservice architecture using gRPC
+- Go (version 1.24)
+- PostgreSQL database
+- Redis for caching
+- Docker containerization
+- Air for hot-reload during development
+
+Key Components
+-------------
+1. Proto Definitions (./proto/)
+   - Well-structured product, brand, and category models
+   - Comprehensive service definitions with CRUD operations
+   - Uses protocol buffers with proper field types and nullability
+
+2. Caching Layer (./cache/)
+   - Redis-based caching implementation
+   - Robust error handling and timeouts
+   - Support for batch operations
+   - Separate caching strategies for products, brands, and categories
+
+3. Database
+   - Clean schema design with proper relationships
+   - UUID as primary keys
+   - Proper indexing and constraints
+   - Migration support
+
+4. Service Layer
+   - Clean separation of concerns
+   - Proper error handling
+   - Context support for timeouts and cancellation
+   - Business logic isolation
+
+Development Tools
+---------------
+- Protobuf generation scripts (generate.bat)
+- Docker support for containerization
+- Air configuration for development
+- Proper dependency management with go.mod
+
+Best Practices Implemented
+------------------------
+1. Code Organization:
+   - Clear folder structure following Go standards
+   - Separation of concerns (handlers, models, repository, service)
+   - Proper package naming
+
+2. Error Handling:
+   - Custom error types
+   - Proper error wrapping
+   - Context usage for timeouts
+
+3. Configuration:
+   - Environment-based configuration
+   - Secrets management
+   - Structured config files
+
+4. Performance:
+   - Caching implementation
+   - Connection pooling
+   - Batch operations support
+
+Areas for Potential Enhancement
+-----------------------------
+1. Testing:
+   - Add more unit tests
+   - Implement integration tests
+   - Add performance benchmarks
+
+2. Monitoring:
+   - Add metrics collection
+   - Enhanced logging
+   - Tracing implementation
+
+3. Documentation:
+   - API documentation
+   - Setup instructions
+   - Architecture diagrams
+
+4. Resilience:
+   - Circuit breaker implementation
+   - Retry mechanisms
+   - Rate limiting

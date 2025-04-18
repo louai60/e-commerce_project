@@ -1,0 +1,167 @@
+Product Service Database Technical Overview
+=========================================
+
+Core Tables & Relationships
+-------------------------
+1. products
+   Primary Key: id (UUID)
+   Key Fields:
+   - title, slug (unique)
+   - description, short_description
+   - price, discount_price
+   - sku (unique)
+   - inventory_qty, weight
+   - is_published
+   - brand_id (FK -> brands.id)
+   - created_at, updated_at
+   Indexes: slug, sku, brand_id
+
+2. brands
+   Primary Key: id (UUID)
+   Key Fields:
+   - name
+   - slug (unique)
+   - description
+   - created_at, updated_at
+   Indexes: slug
+
+3. categories
+   Primary Key: id (UUID)
+   Key Fields:
+   - name
+   - slug (unique)
+   - description
+   - parent_id (self-referential FK)
+   - parent_name
+   - created_at, updated_at
+   Indexes: slug, parent_id
+
+4. product_images
+   Primary Key: id (UUID)
+   Key Fields:
+   - product_id (FK -> products.id)
+   - url
+   - alt_text
+   - position
+   - created_at, updated_at
+   Indexes: product_id
+
+5. product_categories (Junction Table)
+   Primary Key: (product_id, category_id)
+   Fields:
+   - product_id (FK -> products.id)
+   - category_id (FK -> categories.id)
+   Indexes: product_id, category_id
+
+Relationships
+------------
+1. Product -> Brand (Many-to-One)
+   - products.brand_id -> brands.id
+   - Optional relationship (nullable brand_id)
+
+2. Product <-> Categories (Many-to-Many)
+   - Through product_categories junction table
+   - ON DELETE CASCADE for both directions
+
+3. Product -> Images (One-to-Many)
+   - product_images.product_id -> products.id
+   - ON DELETE CASCADE
+
+4. Category -> Category (Self-referential)
+   - categories.parent_id -> categories.id
+   - Optional relationship (nullable parent_id)
+   - ON DELETE SET NULL for parent relationship
+
+Technical Review & Critique
+-------------------------
+Strengths:
+✓ Well-normalized structure
+✓ Proper use of UUIDs for primary keys
+✓ Appropriate indexing on frequently queried fields
+✓ Consistent timestamp tracking (created_at, updated_at)
+✓ Good use of constraints and cascading deletes
+✓ Proper handling of optional relationships
+
+Critical Points & Recommendations:
+
+1. Timestamp Handling
+   ISSUE: Inconsistent timezone handling
+   - Some timestamps use TIMESTAMP, others TIMESTAMP WITH TIME ZONE
+   RECOMMENDATION: 
+   - Standardize on TIMESTAMP WITH TIME ZONE throughout
+   - Add explicit timezone handling in application code
+
+2. Soft Delete
+   ISSUE: Inconsistent soft delete implementation
+   - Some queries check for deleted_at IS NULL, but column not visible in schema
+   RECOMMENDATION:
+   - Add deleted_at to all major entities
+   - Implement consistent soft delete pattern
+   - Add indexes on deleted_at where frequently filtered
+
+3. Audit Trail
+   ISSUE: Basic audit capabilities only
+   RECOMMENDATION:
+   - Add modified_by_user_id to track changes
+   - Consider audit log table for important entities
+   - Add version/revision tracking for products
+
+4. Performance Concerns
+   ISSUE: Potential scalability bottlenecks
+   RECOMMENDATION:
+   - Add partial indexes for is_published=true
+   - Consider partitioning for products table
+   - Add composite indexes for common query patterns
+
+5. Data Integrity
+   ISSUE: Missing constraints
+   RECOMMENDATION:
+   - Add CHECK constraints for price > 0
+   - Add CHECK constraints for inventory_qty >= 0
+   - Validate discount_price < price
+   - Add constraints for valid image URLs
+
+6. Category Hierarchy
+   ISSUE: Limited hierarchy support
+   RECOMMENDATION:
+   - Consider implementing closure table pattern
+   - Add materialized path for better tree traversal
+   - Cache category tree structure
+
+7. Product Variants
+   ISSUE: No support for product variants
+   RECOMMENDATION:
+   - Add product_variants table
+   - Add variant_attributes table
+   - Implement SKU generation system
+
+8. Search Optimization
+   ISSUE: Limited search capabilities
+   RECOMMENDATION:
+   - Add full-text search indexes
+   - Consider implementing tsvector columns
+   - Add trigram indexes for fuzzy matching
+
+9. Internationalization
+   ISSUE: No multi-language support
+   RECOMMENDATION:
+   - Add translations tables
+   - Implement language-specific fields
+   - Add currency handling
+
+10. Data Validation
+    ISSUE: Relies heavily on application-level validation
+    RECOMMENDATION:
+    - Add more database-level constraints
+    - Implement triggers for complex validations
+    - Add check constraints for business rules
+
+Future Considerations
+-------------------
+1. Implement product attribute system for flexible properties
+2. Add inventory tracking and stock movement history
+3. Consider implementing event sourcing for product changes
+4. Add support for product bundles and collections
+5. Implement price history tracking
+6. Add support for dynamic pricing rules
+7. Consider sharding strategy for large-scale deployment
