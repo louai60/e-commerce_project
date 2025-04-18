@@ -2,139 +2,180 @@ package handlers
 
 import (
 	"context"
-	"time"
-
-	"github.com/google/uuid"
-	"github.com/louai60/e-commerce_project/backend/product-service/models"
-	pb "github.com/louai60/e-commerce_project/backend/product-service/proto"
-	"github.com/louai60/e-commerce_project/backend/product-service/service"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
 	"go.uber.org/zap"
-	"github.com/louai60/e-commerce_project/backend/common/logger"
+	pb "github.com/louai60/e-commerce_project/backend/product-service/proto"
+	"github.com/louai60/e-commerce_project/backend/product-service/service"
 )
 
-// ProductHandler handles gRPC requests for products
 type ProductHandler struct {
 	pb.UnimplementedProductServiceServer
-	productService service.ProductServiceInterface
-	log            *zap.Logger
+	service *service.ProductService
+	logger  *zap.Logger
 }
 
-// NewProductHandler creates a new product handler
-func NewProductHandler(productService service.ProductServiceInterface) *ProductHandler {
+func NewProductHandler(service *service.ProductService, logger *zap.Logger) *ProductHandler {
+	if service == nil {
+		logger.Fatal("product service cannot be nil")
+		return nil
+	}
+	
 	return &ProductHandler{
-		productService: productService,
-		log:            logger.GetLogger(),
+		service: service,
+		logger:  logger,
 	}
 }
 
-// GetProduct retrieves a product by ID
-func (h *ProductHandler) GetProduct(ctx context.Context, req *pb.GetProductRequest) (*pb.ProductResponse, error) {
-	if req.Id == "" {
-		h.log.Warn("Empty product ID in request")
+func (h *ProductHandler) CreateProduct(ctx context.Context, req *pb.CreateProductRequest) (*pb.Product, error) {
+	if h.service == nil {
+		h.logger.Error("product service is nil")
+		return nil, status.Error(codes.Internal, "service not initialized")
+	}
+
+	if req == nil || req.Product == nil {
+		h.logger.Error("invalid request: request or product is nil")
+		return nil, status.Error(codes.InvalidArgument, "invalid request")
+	}
+
+	return h.service.CreateProduct(ctx, req)
+}
+
+func (h *ProductHandler) GetProduct(ctx context.Context, req *pb.GetProductRequest) (*pb.Product, error) {
+	h.logger.Info("Getting product", zap.Any("identifier", req.Identifier))
+	return h.service.GetProduct(ctx, req)
+}
+
+func (h *ProductHandler) ListProducts(ctx context.Context, req *pb.ListProductsRequest) (*pb.ListProductsResponse, error) {
+	h.logger.Info("Listing products", 
+		zap.Int32("page", req.Page),
+		zap.Int32("limit", req.Limit))
+	return h.service.ListProducts(ctx, req)
+}
+
+func (h *ProductHandler) UpdateProduct(ctx context.Context, req *pb.UpdateProductRequest) (*pb.Product, error) {
+	if req == nil || req.Product == nil {
+		h.logger.Error("invalid request: request or product is nil")
+		return nil, status.Error(codes.InvalidArgument, "invalid request")
+	}
+
+	if req.Product.Id == "" {
+		h.logger.Error("invalid request: product ID is required")
 		return nil, status.Error(codes.InvalidArgument, "product ID is required")
 	}
 
-	product, err := h.productService.GetProduct(ctx, req.Id)
-	if err != nil {
-		h.log.Error("Failed to get product", zap.String("product_id", req.Id), zap.Error(err))
-		return nil, status.Errorf(codes.NotFound, "failed to get product: %v", err)
-	}
-
-	return convertProductToProto(product), nil
+	h.logger.Info("Updating product", zap.String("id", req.Product.Id))
+	return h.service.UpdateProduct(ctx, req)
 }
 
-// ListProducts returns paginated products with total count
-func (h *ProductHandler) ListProducts(ctx context.Context, req *pb.ListProductsRequest) (*pb.ListProductsResponse, error) {
-	products, totalCount, err := h.productService.ListProducts(ctx, req.Page, req.Limit)
+func (h *ProductHandler) DeleteProduct(ctx context.Context, req *pb.DeleteProductRequest) (*pb.DeleteProductResponse, error) {
+	if req == nil || req.Id == "" {
+		h.logger.Error("invalid request: request or product ID is nil")
+		return nil, status.Error(codes.InvalidArgument, "invalid request")
+	}
+
+	h.logger.Info("Deleting product", zap.String("id", req.Id))
+	response, err := h.service.DeleteProduct(ctx, req)
 	if err != nil {
-		h.log.Error("Failed to list products", zap.Error(err))
-		return nil, status.Errorf(codes.Internal, "failed to list products: %v", err)
-	}
-
-	response := &pb.ListProductsResponse{
-		Products:   make([]*pb.ProductResponse, 0, len(products)),
-		TotalCount: totalCount,
-	}
-
-	for _, product := range products {
-		response.Products = append(response.Products, convertProductToProto(product))
+		return nil, err
 	}
 
 	return response, nil
 }
 
-// CreateProduct adds a new product
-func (h *ProductHandler) CreateProduct(ctx context.Context, req *pb.CreateProductRequest) (*pb.ProductResponse, error) {
-	if req.Name == "" || req.Price <= 0 {
-		h.log.Warn("Invalid create product request", zap.Any("request", req))
-		return nil, status.Error(codes.InvalidArgument, "name and positive price are required")
-	}
-
-	product := &models.Product{
-		ID:          uuid.New().String(),
-		Name:        req.Name,
-		Description: req.Description,
-		Price:       req.Price,
-		ImageURL:    req.ImageUrl,
-		CategoryID:  req.CategoryId,
-		Stock:       int(req.Stock),
-	}
-
-	err := h.productService.CreateProduct(ctx, product)
-	if err != nil {
-		h.log.Error("Failed to create product", zap.Any("request", req), zap.Error(err))
-		return nil, status.Errorf(codes.Internal, "failed to create product: %v", err)
-	}
-
-	return convertProductToProto(product), nil
+// Brand methods
+func (h *ProductHandler) CreateBrand(ctx context.Context, req *pb.CreateBrandRequest) (*pb.Brand, error) {
+	h.logger.Info("Creating brand", zap.String("name", req.Brand.Name))
+	return h.service.CreateBrand(ctx, req.Brand)
 }
 
-// UpdateProduct updates an existing product
-func (h *ProductHandler) UpdateProduct(ctx context.Context, req *pb.UpdateProductRequest) (*pb.ProductResponse, error) {
-	product, err := h.productService.GetProduct(ctx, req.Id)
-	if err != nil {
-		return nil, status.Errorf(codes.NotFound, "product not found: %v", err)
+func (h *ProductHandler) GetBrand(ctx context.Context, req *pb.GetBrandRequest) (*pb.Brand, error) {
+	if req == nil {
+		h.logger.Error("invalid request: request is nil")
+		return nil, status.Error(codes.InvalidArgument, "invalid request")
 	}
 
-	// Update fields
-	product.Name = req.Name
-	product.Description = req.Description
-	product.Price = req.Price
-	product.ImageURL = req.ImageUrl
-	product.CategoryID = req.CategoryId
-	product.Stock = int(req.Stock)
-
-	err = h.productService.UpdateProduct(ctx, product)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to update product: %v", err)
+	if req.Identifier == nil {
+		h.logger.Error("invalid request: identifier is required")
+		return nil, status.Error(codes.InvalidArgument, "identifier is required")
 	}
 
-	return convertProductToProto(product), nil
+	h.logger.Info("Getting brand", zap.Any("identifier", req.Identifier))
+	return h.service.GetBrand(ctx, req)
 }
 
-// DeleteProduct removes a product
-func (h *ProductHandler) DeleteProduct(ctx context.Context, req *pb.DeleteProductRequest) (*pb.DeleteProductResponse, error) {
-	err := h.productService.DeleteProduct(ctx, req.Id)
-	if err != nil {
-		return nil, status.Errorf(codes.NotFound, "product not found: %v", err)
+func (h *ProductHandler) ListBrands(ctx context.Context, req *pb.ListBrandsRequest) (*pb.ListBrandsResponse, error) {
+	if req == nil {
+		h.logger.Error("invalid request: request is nil")
+		return nil, status.Error(codes.InvalidArgument, "invalid request")
 	}
 
-	return &pb.DeleteProductResponse{Success: true}, nil
+	if req.Page < 1 {
+		req.Page = 1
+	}
+	if req.Limit < 1 {
+		req.Limit = 10
+	}
+
+	h.logger.Info("Listing brands", 
+		zap.Int32("page", req.Page),
+		zap.Int32("limit", req.Limit))
+	return h.service.ListBrands(ctx, req)
 }
 
-// Helper function to convert a product model to a proto response
-func convertProductToProto(product *models.Product) *pb.ProductResponse {
-	return &pb.ProductResponse{
-		Id:          product.ID,
-		Name:        product.Name,
-		Description: product.Description,
-		Price:       product.Price,
-		ImageUrl:    product.ImageURL,
-		CategoryId:  product.CategoryID,
-		Stock:       int32(product.Stock),
-		CreatedAt:   product.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:   product.UpdatedAt.Format(time.RFC3339),
+// Category methods
+func (h *ProductHandler) CreateCategory(ctx context.Context, req *pb.CreateCategoryRequest) (*pb.Category, error) {
+	if req == nil || req.Category == nil {
+		h.logger.Error("invalid request: request or category is nil")
+		return nil, status.Error(codes.InvalidArgument, "invalid request")
 	}
+
+	if req.Category.Name == "" {
+		h.logger.Error("invalid request: category name is required")
+		return nil, status.Error(codes.InvalidArgument, "category name is required")
+	}
+
+	h.logger.Info("Creating category", zap.String("name", req.Category.Name))
+	return h.service.CreateCategory(ctx, req)
 }
+
+func (h *ProductHandler) GetCategory(ctx context.Context, req *pb.GetCategoryRequest) (*pb.Category, error) {
+	if req == nil {
+		h.logger.Error("invalid request: request is nil")
+		return nil, status.Error(codes.InvalidArgument, "invalid request")
+	}
+
+	if req.Identifier == nil {
+		h.logger.Error("invalid request: identifier is required")
+		return nil, status.Error(codes.InvalidArgument, "identifier is required")
+	}
+
+	h.logger.Info("Getting category", zap.Any("identifier", req.Identifier))
+	return h.service.GetCategory(ctx, req)
+}
+
+func (h *ProductHandler) ListCategories(ctx context.Context, req *pb.ListCategoriesRequest) (*pb.ListCategoriesResponse, error) {
+	if req == nil {
+		h.logger.Error("invalid request: request is nil")
+		return nil, status.Error(codes.InvalidArgument, "invalid request")
+	}
+
+	if req.Page < 1 {
+		req.Page = 1
+	}
+	if req.Limit < 1 {
+		req.Limit = 10
+	}
+
+	h.logger.Info("Listing categories", 
+		zap.Int32("page", req.Page),
+		zap.Int32("limit", req.Limit))
+	return h.service.ListCategories(ctx, req)
+}
+
+
+
+
+
+

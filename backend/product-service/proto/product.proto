@@ -1,82 +1,252 @@
 syntax = "proto3";
 
 package product;
-
 option go_package = "github.com/louai60/e-commerce_project/backend/product-service/proto";
 
-service ProductService {
-  rpc GetProduct(GetProductRequest) returns (ProductResponse) {}
-  rpc ListProducts(ListProductsRequest) returns (ListProductsResponse) {}
-  rpc CreateProduct(CreateProductRequest) returns (ProductResponse) {}
-  rpc UpdateProduct(UpdateProductRequest) returns (ProductResponse) {}
-  rpc DeleteProduct(DeleteProductRequest) returns (DeleteProductResponse) {}
-  // Add HealthCheck RPC method
-  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse) {}
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+
+// Base messages
+message VariantAttributeValue {
+    string name = 1;  // e.g., 'Color'
+    string value = 2; // e.g., 'Red'
+}
+
+message ProductVariant {
+    string id = 1;
+    string product_id = 2;
+    string sku = 3;
+    string title = 4;
+    double price = 5;
+    google.protobuf.DoubleValue discount_price = 6;
+    int32 inventory_qty = 7;
+    repeated VariantAttributeValue attributes = 8;
+    google.protobuf.Timestamp created_at = 9;
+    google.protobuf.Timestamp updated_at = 10;
+}
+
+message ProductTag {
+    string id = 1;
+    string product_id = 2;
+    string tag = 3;
+    google.protobuf.Timestamp created_at = 4;
+    google.protobuf.Timestamp updated_at = 5;
+}
+
+message ProductAttribute {
+    string id = 1;
+    string product_id = 2;
+    string name = 3;
+    string value = 4;
+    google.protobuf.Timestamp created_at = 5;
+    google.protobuf.Timestamp updated_at = 6;
+}
+
+message ProductSpecification {
+    string id = 1;
+    string product_id = 2;
+    string name = 3;
+    string value = 4;
+    string unit = 5;
+    google.protobuf.Timestamp created_at = 6;
+    google.protobuf.Timestamp updated_at = 7;
+}
+
+message ProductSEO {
+    string id = 1;
+    string product_id = 2;
+    string meta_title = 3;
+    string meta_description = 4;
+    repeated string keywords = 5;
+    repeated string tags = 6;
+    google.protobuf.Timestamp created_at = 7;
+    google.protobuf.Timestamp updated_at = 8;
+}
+
+message ProductShipping {
+    string id = 1;
+    string product_id = 2;
+    bool free_shipping = 3;
+    int32 estimated_days = 4;
+    bool express_available = 5;
+    google.protobuf.Timestamp created_at = 6;
+    google.protobuf.Timestamp updated_at = 7;
+}
+
+message ProductDiscount {
+    string id = 1;
+    string product_id = 2;
+    string type = 3;
+    double value = 4;
+    google.protobuf.Timestamp expires_at = 5;
+    google.protobuf.Timestamp created_at = 6;
+    google.protobuf.Timestamp updated_at = 7;
+}
+
+message InventoryLocation {
+    string id = 1;
+    string product_id = 2;
+    string warehouse_id = 3;
+    int32 available_qty = 4;
+    google.protobuf.Timestamp created_at = 5;
+    google.protobuf.Timestamp updated_at = 6;
+}
+
+message Product {
+    string id = 1;
+    string title = 2;
+    string slug = 3;
+    string description = 4;
+    string short_description = 5;
+    double price = 6;
+    google.protobuf.DoubleValue discount_price = 7;
+    string sku = 8;
+    int32 inventory_qty = 9;
+    string inventory_status = 10; // 'in_stock', 'out_of_stock', etc.
+    google.protobuf.DoubleValue weight = 11;
+    bool is_published = 12;
+    google.protobuf.Timestamp created_at = 13;
+    google.protobuf.Timestamp updated_at = 14;
+    google.protobuf.StringValue brand_id = 15;
+    Brand brand = 16;
+    repeated ProductImage images = 17;
+    repeated Category categories = 18;
+    repeated ProductVariant variants = 19;
+    google.protobuf.StringValue default_variant_id = 20;
+
+    // New fields
+    repeated ProductTag tags = 21;
+    repeated ProductAttribute attributes = 22;
+    repeated ProductSpecification specifications = 23;
+    ProductSEO seo = 24;
+    ProductShipping shipping = 25;
+    ProductDiscount discount = 26;
+    repeated InventoryLocation inventory_locations = 27;
+}
+
+message ProductImage {
+    string id = 1;
+    string product_id = 2;
+    string url = 3;
+    string alt_text = 4;
+    int32 position = 5;
+    google.protobuf.Timestamp created_at = 6;
+    google.protobuf.Timestamp updated_at = 7;
+}
+
+message Brand {
+    string id = 1;
+    string name = 2;
+    string slug = 3;
+    string description = 4;
+    google.protobuf.Timestamp created_at = 5;
+    google.protobuf.Timestamp updated_at = 6;
+    google.protobuf.Timestamp deleted_at = 7; // Added for soft delete
+}
+
+message Category {
+    string id = 1;
+    string name = 2;
+    string slug = 3;
+    string description = 4;
+    google.protobuf.StringValue parent_id = 5;
+    string parent_name = 6;
+    google.protobuf.Timestamp created_at = 7;
+    google.protobuf.Timestamp updated_at = 8;
+    google.protobuf.Timestamp deleted_at = 9; // Added for soft delete
+}
+
+// Product related messages
+message CreateProductRequest {
+    Product product = 1;
 }
 
 message GetProductRequest {
-  string id = 1;
-}
-
-message ListProductsRequest {
-  // Pagination parameters could be added here
-  int32 page = 1;
-  int32 limit = 2;
-}
-
-message CreateProductRequest {
-  string name = 1;
-  string description = 2;
-  double price = 3;
-  string image_url = 4;
-  string category_id = 5;
-  int32 stock = 6;
+    oneof identifier {
+        string id = 1;
+        string slug = 2;
+    }
 }
 
 message UpdateProductRequest {
-  string id = 1;
-  string name = 2;
-  string description = 3;
-  double price = 4;
-  string image_url = 5;
-  string category_id = 6;
-  int32 stock = 7;
+    Product product = 1;
 }
 
 message DeleteProductRequest {
-  string id = 1;
-}
-
-message ProductResponse {
-  string id = 1;
-  string name = 2;
-  string description = 3;
-  double price = 4;
-  string image_url = 5;
-  string category_id = 6;
-  int32 stock = 7;
-  string created_at = 8;
-  string updated_at = 9;
-}
-
-message ListProductsResponse {
-  repeated ProductResponse products = 1;
-  int64 total_count = 2;
+    string id = 1;
 }
 
 message DeleteProductResponse {
-  bool success = 1;
+    bool success = 1;
 }
 
-// Add HealthCheckRequest message
-message HealthCheckRequest {}
+message ListProductsRequest {
+    int32 page = 1;
+    int32 limit = 2;
+}
 
-// Add HealthCheckResponse message
-message HealthCheckResponse {
-  enum ServingStatus {
-    UNKNOWN = 0;
-    SERVING = 1;
-    NOT_SERVING = 2;
-  }
-  ServingStatus status = 1;
+message ListProductsResponse {
+    repeated Product products = 1;
+    int32 total = 2;
+}
+
+// Brand related messages
+message GetBrandRequest {
+    oneof identifier {
+        string id = 1;
+        string slug = 2;
+    }
+}
+
+message ListBrandsRequest {
+    int32 page = 1;
+    int32 limit = 2;
+}
+
+message ListBrandsResponse {
+    repeated Brand brands = 1;
+    int32 total = 2;
+}
+
+message CreateBrandRequest {
+    Brand brand = 1;
+}
+
+// Category related messages
+message GetCategoryRequest {
+    oneof identifier {
+        string id = 1;
+        string slug = 2;
+    }
+}
+
+message ListCategoriesRequest {
+    int32 page = 1;
+    int32 limit = 2;
+}
+
+message ListCategoriesResponse {
+    repeated Category categories = 1;
+    int32 total = 2;
+}
+
+message CreateCategoryRequest {
+    Category category = 1;
+}
+
+// Service definition
+service ProductService {
+    rpc CreateProduct (CreateProductRequest) returns (Product);
+    rpc GetProduct (GetProductRequest) returns (Product);
+    rpc ListProducts (ListProductsRequest) returns (ListProductsResponse);
+    rpc UpdateProduct (UpdateProductRequest) returns (Product);
+    rpc DeleteProduct (DeleteProductRequest) returns (DeleteProductResponse);
+
+    rpc CreateBrand (CreateBrandRequest) returns (Brand);
+    rpc GetBrand (GetBrandRequest) returns (Brand);
+    rpc ListBrands (ListBrandsRequest) returns (ListBrandsResponse);
+
+    rpc CreateCategory (CreateCategoryRequest) returns (Category);
+    rpc GetCategory (GetCategoryRequest) returns (Category);
+    rpc ListCategories (ListCategoriesRequest) returns (ListCategoriesResponse);
 }
