@@ -86,16 +86,17 @@ type EnhancedImageInfo struct {
 
 // EnhancedVariantInfo represents enhanced variant information
 type EnhancedVariantInfo struct {
-	ID            string          `json:"id"`
-	ProductID     string          `json:"product_id"`
-	SKU           string          `json:"sku"`
-	Title         string          `json:"title"`
-	Price         float64         `json:"price"`
-	DiscountPrice float64         `json:"discount_price,omitempty"`
-	InventoryQty  int             `json:"inventory_qty"`
-	Attributes    []AttributeInfo `json:"attributes"`
-	CreatedAt     string          `json:"created_at"`
-	UpdatedAt     string          `json:"updated_at"`
+	ID            string              `json:"id"`
+	ProductID     string              `json:"product_id"`
+	SKU           string              `json:"sku"`
+	Title         string              `json:"title"`
+	Price         float64             `json:"price"`
+	DiscountPrice float64             `json:"discount_price,omitempty"`
+	InventoryQty  int                 `json:"inventory_qty"`
+	Attributes    []AttributeInfo     `json:"attributes"`
+	Images        []EnhancedImageInfo `json:"images"`
+	CreatedAt     string              `json:"created_at"`
+	UpdatedAt     string              `json:"updated_at"`
 }
 
 // AttributeInfo represents attribute information
@@ -214,10 +215,16 @@ func FormatProduct(product *pb.Product) ProductResponse {
 	}
 
 	// Format brand if available
-	if product.BrandId != nil {
+	if product.Brand != nil {
+		formatted.Brand = &BrandInfo{
+			ID:   product.Brand.Id,
+			Name: product.Brand.Name,
+			Slug: product.Brand.Slug,
+		}
+	} else if product.BrandId != nil {
 		formatted.Brand = &BrandInfo{
 			ID:   product.BrandId.Value,
-			Name: "Unknown", // This would be populated from brand service
+			Name: "Unknown", // Fallback if brand object is not populated
 		}
 	}
 
@@ -342,6 +349,7 @@ func FormatProduct(product *pb.Product) ProductResponse {
 			CreatedAt:    formatTimestamp(variant.CreatedAt),
 			UpdatedAt:    formatTimestamp(variant.UpdatedAt),
 			Attributes:   make([]AttributeInfo, 0, len(variant.Attributes)),
+			Images:       make([]EnhancedImageInfo, 0, len(variant.Images)),
 		}
 
 		// Set title with fallback
@@ -361,6 +369,28 @@ func FormatProduct(product *pb.Product) ProductResponse {
 			variantInfo.Attributes = append(variantInfo.Attributes, AttributeInfo{
 				Name:  attr.Name,
 				Value: attr.Value,
+			})
+		}
+
+		// Format variant images
+		for j, img := range variant.Images {
+			isThumbnail := j == 0 // First image is thumbnail by default
+			viewType := "default"
+			if j == 0 {
+				viewType = "front"
+			} else if j == 1 {
+				viewType = "back"
+			} else if j == 2 {
+				viewType = "side"
+			}
+
+			variantInfo.Images = append(variantInfo.Images, EnhancedImageInfo{
+				ID:          img.Id,
+				URL:         img.Url,
+				AltText:     img.AltText,
+				Position:    int(img.Position),
+				ViewType:    viewType,
+				IsThumbnail: isThumbnail,
 			})
 		}
 
@@ -435,14 +465,13 @@ func FormatProduct(product *pb.Product) ProductResponse {
 	if product.Shipping != nil {
 		formatted.Shipping = &EnhancedShippingInfo{
 			FreeShipping:             product.Shipping.FreeShipping,
-			EstimatedDays:            fmt.Sprintf("%d-%d", product.Shipping.EstimatedDays, product.Shipping.EstimatedDays+1),
+			EstimatedDays:            fmt.Sprintf("%d", product.Shipping.EstimatedDays),
 			ExpressShippingAvailable: product.Shipping.ExpressAvailable,
-			ExpressShippingDays:      "1-2", // Example value
 		}
 	} else {
 		formatted.Shipping = &EnhancedShippingInfo{
 			FreeShipping:             false,
-			EstimatedDays:            "3-5",
+			EstimatedDays:            "3",
 			ExpressShippingAvailable: false,
 		}
 	}
@@ -465,8 +494,16 @@ func FormatProduct(product *pb.Product) ProductResponse {
 		}
 	}
 
-	// Add tags
-	formatted.Tags = []string{"Featured", "New Arrival", "2024"}
+	// Add tags from product tags if available
+	if len(product.Tags) > 0 {
+		formatted.Tags = make([]string, len(product.Tags))
+		for i, tag := range product.Tags {
+			formatted.Tags[i] = tag.Tag
+		}
+	} else {
+		// Fallback to default tags
+		formatted.Tags = []string{"Featured", "New Arrival", "2024"}
+	}
 
 	return formatted
 }

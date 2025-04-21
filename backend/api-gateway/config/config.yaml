@@ -6,6 +6,7 @@ server:
   cors:
     allowed_origins:
       - http://localhost:3000
+      - http://localhost:3001
       - http://localhost:8080
     allowed_methods:
       - GET
