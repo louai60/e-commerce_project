@@ -16,6 +16,7 @@ import {
   PlugInIcon,
   TableIcon,
   UserCircleIcon,
+  ShoppingBagIcon,
 } from "../icons/index";
 import SidebarWidget from "./SidebarWidget";
 
@@ -31,6 +32,16 @@ const navItems: NavItem[] = [
     icon: <GridIcon />,
     name: "Dashboard",
     subItems: [{ name: "Ecommerce", path: "/", pro: false }],
+  },
+  {
+    icon: <ShoppingBagIcon />,
+    name: "Products",
+    subItems: [
+      { name: "All Products", path: "/products", pro: false },
+      { name: "Add Product", path: "/products/create", pro: false },
+      { name: "Categories", path: "/products/categories", pro: false },
+      { name: "Brands", path: "/products/brands", pro: false },
+    ],
   },
   {
     icon: <CalenderIcon />,
@@ -290,7 +301,7 @@ const AppSidebar: React.FC = () => {
 
   return (
     <aside
-      className={`fixed mt-16 flex flex-col lg:mt-0 top-0 px-5 left-0 bg-white dark:bg-gray-900 dark:border-gray-800 text-gray-900 h-screen transition-all duration-300 ease-in-out z-50 border-r border-gray-200 
+      className={`fixed mt-16 flex flex-col lg:mt-0 top-0 px-5 left-0 bg-white dark:bg-gray-900 dark:border-gray-800 text-gray-900 h-screen transition-all duration-300 ease-in-out z-50 border-r border-gray-200
         ${
           isExpanded || isMobileOpen
             ? "w-[290px]"

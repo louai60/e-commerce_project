@@ -27,6 +27,7 @@ import CheckLineIcon from "./check-line.svg";
 import CloseLineIcon from "./close-line.svg";
 import ChevronDownIcon from "./chevron-down.svg";
 import ChevronUpIcon from "./chevron-up.svg";
+import ChevronRightIcon from "./chevron-right.svg";
 import PaperPlaneIcon from "./paper-plane.svg";
 import LockIcon from "./lock.svg";
 import EnvelopeIcon from "./envelope.svg";
@@ -51,6 +52,7 @@ import HorizontaLDots from "./horizontal-dots.svg";
 import ChatIcon from "./chat.svg";
 import MoreDotIcon from "./more-dot.svg";
 import BellIcon from "./bell.svg";
+import ShoppingBagIcon from "./shopping-bag.svg";
 
 export {
   DownloadIcon,
@@ -105,5 +107,7 @@ export {
   MailIcon,
   HorizontaLDots,
   ChevronUpIcon,
+  ChevronRightIcon,
   ChatIcon,
+  ShoppingBagIcon,
 };
