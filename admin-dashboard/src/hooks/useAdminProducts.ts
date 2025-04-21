@@ -4,12 +4,13 @@ import useSWR from 'swr';
 
 interface Product {
   id: string;
-  name: string;
+  name?: string;
+  title?: string;
   description: string;
   price: number;
   category_id: string;
   image: string;
-  variants: number;
+  variants: number | any[] | Record<string, any>;
   status: "Active" | "Inactive";
   created_at: string;
 }

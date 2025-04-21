@@ -30,33 +30,84 @@ interface RegisterData {
 export class AuthService {
   static async login(credentials: LoginCredentials): Promise<LoginResponse> {
     try {
+      // Add detailed request logging
+      console.log('Login attempt:', {
+        url: `${API_URL}/users/login`,
+        email: credentials.email,
+        apiUrl: API_URL
+      });
+
       const response = await axios.post<LoginResponse>(
         `${API_URL}/users/login`,
         credentials,
-        { withCredentials: true } // Important for handling refresh token cookie
+        {
+          withCredentials: true,
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          }
+        }
       );
 
-      if (response.data && response.data.access_token) {
-        // Store access token and user data
-        localStorage.setItem('access_token', response.data.access_token);
+      // Add response logging
+      console.log('Server response:', {
+        status: response.status,
+        headers: response.headers,
+        data: response.data
+      });
+
+      if (!response.data) {
+        throw new Error('No data received from server');
+      }
+
+      if (!response.data.access_token) {
+        throw new Error('No access token received');
+      }
+
+      // Store access token in both localStorage and cookie
+      localStorage.setItem('access_token', response.data.access_token);
+      if (response.data.user) {
         localStorage.setItem('user', JSON.stringify(response.data.user));
-        return response.data;
       }
-      throw new Error('Login failed: Invalid response format');
+
+      // Set cookie with secure flags
+      const secure = window.location.protocol === 'https:' ? 'Secure;' : '';
+      document.cookie = `access_token=${response.data.access_token}; path=/; ${secure} SameSite=Lax; max-age=86400`;
+
+      return response.data;
     } catch (error: any) {
+      // Enhanced error logging
+      console.error('Login error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        config: error.config
+      });
+
       if (error.response?.status === 401) {
-        throw new Error('Invalid credentials');
+        throw new Error('Invalid email or password');
+      } else if (error.response?.status === 403) {
+        throw new Error('Access denied: Admin privileges required');
+      } else if (error.response?.data?.message) {
+        throw new Error(error.response.data.message);
+      } else if (error.message) {
+        throw new Error(`Login failed: ${error.message}`);
       }
-      throw new Error(error.response?.data?.error || 'Login failed');
+      
+      throw new Error('Unable to connect to the server. Please try again later.');
     }
   }
 
   static logout(): void {
     localStorage.removeItem('access_token');
     localStorage.removeItem('user');
-    // Optionally call logout endpoint to invalidate refresh token
+
+    // Clear the cookie
+    document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+
+    // Call logout endpoint to invalidate refresh token
     axios.post(`${API_URL}/users/logout`, {}, { withCredentials: true })
-      .catch(console.error);
+      .catch(error => console.error('Logout error:', error));
   }
 
   static getCurrentUser(): User | null {
