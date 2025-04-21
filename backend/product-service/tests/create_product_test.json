@@ -1,0 +1,147 @@
+{
+  "product": {
+    "title": "Modern Office Chair Test",
+    "slug": "modern-office-chair-test",
+    "description": "Ergonomic office chair with adjustable height and lumbar support for maximum comfort during long work hours.",
+    "short_description": "Ergonomic office chair with adjustable features",
+    "price": 199.99,
+    "sku": "CHAIR-002",
+    "inventory_qty": 50,
+    "inventory_status": "in_stock",
+    "weight": { "value": 15.5 },
+    "is_published": true,
+    "brand_id": { "value": "3fa85f64-5717-4562-b3fc-2c963f66afa6" },
+    "images": [
+      {
+        "url": "https://example.com/images/chair-main.jpg",
+        "alt_text": "Modern office chair front view",
+        "position": 1
+      },
+      {
+        "url": "https://example.com/images/chair-side.jpg",
+        "alt_text": "Modern office chair side view",
+        "position": 2
+      }
+    ],
+    "variants": [
+      {
+        "title": "Black Modern Office Chair",
+        "sku": "CHAIR-002-BLK",
+        "price": 199.99,
+        "inventory_qty": 20,
+        "attributes": [
+          {
+            "name": "Color",
+            "value": "Black"
+          },
+          {
+            "name": "Material",
+            "value": "Leather"
+          }
+        ],
+        "images": [
+          {
+            "url": "https://example.com/images/chair-black.jpg",
+            "alt_text": "Black office chair",
+            "position": 1
+          }
+        ]
+      },
+      {
+        "title": "Gray Modern Office Chair",
+        "sku": "CHAIR-002-GRY",
+        "price": 199.99,
+        "inventory_qty": 15,
+        "attributes": [
+          {
+            "name": "Color",
+            "value": "Gray"
+          },
+          {
+            "name": "Material",
+            "value": "Fabric"
+          }
+        ],
+        "images": [
+          {
+            "url": "https://example.com/images/chair-gray.jpg",
+            "alt_text": "Gray office chair",
+            "position": 1
+          }
+        ]
+      },
+      {
+        "title": "Brown Modern Office Chair",
+        "sku": "CHAIR-002-BRN",
+        "price": 219.99,
+        "discount_price": { "value": 199.99 },
+        "inventory_qty": 15,
+        "attributes": [
+          {
+            "name": "Color",
+            "value": "Brown"
+          },
+          {
+            "name": "Material",
+            "value": "Premium Leather"
+          }
+        ],
+        "images": [
+          {
+            "url": "https://example.com/images/chair-brown.jpg",
+            "alt_text": "Brown office chair",
+            "position": 1
+          }
+        ]
+      }
+    ],
+    "categories": [
+      { "id": "3fa85f64-5717-4562-b3fc-2c963f66afa7" },
+      { "id": "3fa85f64-5717-4562-b3fc-2c963f66afa8" }
+    ],
+    "tags": [
+      { "tag": "office" },
+      { "tag": "chair" },
+      { "tag": "ergonomic" },
+      { "tag": "furniture" }
+    ],
+    "specifications": [
+      {
+        "name": "Height",
+        "value": "45-55",
+        "unit": "inches"
+      },
+      {
+        "name": "Width",
+        "value": "26",
+        "unit": "inches"
+      },
+      {
+        "name": "Depth",
+        "value": "28",
+        "unit": "inches"
+      },
+      {
+        "name": "Weight Capacity",
+        "value": "300",
+        "unit": "lbs"
+      },
+      {
+        "name": "Warranty",
+        "value": "3",
+        "unit": "years"
+      }
+    ],
+    "seo": {
+      "meta_title": "Modern Ergonomic Office Chair | Your Store",
+      "meta_description": "High-quality ergonomic office chair with adjustable features for maximum comfort. Available in multiple colors and materials.",
+      "keywords": ["office chair", "ergonomic chair", "desk chair", "computer chair"],
+      "tags": ["furniture", "office", "chair"]
+    },
+    "shipping": {
+      "free_shipping": true,
+      "estimated_days": 3,
+      "express_available": true
+    }
+  }
+}
