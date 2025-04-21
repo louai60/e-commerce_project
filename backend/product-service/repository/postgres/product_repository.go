@@ -68,9 +68,6 @@ func (r *ProductRepository) GetProduct(ctx context.Context, id string) (*models.
 		brand.UpdatedAt = brandUpdatedAt.Time
 		product.Brand = &brand
 	}
-	if defaultVariantID.Valid {
-		product.DefaultVariantID = &defaultVariantID.String
-	}
 
 	// Get associated data
 	var errs []error
@@ -233,7 +230,7 @@ func (r *ProductRepository) ListProducts(ctx context.Context, filters models.Pro
 		SELECT
 			p.id, p.title, p.slug, p.description, p.short_description,
 			p.weight, p.is_published, p.created_at, p.updated_at, p.deleted_at,
-			p.brand_id, p.default_variant_id, p.inventory_status,
+			p.brand_id, p.inventory_status,
 			b.id, b.name, b.slug, b.description, b.created_at, b.updated_at, b.deleted_at
 		FROM products p
 		LEFT JOIN brands b ON p.brand_id = b.id AND b.deleted_at IS NULL
@@ -311,7 +308,7 @@ func (r *ProductRepository) ListProducts(ctx context.Context, filters models.Pro
 	var products []*models.Product
 	for rows.Next() {
 		product := &models.Product{}
-		var brandID, defaultVariantID sql.NullString
+		var brandID sql.NullString
 		var brand models.Brand
 		var brandCreatedAt, brandUpdatedAt sql.NullTime
 
@@ -319,7 +316,7 @@ func (r *ProductRepository) ListProducts(ctx context.Context, filters models.Pro
 		if err := rows.Scan(
 			&product.ID, &product.Title, &product.Slug, &product.Description, &product.ShortDescription,
 			&product.Weight, &product.IsPublished, &product.CreatedAt, &product.UpdatedAt, &product.DeletedAt,
-			&brandID, &defaultVariantID, &product.InventoryStatus,
+			&brandID, &product.InventoryStatus,
 			&brand.ID, &brand.Name, &brand.Slug, &brand.Description, &brandCreatedAt, &brandUpdatedAt, &brand.DeletedAt,
 		); err != nil {
 			r.logger.Error("failed to scan product row in ListProducts", zap.Error(err))
@@ -332,9 +329,6 @@ func (r *ProductRepository) ListProducts(ctx context.Context, filters models.Pro
 			brand.CreatedAt = brandCreatedAt.Time
 			brand.UpdatedAt = brandUpdatedAt.Time
 			product.Brand = &brand
-		}
-		if defaultVariantID.Valid {
-			product.DefaultVariantID = &defaultVariantID.String
 		}
 
 		// Note: Variants, Images, Categories are NOT fetched in ListProducts for performance.

@@ -48,47 +48,70 @@ func (r *PostgresProductRepository) BeginTx(ctx context.Context) (*sql.Tx, error
 func (r *PostgresProductRepository) CreateProduct(ctx context.Context, product *models.Product) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		r.logger.Error("failed to begin transaction", zap.Error(err))
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer func() {
-		if err != nil {
-			if rbErr := tx.Rollback(); rbErr != nil {
-				r.logger.Error("failed to rollback transaction", zap.Error(rbErr))
-			}
-		}
-	}()
+	defer tx.Rollback()
 
 	now := time.Now()
 	product.CreatedAt = now
 	product.UpdatedAt = now
 
-	// Updated query to include price, discount_price, sku, inventory_qty, and inventory_status
+	// Insert product
 	query := `
         INSERT INTO products (
-            title, slug, description, short_description, price, discount_price, sku,
-            inventory_qty, inventory_status, weight, is_published, brand_id,
-            created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+            id, title, slug, description, short_description, inventory_status,
+            weight, is_published, brand_id, created_at, updated_at,
+            price, discount_price, inventory_qty, sku
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         RETURNING id`
 
-	err = tx.QueryRowContext(
-		ctx, query,
-		product.Title, product.Slug, product.Description, product.ShortDescription,
-		product.Price, product.DiscountPrice, product.SKU, product.InventoryQty,
-		product.InventoryStatus, product.Weight, product.IsPublished, product.BrandID, now, now,
+	var discountPrice *float64 = nil
+	if product.DiscountPrice != nil {
+		discountPrice = &product.DiscountPrice.Amount
+	}
+
+	err = tx.QueryRowContext(ctx, query,
+		product.ID, product.Title, product.Slug, product.Description,
+		product.ShortDescription, product.InventoryStatus, product.Weight,
+		product.IsPublished, product.BrandID,
+		product.CreatedAt, product.UpdatedAt, product.Price.Amount, discountPrice,
+		product.InventoryQty, product.SKU,
 	).Scan(&product.ID)
 
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok {
 			switch pqErr.Code.Name() {
 			case "unique_violation":
-				return models.ErrProductAlreadyExists
+				if pqErr.Constraint == "products_slug_key" {
+					return models.ErrProductSlugExists
+				}
 			}
 		}
-		r.logger.Error("failed to create product", zap.Error(err))
 		return fmt.Errorf("failed to create product: %w", err)
 	}
+
+	// // Create default variant with price
+	// if product.DefaultVariantID != nil && *product.DefaultVariantID != "" {
+	// 	variantQuery := `
+	//         INSERT INTO product_variants (
+	//             id, product_id, sku, price, discount_price,
+	//             inventory_qty, created_at, updated_at
+	//         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
+
+	// 	var variantDiscountPrice *float64 = nil
+	// 	if product.DiscountPrice != nil {
+	// 		variantDiscountPrice = &product.DiscountPrice.Amount
+	// 	}
+
+	// 	_, err = tx.ExecContext(ctx, variantQuery,
+	// 		product.DefaultVariantID, product.ID, product.SKU,
+	// 		product.Price.Amount, variantDiscountPrice,
+	// 		product.InventoryQty, product.CreatedAt, product.UpdatedAt,
+	// 	)
+	// 	if err != nil {
+	// 		return fmt.Errorf("failed to create default variant: %w", err)
+	// 	}
+	// }
 
 	// If there are variants, create them
 	if len(product.Variants) > 0 {
@@ -114,15 +137,7 @@ func (r *PostgresProductRepository) CreateProduct(ctx context.Context, product *
 				return fmt.Errorf("failed to create product variant: %w", err)
 			}
 
-			// If this is the first variant, set it as the default variant
-			if i == 0 {
-				defaultVariantQuery := `UPDATE products SET default_variant_id = $1 WHERE id = $2`
-				_, err = tx.ExecContext(ctx, defaultVariantQuery, variant.ID, product.ID)
-				if err != nil {
-					r.logger.Error("failed to set default variant", zap.Error(err))
-					return fmt.Errorf("failed to set default variant: %w", err)
-				}
-			}
+			// No need to set default variant anymore
 
 			// Create variant attributes if any
 			if len(variant.Attributes) > 0 {
@@ -162,6 +177,41 @@ func (r *PostgresProductRepository) CreateProduct(ctx context.Context, product *
 					}
 				}
 			}
+
+			// Handle variant images
+			if len(variant.Images) > 0 {
+				// First delete existing images
+				deleteImagesQuery := `DELETE FROM variant_images WHERE variant_id = $1`
+				_, err = tx.ExecContext(ctx, deleteImagesQuery, variant.ID)
+				if err != nil {
+					r.logger.Error("failed to delete variant images", zap.Error(err))
+					return fmt.Errorf("failed to delete variant images: %w", err)
+				}
+
+				// Then create new images
+				imageQuery := `
+					INSERT INTO variant_images (
+						variant_id, url, alt_text, position, created_at, updated_at
+					) VALUES ($1, $2, $3, $4, $5, $6)
+					RETURNING id`
+
+				for i := range variant.Images {
+					img := &variant.Images[i]
+					img.VariantID = variant.ID
+					img.CreatedAt = now
+					img.UpdatedAt = now
+
+					err = tx.QueryRowContext(
+						ctx, imageQuery,
+						img.VariantID, img.URL, img.AltText, img.Position, now, now,
+					).Scan(&img.ID)
+
+					if err != nil {
+						r.logger.Error("failed to create variant image", zap.Error(err))
+						return fmt.Errorf("failed to create variant image: %w", err)
+					}
+				}
+			}
 		}
 	}
 
@@ -194,113 +244,87 @@ func (r *PostgresProductRepository) CreateProduct(ctx context.Context, product *
 		}
 	}
 
-	if err = tx.Commit(); err != nil {
-		r.logger.Error("failed to commit transaction", zap.Error(err))
-		return fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	return nil
+	return tx.Commit()
 }
 
 func (r *PostgresProductRepository) GetByID(ctx context.Context, id string) (*models.Product, error) {
-	product := &models.Product{}
 	query := `
-        SELECT id, title, slug, description, short_description, price, discount_price, sku,
-               inventory_qty, inventory_status, weight, is_published, brand_id,
-               default_variant_id, created_at, updated_at
-        FROM products
-        WHERE id = $1 AND deleted_at IS NULL`
+		SELECT
+			p.id, p.title, p.slug, p.description, p.short_description,
+			p.price, p.discount_price, p.sku, p.inventory_qty,
+			p.inventory_status, p.weight, p.is_published, p.brand_id,
+			p.created_at, p.updated_at,
+			b.id, b.name, b.slug, b.description, b.created_at, b.updated_at,
+			pv.id, pv.product_id, pv.title, pv.sku, pv.price, pv.discount_price,
+			pv.inventory_qty, pv.created_at, pv.updated_at
+		FROM products p
+		LEFT JOIN brands b ON p.brand_id = b.id
+		LEFT JOIN product_variants pv ON p.id = pv.product_id
+		WHERE p.id = $1
+	`
+
+	var product models.Product
+	var brand models.Brand
+	var variant models.ProductVariant
+	var priceAmount float64
+	var discountPriceAmount *float64
 
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&product.ID, &product.Title, &product.Slug, &product.Description,
-		&product.ShortDescription, &product.Price, &product.DiscountPrice, &product.SKU,
-		&product.InventoryQty, &product.InventoryStatus, &product.Weight, &product.IsPublished, &product.BrandID,
-		&product.DefaultVariantID, &product.CreatedAt, &product.UpdatedAt,
+		&product.ShortDescription, &priceAmount, &discountPriceAmount, &product.SKU,
+		&product.InventoryQty, &product.InventoryStatus, &product.Weight,
+		&product.IsPublished, &product.BrandID, &product.CreatedAt, &product.UpdatedAt,
+		&brand.ID, &brand.Name, &brand.Slug,
+		&brand.Description, &brand.CreatedAt, &brand.UpdatedAt,
+		&variant.ID, &variant.ProductID, &variant.Title, &variant.SKU, &variant.Price,
+		&variant.DiscountPrice, &variant.InventoryQty, &variant.CreatedAt, &variant.UpdatedAt,
 	)
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("product not found")
-	}
+
 	if err != nil {
-		r.logger.Error("failed to get product", zap.Error(err))
+		if err == sql.ErrNoRows {
+			return nil, models.ErrProductNotFound
+		}
 		return nil, fmt.Errorf("failed to get product: %w", err)
 	}
 
-	// Get images for this product
-	imagesQuery := `
-		SELECT id, product_id, url, alt_text, position, created_at, updated_at
-		FROM product_images
-		WHERE product_id = $1
-		ORDER BY position ASC`
-
-	imagesRows, err := r.db.QueryContext(ctx, imagesQuery, product.ID)
-	if err != nil {
-		r.logger.Error("failed to get product images", zap.Error(err))
-		return nil, fmt.Errorf("failed to get product images: %w", err)
+	// Set the price fields
+	product.Price = models.Price{
+		Amount:   priceAmount,
+		Currency: "USD", // Default currency
 	}
-	defer imagesRows.Close()
-
-	var images []models.ProductImage
-	for imagesRows.Next() {
-		var img models.ProductImage
-		err := imagesRows.Scan(
-			&img.ID, &img.ProductID, &img.URL, &img.AltText, &img.Position, &img.CreatedAt, &img.UpdatedAt,
-		)
-		if err != nil {
-			r.logger.Error("failed to scan product image", zap.Error(err))
-			return nil, fmt.Errorf("failed to scan product image: %w", err)
+	if discountPriceAmount != nil {
+		product.DiscountPrice = &models.Price{
+			Amount:   *discountPriceAmount,
+			Currency: "USD", // Default currency
 		}
-		images = append(images, img)
 	}
 
-	product.Images = images
-
-	// Get variants for this product
-	variants, err := r.GetProductVariants(ctx, product.ID)
-	if err != nil {
-		r.logger.Error("failed to get product variants", zap.Error(err))
-		return nil, fmt.Errorf("failed to get product variants: %w", err)
+	// Set the brand if it exists
+	if brand.ID != "" {
+		product.Brand = &brand
 	}
 
-	// Convert []*models.ProductVariant to []models.ProductVariant
-	productVariants := make([]models.ProductVariant, len(variants))
-	for i, v := range variants {
-		productVariants[i] = *v
-	}
-	product.Variants = productVariants
-
-	// If there's a default variant, copy its price, SKU, etc. to the product for backward compatibility
-	if len(variants) > 0 {
-		defaultVariant := variants[0] // Use first variant as default if none specified
-		for _, v := range variants {
-			if product.DefaultVariantID != nil && v.ID == *product.DefaultVariantID {
-				defaultVariant = v
-				break
-			}
-		}
-
-		product.Price = defaultVariant.Price
-		product.DiscountPrice = defaultVariant.DiscountPrice
-		product.SKU = defaultVariant.SKU
-		product.InventoryQty = defaultVariant.InventoryQty
+	// Set the variant if it exists
+	if variant.ID != "" {
+		product.Variants = []models.ProductVariant{variant}
 	}
 
-	return product, nil
+	return &product, nil
 }
 
 func (r *PostgresProductRepository) GetBySlug(ctx context.Context, slug string) (*models.Product, error) {
 	product := &models.Product{}
 	query := `
-        SELECT id, title, slug, description, short_description, price, discount_price, sku,
-               inventory_qty, inventory_status, weight, is_published, brand_id,
-               default_variant_id, created_at, updated_at
+        SELECT id, title, slug, description, short_description, inventory_status,
+               weight, is_published, brand_id, created_at, updated_at
         FROM products
         WHERE slug = $1 AND deleted_at IS NULL`
 
 	err := r.db.QueryRowContext(ctx, query, slug).Scan(
 		&product.ID, &product.Title, &product.Slug, &product.Description,
-		&product.ShortDescription, &product.Price, &product.DiscountPrice, &product.SKU,
-		&product.InventoryQty, &product.InventoryStatus, &product.Weight, &product.IsPublished, &product.BrandID,
-		&product.DefaultVariantID, &product.CreatedAt, &product.UpdatedAt,
+		&product.ShortDescription, &product.InventoryStatus, &product.Weight,
+		&product.IsPublished, &product.BrandID,
+		&product.CreatedAt, &product.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("product not found")
@@ -353,18 +377,21 @@ func (r *PostgresProductRepository) GetBySlug(ctx context.Context, slug string) 
 	}
 	product.Variants = productVariants
 
-	// If there's a default variant, copy its price, SKU, etc. to the product for backward compatibility
+	// Use the first variant's data for backward compatibility
 	if len(variants) > 0 {
-		defaultVariant := variants[0] // Use first variant as default if none specified
-		for _, v := range variants {
-			if product.DefaultVariantID != nil && v.ID == *product.DefaultVariantID {
-				defaultVariant = v
-				break
-			}
-		}
+		defaultVariant := variants[0] // Use first variant
 
-		product.Price = defaultVariant.Price
-		product.DiscountPrice = defaultVariant.DiscountPrice
+		product.Price = models.Price{
+			Amount:   defaultVariant.Price,
+			Currency: "USD", // Default currency
+		}
+		if defaultVariant.DiscountPrice != nil {
+			discountPrice := models.Price{
+				Amount:   *defaultVariant.DiscountPrice,
+				Currency: "USD", // Default currency
+			}
+			product.DiscountPrice = &discountPrice
+		}
 		product.SKU = defaultVariant.SKU
 		product.InventoryQty = defaultVariant.InventoryQty
 	}
@@ -382,9 +409,8 @@ func (r *PostgresProductRepository) List(ctx context.Context, offset, limit int)
 	}
 
 	query := `
-        SELECT id, title, slug, description, short_description, price, discount_price, sku,
-               inventory_qty, inventory_status, weight, is_published, brand_id,
-               default_variant_id, created_at, updated_at
+        SELECT id, title, slug, description, short_description, inventory_status,
+               weight, is_published, brand_id, created_at, updated_at
         FROM products
         WHERE deleted_at IS NULL
         ORDER BY created_at DESC
@@ -402,9 +428,9 @@ func (r *PostgresProductRepository) List(ctx context.Context, offset, limit int)
 		product := &models.Product{}
 		err := rows.Scan(
 			&product.ID, &product.Title, &product.Slug, &product.Description,
-			&product.ShortDescription, &product.Price, &product.DiscountPrice, &product.SKU,
-			&product.InventoryQty, &product.InventoryStatus, &product.Weight, &product.IsPublished, &product.BrandID,
-			&product.DefaultVariantID, &product.CreatedAt, &product.UpdatedAt,
+			&product.ShortDescription, &product.InventoryStatus, &product.Weight,
+			&product.IsPublished, &product.BrandID,
+			&product.CreatedAt, &product.UpdatedAt,
 		)
 		if err != nil {
 			r.logger.Error("failed to scan product", zap.Error(err))
@@ -455,18 +481,21 @@ func (r *PostgresProductRepository) List(ctx context.Context, offset, limit int)
 		}
 		product.Variants = productVariants
 
-		// If there's a default variant, copy its price, SKU, etc. to the product for backward compatibility
+		// Use the first variant's data for backward compatibility
 		if len(variants) > 0 {
-			defaultVariant := variants[0] // Use first variant as default if none specified
-			for _, v := range variants {
-				if product.DefaultVariantID != nil && v.ID == *product.DefaultVariantID {
-					defaultVariant = v
-					break
-				}
-			}
+			defaultVariant := variants[0] // Use first variant
 
-			product.Price = defaultVariant.Price
-			product.DiscountPrice = defaultVariant.DiscountPrice
+			product.Price = models.Price{
+				Amount:   defaultVariant.Price,
+				Currency: "USD", // Default currency
+			}
+			if defaultVariant.DiscountPrice != nil {
+				discountPrice := models.Price{
+					Amount:   *defaultVariant.DiscountPrice,
+					Currency: "USD", // Default currency
+				}
+				product.DiscountPrice = &discountPrice
+			}
 			product.SKU = defaultVariant.SKU
 			product.InventoryQty = defaultVariant.InventoryQty
 		}
@@ -586,15 +615,7 @@ func (r *PostgresProductRepository) UpdateProduct(ctx context.Context, product *
 				variantID = variant.ID
 			}
 
-			// If this is the first variant, set it as the default variant
-			if i == 0 && (product.DefaultVariantID == nil || *product.DefaultVariantID == "") {
-				defaultVariantQuery := `UPDATE products SET default_variant_id = $1 WHERE id = $2`
-				_, err = tx.ExecContext(ctx, defaultVariantQuery, variantID, product.ID)
-				if err != nil {
-					r.logger.Error("failed to set default variant", zap.Error(err))
-					return fmt.Errorf("failed to set default variant: %w", err)
-				}
-			}
+			// No need to set default variant anymore
 
 			// Update variant attributes if any
 			if len(variant.Attributes) > 0 {
@@ -643,6 +664,41 @@ func (r *PostgresProductRepository) UpdateProduct(ctx context.Context, product *
 					}
 				}
 			}
+
+			// Handle variant images
+			if len(variant.Images) > 0 {
+				// First delete existing images
+				deleteImagesQuery := `DELETE FROM variant_images WHERE variant_id = $1`
+				_, err = tx.ExecContext(ctx, deleteImagesQuery, variantID)
+				if err != nil {
+					r.logger.Error("failed to delete variant images", zap.Error(err))
+					return fmt.Errorf("failed to delete variant images: %w", err)
+				}
+
+				// Then create new images
+				imageQuery := `
+					INSERT INTO variant_images (
+						variant_id, url, alt_text, position, created_at, updated_at
+					) VALUES ($1, $2, $3, $4, $5, $6)
+					RETURNING id`
+
+				for i := range variant.Images {
+					img := &variant.Images[i]
+					img.VariantID = variantID
+					img.CreatedAt = now
+					img.UpdatedAt = now
+
+					err = tx.QueryRowContext(
+						ctx, imageQuery,
+						img.VariantID, img.URL, img.AltText, img.Position, now, now,
+					).Scan(&img.ID)
+
+					if err != nil {
+						r.logger.Error("failed to create variant image", zap.Error(err))
+						return fmt.Errorf("failed to create variant image: %w", err)
+					}
+				}
+			}
 		}
 	}
 
@@ -682,8 +738,8 @@ func (r *PostgresBrandRepository) CreateBrand(ctx context.Context, brand *models
 
 	query := `
         INSERT INTO brands (
-            name, slug, description, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5)
+            name, slug, description, created_at, updated_at, deleted_at
+        ) VALUES ($1, $2, $3, $4, $5, NULL)
         RETURNING id`
 
 	err := r.db.QueryRowContext(
@@ -708,13 +764,13 @@ func (r *PostgresBrandRepository) CreateBrand(ctx context.Context, brand *models
 func (r *PostgresBrandRepository) GetBrandByID(ctx context.Context, id string) (*models.Brand, error) {
 	brand := &models.Brand{}
 	query := `
-        SELECT id, name, slug, description, created_at, updated_at
+        SELECT id, name, slug, description, created_at, updated_at, deleted_at
         FROM brands
         WHERE id = $1 AND deleted_at IS NULL`
 
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&brand.ID, &brand.Name, &brand.Slug, &brand.Description,
-		&brand.CreatedAt, &brand.UpdatedAt,
+		&brand.CreatedAt, &brand.UpdatedAt, &brand.DeletedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("brand not found")
@@ -729,13 +785,13 @@ func (r *PostgresBrandRepository) GetBrandByID(ctx context.Context, id string) (
 func (r *PostgresBrandRepository) GetBrandBySlug(ctx context.Context, slug string) (*models.Brand, error) {
 	brand := &models.Brand{}
 	query := `
-        SELECT id, name, slug, description, created_at, updated_at
+        SELECT id, name, slug, description, created_at, updated_at, deleted_at
         FROM brands
         WHERE slug = $1 AND deleted_at IS NULL`
 
 	err := r.db.QueryRowContext(ctx, query, slug).Scan(
 		&brand.ID, &brand.Name, &brand.Slug, &brand.Description,
-		&brand.CreatedAt, &brand.UpdatedAt,
+		&brand.CreatedAt, &brand.UpdatedAt, &brand.DeletedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("brand not found")
@@ -756,7 +812,7 @@ func (r *PostgresBrandRepository) ListBrands(ctx context.Context, offset, limit 
 	}
 
 	query := `
-        SELECT id, name, slug, description, created_at, updated_at
+        SELECT id, name, slug, description, created_at, updated_at, deleted_at
         FROM brands
         WHERE deleted_at IS NULL
         ORDER BY created_at DESC
@@ -774,7 +830,7 @@ func (r *PostgresBrandRepository) ListBrands(ctx context.Context, offset, limit 
 		brand := &models.Brand{}
 		err := rows.Scan(
 			&brand.ID, &brand.Name, &brand.Slug, &brand.Description,
-			&brand.CreatedAt, &brand.UpdatedAt,
+			&brand.CreatedAt, &brand.UpdatedAt, &brand.DeletedAt,
 		)
 		if err != nil {
 			r.logger.Error("failed to scan brand", zap.Error(err))
@@ -821,13 +877,17 @@ func (r *PostgresCategoryRepository) CreateCategory(ctx context.Context, categor
 func (r *PostgresCategoryRepository) GetCategoryByID(ctx context.Context, id string) (*models.Category, error) {
 	category := &models.Category{}
 	query := `
-        SELECT id, name, slug, description, parent_id, created_at, updated_at
-        FROM categories
-        WHERE id = $1 AND deleted_at IS NULL`
+        SELECT c.id, c.name, c.slug, c.description, c.parent_id, c.created_at, c.updated_at, c.deleted_at,
+               p.name as parent_name
+        FROM categories c
+        LEFT JOIN categories p ON c.parent_id = p.id
+        WHERE c.id = $1 AND c.deleted_at IS NULL`
 
+	var parentName sql.NullString
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&category.ID, &category.Name, &category.Slug, &category.Description,
-		&category.ParentID, &category.CreatedAt, &category.UpdatedAt,
+		&category.ParentID, &category.CreatedAt, &category.UpdatedAt, &category.DeletedAt,
+		&parentName,
 	)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("category not found")
@@ -836,19 +896,29 @@ func (r *PostgresCategoryRepository) GetCategoryByID(ctx context.Context, id str
 		r.logger.Error("failed to get category", zap.Error(err))
 		return nil, fmt.Errorf("failed to get category: %w", err)
 	}
+
+	// Set parent name if available
+	if parentName.Valid {
+		category.ParentName = parentName.String
+	}
+
 	return category, nil
 }
 
 func (r *PostgresCategoryRepository) GetCategoryBySlug(ctx context.Context, slug string) (*models.Category, error) {
 	category := &models.Category{}
 	query := `
-        SELECT id, name, slug, description, parent_id, created_at, updated_at
-        FROM categories
-        WHERE slug = $1 AND deleted_at IS NULL`
+        SELECT c.id, c.name, c.slug, c.description, c.parent_id, c.created_at, c.updated_at, c.deleted_at,
+               p.name as parent_name
+        FROM categories c
+        LEFT JOIN categories p ON c.parent_id = p.id
+        WHERE c.slug = $1 AND c.deleted_at IS NULL`
 
+	var parentName sql.NullString
 	err := r.db.QueryRowContext(ctx, query, slug).Scan(
 		&category.ID, &category.Name, &category.Slug, &category.Description,
-		&category.ParentID, &category.CreatedAt, &category.UpdatedAt,
+		&category.ParentID, &category.CreatedAt, &category.UpdatedAt, &category.DeletedAt,
+		&parentName,
 	)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("category not found")
@@ -857,6 +927,12 @@ func (r *PostgresCategoryRepository) GetCategoryBySlug(ctx context.Context, slug
 		r.logger.Error("failed to get category", zap.Error(err))
 		return nil, fmt.Errorf("failed to get category: %w", err)
 	}
+
+	// Set parent name if available
+	if parentName.Valid {
+		category.ParentName = parentName.String
+	}
+
 	return category, nil
 }
 
@@ -868,11 +944,14 @@ func (r *PostgresCategoryRepository) ListCategories(ctx context.Context, offset,
 		return nil, 0, fmt.Errorf("failed to count categories: %w", err)
 	}
 
+	// Modified query to join with parent category to get parent_name
 	query := `
-        SELECT id, name, slug, description, parent_id, created_at, updated_at
-        FROM categories
-        WHERE deleted_at IS NULL
-        ORDER BY created_at DESC
+        SELECT c.id, c.name, c.slug, c.description, c.parent_id, c.created_at, c.updated_at, c.deleted_at,
+               p.name as parent_name
+        FROM categories c
+        LEFT JOIN categories p ON c.parent_id = p.id
+        WHERE c.deleted_at IS NULL
+        ORDER BY c.created_at DESC
         LIMIT $1 OFFSET $2`
 
 	rows, err := r.db.QueryContext(ctx, query, limit, offset)
@@ -885,14 +964,22 @@ func (r *PostgresCategoryRepository) ListCategories(ctx context.Context, offset,
 	var categories []*models.Category
 	for rows.Next() {
 		category := &models.Category{}
+		var parentName sql.NullString
 		err := rows.Scan(
 			&category.ID, &category.Name, &category.Slug, &category.Description,
-			&category.ParentID, &category.CreatedAt, &category.UpdatedAt,
+			&category.ParentID, &category.CreatedAt, &category.UpdatedAt, &category.DeletedAt,
+			&parentName,
 		)
 		if err != nil {
 			r.logger.Error("failed to scan category", zap.Error(err))
 			return nil, 0, fmt.Errorf("failed to scan category: %w", err)
 		}
+
+		// Set parent name if available
+		if parentName.Valid {
+			category.ParentName = parentName.String
+		}
+
 		categories = append(categories, category)
 	}
 
@@ -978,8 +1065,8 @@ func (r *PostgresProductRepository) GetProductVariants(ctx context.Context, prod
 	return variants, nil
 }
 
-// getVariantAttributes fetches attributes for a specific variant
-func (r *PostgresProductRepository) getVariantAttributes(ctx context.Context, variant *models.ProductVariant) error {
+// GetVariantAttributes fetches attributes for a specific variant by ID
+func (r *PostgresProductRepository) GetVariantAttributes(ctx context.Context, variantID string) ([]models.VariantAttributeValue, error) {
 	const query = `
 		SELECT a.name, pva.value
 		FROM product_variant_attributes pva
@@ -988,21 +1075,39 @@ func (r *PostgresProductRepository) getVariantAttributes(ctx context.Context, va
 		ORDER BY a.name
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, variant.ID)
+	rows, err := r.db.QueryContext(ctx, query, variantID)
 	if err != nil {
-		return err
+		r.logger.Error("failed to get variant attributes", zap.Error(err), zap.String("variant_id", variantID))
+		return nil, fmt.Errorf("failed to get variant attributes: %w", err)
 	}
 	defer rows.Close()
 
+	var attributes []models.VariantAttributeValue
 	for rows.Next() {
 		var attr models.VariantAttributeValue
 		if err := rows.Scan(&attr.Name, &attr.Value); err != nil {
-			return err
+			r.logger.Error("failed to scan variant attribute", zap.Error(err))
+			return nil, fmt.Errorf("failed to scan variant attribute: %w", err)
 		}
-		variant.Attributes = append(variant.Attributes, attr)
+		attributes = append(attributes, attr)
 	}
 
-	return rows.Err()
+	if err := rows.Err(); err != nil {
+		r.logger.Error("error iterating variant attributes rows", zap.Error(err))
+		return nil, fmt.Errorf("error iterating variant attributes rows: %w", err)
+	}
+
+	return attributes, nil
+}
+
+// getVariantAttributes fetches attributes for a specific variant
+func (r *PostgresProductRepository) getVariantAttributes(ctx context.Context, variant *models.ProductVariant) error {
+	attributes, err := r.GetVariantAttributes(ctx, variant.ID)
+	if err != nil {
+		return err
+	}
+	variant.Attributes = attributes
+	return nil
 }
 
 // CreateVariant creates a new product variant with its attributes
@@ -1056,6 +1161,32 @@ func (r *PostgresProductRepository) CreateVariant(ctx context.Context, tx *sql.T
 	if len(variant.Attributes) > 0 {
 		if err := r.createVariantAttributes(ctx, tx, variant); err != nil {
 			return err
+		}
+	}
+
+	// Insert variant images if any
+	if len(variant.Images) > 0 {
+		imageQuery := `
+			INSERT INTO variant_images (
+				variant_id, url, alt_text, position, created_at, updated_at
+			) VALUES ($1, $2, $3, $4, $5, $6)
+			RETURNING id`
+
+		for i := range variant.Images {
+			img := &variant.Images[i]
+			img.VariantID = variant.ID
+			img.CreatedAt = now
+			img.UpdatedAt = now
+
+			err = tx.QueryRowContext(
+				ctx, imageQuery,
+				img.VariantID, img.URL, img.AltText, img.Position, now, now,
+			).Scan(&img.ID)
+
+			if err != nil {
+				r.logger.Error("failed to create variant image", zap.Error(err))
+				return fmt.Errorf("failed to create variant image: %w", err)
+			}
 		}
 	}
 
