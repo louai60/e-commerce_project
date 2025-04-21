@@ -2,12 +2,13 @@ package handlers
 
 import (
 	"context"
+
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"go.uber.org/zap"
 	pb "github.com/louai60/e-commerce_project/backend/product-service/proto"
 	"github.com/louai60/e-commerce_project/backend/product-service/service"
+	"go.uber.org/zap"
 )
 
 type ProductHandler struct {
@@ -18,10 +19,15 @@ type ProductHandler struct {
 
 func NewProductHandler(service *service.ProductService, logger *zap.Logger) *ProductHandler {
 	if service == nil {
-		logger.Fatal("product service cannot be nil")
+		logger.Error("service is nil in NewProductHandler")
 		return nil
 	}
-	
+	if logger == nil {
+		// Can't log if logger is nil
+		return nil
+	}
+
+	logger.Info("Initializing product handler")
 	return &ProductHandler{
 		service: service,
 		logger:  logger,
@@ -48,7 +54,7 @@ func (h *ProductHandler) GetProduct(ctx context.Context, req *pb.GetProductReque
 }
 
 func (h *ProductHandler) ListProducts(ctx context.Context, req *pb.ListProductsRequest) (*pb.ListProductsResponse, error) {
-	h.logger.Info("Listing products", 
+	h.logger.Info("Listing products",
 		zap.Int32("page", req.Page),
 		zap.Int32("limit", req.Limit))
 	return h.service.ListProducts(ctx, req)
@@ -86,6 +92,16 @@ func (h *ProductHandler) DeleteProduct(ctx context.Context, req *pb.DeleteProduc
 
 // Brand methods
 func (h *ProductHandler) CreateBrand(ctx context.Context, req *pb.CreateBrandRequest) (*pb.Brand, error) {
+	if req == nil {
+		h.logger.Error("invalid request: request is nil")
+		return nil, status.Error(codes.InvalidArgument, "invalid request")
+	}
+
+	if req.Brand == nil {
+		h.logger.Error("invalid request: brand is nil")
+		return nil, status.Error(codes.InvalidArgument, "brand details are required")
+	}
+
 	h.logger.Info("Creating brand", zap.String("name", req.Brand.Name))
 	return h.service.CreateBrand(ctx, req.Brand)
 }
@@ -118,10 +134,44 @@ func (h *ProductHandler) ListBrands(ctx context.Context, req *pb.ListBrandsReque
 		req.Limit = 10
 	}
 
-	h.logger.Info("Listing brands", 
+	h.logger.Info("Listing brands",
 		zap.Int32("page", req.Page),
 		zap.Int32("limit", req.Limit))
 	return h.service.ListBrands(ctx, req)
+}
+
+// Image methods
+func (h *ProductHandler) UploadImage(ctx context.Context, req *pb.UploadImageRequest) (*pb.UploadImageResponse, error) {
+	if req == nil {
+		h.logger.Error("invalid request: request is nil")
+		return nil, status.Error(codes.InvalidArgument, "invalid request")
+	}
+
+	if len(req.File) == 0 {
+		h.logger.Error("invalid request: file is required")
+		return nil, status.Error(codes.InvalidArgument, "file is required")
+	}
+
+	h.logger.Info("Uploading image",
+		zap.String("folder", req.Folder),
+		zap.String("filename", req.Filename))
+
+	return h.service.UploadImage(ctx, req)
+}
+
+func (h *ProductHandler) DeleteImage(ctx context.Context, req *pb.DeleteImageRequest) (*pb.DeleteImageResponse, error) {
+	if req == nil {
+		h.logger.Error("invalid request: request is nil")
+		return nil, status.Error(codes.InvalidArgument, "invalid request")
+	}
+
+	if req.PublicId == "" {
+		h.logger.Error("invalid request: public_id is required")
+		return nil, status.Error(codes.InvalidArgument, "public_id is required")
+	}
+
+	h.logger.Info("Deleting image", zap.String("public_id", req.PublicId))
+	return h.service.DeleteImage(ctx, req)
 }
 
 // Category methods
@@ -168,14 +218,8 @@ func (h *ProductHandler) ListCategories(ctx context.Context, req *pb.ListCategor
 		req.Limit = 10
 	}
 
-	h.logger.Info("Listing categories", 
+	h.logger.Info("Listing categories",
 		zap.Int32("page", req.Page),
 		zap.Int32("limit", req.Limit))
 	return h.service.ListCategories(ctx, req)
 }
-
-
-
-
-
-

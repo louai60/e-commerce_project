@@ -1,15 +1,21 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"time"
 
+	"github.com/cloudinary/cloudinary-go/v2"
+	"github.com/cloudinary/cloudinary-go/v2/api/uploader"
+	"github.com/google/uuid"
 	"github.com/louai60/e-commerce_project/backend/product-service/cache"
 	"github.com/louai60/e-commerce_project/backend/product-service/models"
 	pb "github.com/louai60/e-commerce_project/backend/product-service/proto"
 	"github.com/louai60/e-commerce_project/backend/product-service/repository"
+	"github.com/louai60/e-commerce_project/backend/product-service/storage"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -24,6 +30,7 @@ type ProductService struct {
 	categoryRepo repository.CategoryRepository
 	cacheManager *cache.CacheManager
 	logger       *zap.Logger
+	cld          *cloudinary.Cloudinary
 }
 
 // NewProductService creates a new product service
@@ -34,12 +41,27 @@ func NewProductService(
 	cacheManager *cache.CacheManager,
 	logger *zap.Logger,
 ) *ProductService {
+	// Initialize Cloudinary
+	var cld *cloudinary.Cloudinary
+	cloudName := os.Getenv("CLOUDINARY_CLOUD_NAME")
+	apiKey := os.Getenv("CLOUDINARY_API_KEY")
+	apiSecret := os.Getenv("CLOUDINARY_API_SECRET")
+
+	if cloudName != "" && apiKey != "" && apiSecret != "" {
+		var err error
+		cld, err = cloudinary.NewFromParams(cloudName, apiKey, apiSecret)
+		if err != nil {
+			logger.Error("Failed to initialize Cloudinary", zap.Error(err))
+		}
+	}
+
 	return &ProductService{
 		productRepo:  productRepo,
 		brandRepo:    brandRepo,
 		categoryRepo: categoryRepo,
 		cacheManager: cacheManager,
 		logger:       logger,
+		cld:          cld,
 	}
 }
 
@@ -53,12 +75,19 @@ func (s *ProductService) CreateProduct(ctx context.Context, req *pb.CreateProduc
 		return nil, status.Error(codes.InvalidArgument, "title is required")
 	}
 
+	// Generate UUID for the product
+	productID := uuid.New().String()
+
+	// Log the start of product creation
+	s.logger.Info("Creating new product", zap.String("title", req.Product.Title), zap.String("id", productID))
+
 	product := &models.Product{
+		ID:               productID,
 		Title:            req.Product.Title,
 		Slug:             req.Product.Slug, // Consider generating slug if empty
 		Description:      req.Product.Description,
 		ShortDescription: req.Product.ShortDescription,
-		Price:            req.Product.Price,
+		Price:            models.Price{Amount: req.Product.Price, Currency: "USD"}, // Default to USD
 		SKU:              req.Product.Sku,
 		InventoryQty:     int(req.Product.InventoryQty),
 		InventoryStatus:  "in_stock", // Default to in_stock if inventory_qty > 0
@@ -74,228 +103,179 @@ func (s *ProductService) CreateProduct(ctx context.Context, req *pb.CreateProduc
 	if req.Product.BrandId != nil {
 		product.BrandID = &req.Product.BrandId.Value
 	}
+	if req.Product.DiscountPrice != nil {
+		product.DiscountPrice = &models.Price{
+			Amount:   req.Product.DiscountPrice.Value,
+			Currency: "USD", // Changed from TND to USD for consistency
+		}
+	}
 
-	// Handle variants
+	// Process product images
+	if len(req.Product.Images) > 0 {
+		product.Images = make([]models.ProductImage, len(req.Product.Images))
+		for i, img := range req.Product.Images {
+			product.Images[i] = models.ProductImage{
+				ProductID: productID,
+				URL:       img.Url,
+				AltText:   img.AltText,
+				Position:  int(img.Position),
+			}
+		}
+	}
+
+	// Create the product
+	if err := s.productRepo.CreateProduct(ctx, product); err != nil {
+		s.logger.Error("Failed to create product", zap.Error(err))
+		if err == models.ErrProductSlugExists {
+			return nil, status.Errorf(codes.AlreadyExists, "product with this slug already exists")
+		}
+		return nil, status.Errorf(codes.Internal, "failed to create product: %v", err)
+	}
+
+	// Create default variant if no variants are provided
+	if len(req.Product.Variants) == 0 {
+		defaultVariant := createDefaultVariant(product)
+		defaultVariant.ProductID = product.ID
+		if err := s.productRepo.CreateVariant(ctx, nil, product.ID, &defaultVariant); err != nil {
+			s.logger.Error("Failed to create default variant", zap.Error(err))
+			// Continue even if default variant creation fails
+		}
+	}
+
+	// Handle variants if provided
 	if len(req.Product.Variants) > 0 {
-		product.Variants = make([]models.ProductVariant, len(req.Product.Variants))
-		for i, variant := range req.Product.Variants {
-			productVariant := models.ProductVariant{
-				SKU:          variant.Sku,
-				Price:        variant.Price,
-				InventoryQty: int(variant.InventoryQty),
+		for _, variantProto := range req.Product.Variants {
+			variant := &models.ProductVariant{
+				ProductID:    product.ID,
+				SKU:          variantProto.Sku,
+				Price:        variantProto.Price,
+				InventoryQty: int(variantProto.InventoryQty),
 			}
 
-			// Handle nullable fields
-			if variant.Title != "" {
-				productVariant.Title = &variant.Title
+			if variantProto.Title != "" {
+				variant.Title = &variantProto.Title
 			}
-			if variant.DiscountPrice != nil {
-				productVariant.DiscountPrice = &variant.DiscountPrice.Value
+			if variantProto.DiscountPrice != nil {
+				discountPrice := variantProto.DiscountPrice.Value
+				variant.DiscountPrice = &discountPrice
 			}
 
-			// Handle attributes
-			if len(variant.Attributes) > 0 {
-				productVariant.Attributes = make([]models.VariantAttributeValue, len(variant.Attributes))
-				for j, attr := range variant.Attributes {
-					productVariant.Attributes[j] = models.VariantAttributeValue{
+			// Process variant attributes
+			if len(variantProto.Attributes) > 0 {
+				variant.Attributes = make([]models.VariantAttributeValue, len(variantProto.Attributes))
+				for i, attr := range variantProto.Attributes {
+					variant.Attributes[i] = models.VariantAttributeValue{
 						Name:  attr.Name,
 						Value: attr.Value,
 					}
 				}
 			}
 
-			product.Variants[i] = productVariant
-		}
-	}
+			// Process variant images
+			if len(variantProto.Images) > 0 {
+				variant.Images = make([]models.VariantImage, len(variantProto.Images))
+				for i, img := range variantProto.Images {
+					variant.Images[i] = models.VariantImage{
+						VariantID: variant.ID, // This will be populated after variant creation
+						URL:       img.Url,
+						AltText:   img.AltText,
+						Position:  int(img.Position),
+					}
+				}
+			}
 
-	// Handle images
-	if len(req.Product.Images) > 0 {
-		product.Images = make([]models.ProductImage, len(req.Product.Images))
-		for i, img := range req.Product.Images {
-			product.Images[i] = models.ProductImage{
-				URL:      img.Url,
-				AltText:  img.AltText,
-				Position: int(img.Position),
+			if err := s.productRepo.CreateVariant(ctx, nil, product.ID, variant); err != nil {
+				s.logger.Error("Failed to create variant", zap.Error(err))
+				// Continue with other variants even if one fails
 			}
 		}
 	}
 
-	// Handle tags
-	if len(req.Product.Tags) > 0 {
-		product.Tags = make([]models.ProductTag, len(req.Product.Tags))
-		for i, tag := range req.Product.Tags {
-			product.Tags[i] = models.ProductTag{
-				Tag: tag.Tag,
-			}
+	// Process shipping data if provided
+	if req.Product.Shipping != nil {
+		shipping := &models.ProductShipping{
+			ProductID:        product.ID,
+			FreeShipping:     req.Product.Shipping.FreeShipping,
+			EstimatedDays:    int(req.Product.Shipping.EstimatedDays),
+			ExpressAvailable: req.Product.Shipping.ExpressAvailable,
+			CreatedAt:        time.Now().UTC(),
+			UpdatedAt:        time.Now().UTC(),
+		}
+
+		if err := s.productRepo.UpsertProductShipping(ctx, shipping); err != nil {
+			s.logger.Error("Failed to save shipping information", zap.Error(err))
+			// Continue even if shipping data fails to save
 		}
 	}
 
-	// Handle specifications if provided
-	if len(req.Product.Specifications) > 0 {
-		product.Specifications = make([]models.ProductSpecification, len(req.Product.Specifications))
-		for i, spec := range req.Product.Specifications {
-			product.Specifications[i] = models.ProductSpecification{
-				Name:  spec.Name,
-				Value: spec.Value,
-				Unit:  spec.Unit,
-			}
-		}
-	}
-
-	// Handle attributes if provided
-	if len(req.Product.Attributes) > 0 {
-		product.Attributes = make([]models.ProductAttribute, len(req.Product.Attributes))
-		for i, attr := range req.Product.Attributes {
-			product.Attributes[i] = models.ProductAttribute{
-				Name:  attr.Name,
-				Value: attr.Value,
-			}
-		}
-	}
-
-	// Handle SEO if provided
+	// Process SEO data if provided
 	if req.Product.Seo != nil {
-		product.SEO = &models.ProductSEO{
+		seo := &models.ProductSEO{
+			ProductID:       product.ID,
 			MetaTitle:       req.Product.Seo.MetaTitle,
 			MetaDescription: req.Product.Seo.MetaDescription,
 			Keywords:        req.Product.Seo.Keywords,
 			Tags:            req.Product.Seo.Tags,
+			CreatedAt:       time.Now().UTC(),
+			UpdatedAt:       time.Now().UTC(),
+		}
+
+		if err := s.productRepo.UpsertProductSEO(ctx, seo); err != nil {
+			s.logger.Error("Failed to save SEO information", zap.Error(err))
+			// Continue even if SEO data fails to save
 		}
 	}
 
-	// Handle shipping if provided
-	if req.Product.Shipping != nil {
-		product.Shipping = &models.ProductShipping{
-			FreeShipping:     req.Product.Shipping.FreeShipping,
-			EstimatedDays:    int(req.Product.Shipping.EstimatedDays),
-			ExpressAvailable: req.Product.Shipping.ExpressAvailable,
-		}
-	}
+	// Process specifications if provided
+	if len(req.Product.Specifications) > 0 {
+		for _, specProto := range req.Product.Specifications {
+			spec := &models.ProductSpecification{
+				ProductID: product.ID,
+				Name:      specProto.Name,
+				Value:     specProto.Value,
+				Unit:      specProto.Unit,
+				CreatedAt: time.Now().UTC(),
+				UpdatedAt: time.Now().UTC(),
+			}
 
-	// Handle discount if provided
-	if req.Product.Discount != nil {
-		product.Discount = &models.ProductDiscount{
-			Type:  req.Product.Discount.Type,
-			Value: req.Product.Discount.Value,
-		}
-		if req.Product.Discount.ExpiresAt != nil {
-			expiresAt := req.Product.Discount.ExpiresAt.AsTime()
-			product.Discount.ExpiresAt = &expiresAt
-		}
-	}
-
-	// Handle inventory locations if provided
-	if len(req.Product.InventoryLocations) > 0 {
-		product.InventoryLocations = make([]models.InventoryLocation, len(req.Product.InventoryLocations))
-		for i, loc := range req.Product.InventoryLocations {
-			product.InventoryLocations[i] = models.InventoryLocation{
-				WarehouseID:  loc.WarehouseId,
-				AvailableQty: int(loc.AvailableQty),
+			if err := s.productRepo.AddProductSpecification(ctx, spec); err != nil {
+				s.logger.Error("Failed to add product specification", zap.Error(err))
+				// Continue with other specifications even if one fails
 			}
 		}
 	}
 
-	if err := s.productRepo.CreateProduct(ctx, product); err != nil {
-		s.logger.Error("Failed to create product", zap.Error(err))
-		return nil, status.Errorf(codes.Internal, "failed to create product: %v", err)
-	}
+	// Process tags if provided
+	if len(req.Product.Tags) > 0 {
+		for _, tagProto := range req.Product.Tags {
+			tag := &models.ProductTag{
+				ProductID: product.ID,
+				Tag:       tagProto.Tag,
+				CreatedAt: time.Now().UTC(),
+				UpdatedAt: time.Now().UTC(),
+			}
 
-	// Create related entities after the product is created
-	// These need the product ID which is generated during product creation
-	// Create specifications
-	for i := range product.Specifications {
-		spec := &product.Specifications[i]
-		spec.ProductID = product.ID
-		if err := s.productRepo.AddProductSpecification(ctx, spec); err != nil {
-			s.logger.Error("Failed to create product specification",
-				zap.Error(err),
-				zap.String("product_id", product.ID),
-				zap.String("spec_name", spec.Name))
-			// Continue even if one specification fails
+			if err := s.productRepo.AddProductTag(ctx, tag); err != nil {
+				s.logger.Error("Failed to add product tag", zap.Error(err))
+				// Continue with other tags even if one fails
+			}
 		}
 	}
 
-	// Create attributes
-	for i := range product.Attributes {
-		attr := &product.Attributes[i]
-		attr.ProductID = product.ID
-		if err := s.productRepo.AddProductAttribute(ctx, attr); err != nil {
-			s.logger.Error("Failed to create product attribute",
-				zap.Error(err),
-				zap.String("product_id", product.ID),
-				zap.String("attr_name", attr.Name))
-			// Continue even if one attribute fails
-		}
-	}
-
-	// Create SEO
-	if product.SEO != nil {
-		product.SEO.ProductID = product.ID
-		if err := s.productRepo.UpsertProductSEO(ctx, product.SEO); err != nil {
-			s.logger.Error("Failed to create product SEO",
-				zap.Error(err),
-				zap.String("product_id", product.ID))
-			// Continue even if SEO fails
-		}
-	}
-
-	// Create shipping
-	if product.Shipping != nil {
-		product.Shipping.ProductID = product.ID
-		if err := s.productRepo.UpsertProductShipping(ctx, product.Shipping); err != nil {
-			s.logger.Error("Failed to create product shipping",
-				zap.Error(err),
-				zap.String("product_id", product.ID))
-			// Continue even if shipping fails
-		}
-	}
-
-	// Create discount
-	if product.Discount != nil {
-		product.Discount.ProductID = product.ID
-		if err := s.productRepo.AddProductDiscount(ctx, product.Discount); err != nil {
-			s.logger.Error("Failed to create product discount",
-				zap.Error(err),
-				zap.String("product_id", product.ID))
-			// Continue even if discount fails
-		}
-	}
-
-	// Create inventory locations
-	for i := range product.InventoryLocations {
-		loc := &product.InventoryLocations[i]
-		loc.ProductID = product.ID
-		if err := s.productRepo.UpsertInventoryLocation(ctx, loc); err != nil {
-			s.logger.Error("Failed to create inventory location",
-				zap.Error(err),
-				zap.String("product_id", product.ID),
-				zap.String("warehouse_id", loc.WarehouseID))
-			// Continue even if one location fails
-		}
-	}
-
-	// Enhanced cache invalidation
-	if err := s.cacheManager.InvalidateProductAndRelated(ctx, product.ID); err != nil {
-		s.logger.Warn("Failed to invalidate caches after product creation",
-			zap.String("id", product.ID),
+	// Invalidate all product list caches to ensure new product appears in lists
+	if err := s.cacheManager.InvalidateProductLists(ctx); err != nil {
+		s.logger.Warn("Failed to invalidate product lists after creation",
+			zap.String("product_id", product.ID),
 			zap.Error(err))
+		// Continue even if cache invalidation fails
+	} else {
+		s.logger.Info("Successfully invalidated product list caches", zap.String("product_id", product.ID))
 	}
 
-	// Fetch the complete product with all related entities to return
-	createdProduct, err := s.productRepo.GetByID(ctx, product.ID)
-	if err != nil {
-		s.logger.Error("Failed to get created product", zap.Error(err))
-		// Still return the basic product even if we can't fetch the complete one
-		return convertModelToProto(product), nil
-	}
-
-	// Populate all related entities
-	if err := s.populateProductRelations(ctx, createdProduct); err != nil {
-		s.logger.Error("Failed to populate product relations", zap.Error(err))
-		// Continue even if population fails
-	}
-
-	return convertModelToProto(createdProduct), nil
+	// Return the created product
+	return s.GetProduct(ctx, &pb.GetProductRequest{
+		Identifier: &pb.GetProductRequest_Id{Id: product.ID},
+	})
 }
 
 func (s *ProductService) GetProduct(ctx context.Context, req *pb.GetProductRequest) (*pb.Product, error) {
@@ -388,7 +368,7 @@ func convertModelToProto(model *models.Product) *pb.Product {
 		Slug:               model.Slug,
 		Description:        model.Description,
 		ShortDescription:   model.ShortDescription,
-		Price:              model.Price,
+		Price:              model.Price.Amount,
 		Sku:                model.SKU,
 		InventoryQty:       int32(model.InventoryQty),
 		InventoryStatus:    model.InventoryStatus,
@@ -410,16 +390,13 @@ func convertModelToProto(model *models.Product) *pb.Product {
 
 	// Handle nullable fields
 	if model.DiscountPrice != nil {
-		protoProduct.DiscountPrice = wrapperspb.Double(*model.DiscountPrice)
+		protoProduct.DiscountPrice = wrapperspb.Double(model.DiscountPrice.Amount)
 	}
 	if model.Weight != nil {
 		protoProduct.Weight = wrapperspb.Double(*model.Weight)
 	}
 	if model.BrandID != nil {
 		protoProduct.BrandId = wrapperspb.String(*model.BrandID)
-	}
-	if model.DefaultVariantID != nil {
-		protoProduct.DefaultVariantId = wrapperspb.String(*model.DefaultVariantID)
 	}
 
 	return protoProduct
@@ -429,7 +406,7 @@ func convertBrandModelToProto(model *models.Brand) *pb.Brand {
 	if model == nil {
 		return nil
 	}
-	return &pb.Brand{
+	proto := &pb.Brand{
 		Id:          model.ID,
 		Name:        model.Name,
 		Slug:        model.Slug,
@@ -437,6 +414,12 @@ func convertBrandModelToProto(model *models.Brand) *pb.Brand {
 		CreatedAt:   timestamppb.New(model.CreatedAt),
 		UpdatedAt:   timestamppb.New(model.UpdatedAt),
 	}
+
+	if model.DeletedAt != nil {
+		proto.DeletedAt = timestamppb.New(*model.DeletedAt)
+	}
+
+	return proto
 }
 
 func convertSingleCategoryModelToProto(model *models.Category) *pb.Category {
@@ -526,6 +509,22 @@ func convertVariantModelToProto(model models.ProductVariant) *pb.ProductVariant 
 		}
 	}
 
+	// Convert images
+	if len(model.Images) > 0 {
+		protoVariant.Images = make([]*pb.VariantImage, len(model.Images))
+		for i, img := range model.Images {
+			protoVariant.Images[i] = &pb.VariantImage{
+				Id:        img.ID,
+				VariantId: img.VariantID,
+				Url:       img.URL,
+				AltText:   img.AltText,
+				Position:  int32(img.Position),
+				CreatedAt: timestamppb.New(img.CreatedAt),
+				UpdatedAt: timestamppb.New(img.UpdatedAt),
+			}
+		}
+	}
+
 	return protoVariant
 }
 
@@ -535,6 +534,147 @@ func convertVariantModelsToProtos(models []models.ProductVariant) []*pb.ProductV
 		protos[i] = convertVariantModelToProto(model)
 	}
 	return protos
+}
+
+// UploadImage handles image upload to Cloudinary or local storage
+func (s *ProductService) UploadImage(ctx context.Context, req *pb.UploadImageRequest) (*pb.UploadImageResponse, error) {
+	// Set default folder if not provided
+	folder := req.Folder
+	if folder == "" {
+		folder = "products"
+	}
+
+	// Try to initialize Cloudinary if not already initialized
+	if s.cld == nil {
+		// Get Cloudinary configuration from environment variables
+		cloudName := os.Getenv("CLOUDINARY_CLOUD_NAME")
+		apiKey := os.Getenv("CLOUDINARY_API_KEY")
+		apiSecret := os.Getenv("CLOUDINARY_API_SECRET")
+
+		if cloudName != "" && apiKey != "" && apiSecret != "" {
+			cld, err := cloudinary.NewFromParams(cloudName, apiKey, apiSecret)
+			if err == nil {
+				s.cld = cld
+			} else {
+				s.logger.Warn("Failed to initialize Cloudinary, will use local storage", zap.Error(err))
+			}
+		} else {
+			s.logger.Warn("Cloudinary configuration is missing, will use local storage")
+		}
+	}
+
+	// Create a reader from the file bytes
+	reader := bytes.NewReader(req.File)
+
+	// Try to upload to Cloudinary if available
+	if s.cld != nil {
+		// Upload the file to Cloudinary
+		result, err := s.cld.Upload.Upload(ctx, reader, uploader.UploadParams{
+			Folder:   folder,
+			PublicID: req.Filename,
+		})
+		if err == nil {
+			s.logger.Info("Image uploaded to Cloudinary successfully",
+				zap.String("public_id", result.PublicID),
+				zap.String("url", result.SecureURL),
+				zap.String("alt_text", req.AltText),
+				zap.Int32("position", req.Position),
+			)
+
+			return &pb.UploadImageResponse{
+				Url:      result.SecureURL,
+				PublicId: result.PublicID,
+				AltText:  req.AltText,
+				Position: req.Position,
+			}, nil
+		}
+		s.logger.Warn("Failed to upload to Cloudinary, falling back to local storage", zap.Error(err))
+	}
+
+	// Fallback to local storage
+	// Reset reader position
+	reader.Seek(0, 0)
+
+	// Initialize local storage
+	localStoragePath := os.Getenv("LOCAL_STORAGE_PATH")
+	if localStoragePath == "" {
+		localStoragePath = "./uploads" // Default path
+	}
+
+	localStorage, err := storage.NewLocalStorage(localStoragePath)
+	if err != nil {
+		s.logger.Error("Failed to initialize local storage", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Failed to initialize storage")
+	}
+
+	// Upload to local storage
+	result, err := localStorage.SaveFromReader(reader, folder, req.Filename)
+	if err != nil {
+		s.logger.Error("Failed to save image to local storage", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Failed to save image")
+	}
+
+	// Generate a full URL for the image
+	baseURL := os.Getenv("BASE_URL")
+	if baseURL == "" {
+		baseURL = "http://localhost:8080" // Default base URL
+	}
+
+	imageURL := baseURL + result.URL
+
+	s.logger.Info("Image saved to local storage successfully",
+		zap.String("public_id", result.PublicID),
+		zap.String("url", imageURL),
+		zap.String("alt_text", req.AltText),
+		zap.Int32("position", req.Position),
+	)
+
+	return &pb.UploadImageResponse{
+		Url:      imageURL,
+		PublicId: result.PublicID,
+		AltText:  req.AltText,
+		Position: req.Position,
+	}, nil
+}
+
+// DeleteImage handles image deletion from Cloudinary
+func (s *ProductService) DeleteImage(ctx context.Context, req *pb.DeleteImageRequest) (*pb.DeleteImageResponse, error) {
+	// Initialize Cloudinary if not already initialized
+	if s.cld == nil {
+		// Get Cloudinary configuration from environment variables
+		cloudName := os.Getenv("CLOUDINARY_CLOUD_NAME")
+		apiKey := os.Getenv("CLOUDINARY_API_KEY")
+		apiSecret := os.Getenv("CLOUDINARY_API_SECRET")
+
+		if cloudName == "" || apiKey == "" || apiSecret == "" {
+			return nil, status.Error(codes.FailedPrecondition, "Cloudinary configuration is missing")
+		}
+
+		cld, err := cloudinary.NewFromParams(cloudName, apiKey, apiSecret)
+		if err != nil {
+			s.logger.Error("Failed to initialize Cloudinary", zap.Error(err))
+			return nil, status.Error(codes.Internal, "Failed to initialize image upload service")
+		}
+		s.cld = cld
+	}
+
+	// Delete the image from Cloudinary
+	result, err := s.cld.Upload.Destroy(ctx, uploader.DestroyParams{
+		PublicID: req.PublicId,
+	})
+	if err != nil {
+		s.logger.Error("Failed to delete image from Cloudinary", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Failed to delete image")
+	}
+
+	s.logger.Info("Image deleted successfully",
+		zap.String("public_id", req.PublicId),
+		zap.String("result", result.Result),
+	)
+
+	return &pb.DeleteImageResponse{
+		Success: result.Result == "ok",
+	}, nil
 }
 
 // Convert ProductTag models to protos
@@ -843,15 +983,14 @@ func (s *ProductService) CreateBrand(ctx context.Context, brand *pb.Brand) (*pb.
 		return nil, status.Errorf(codes.Internal, "failed to create brand: %v", err)
 	}
 
-	// Convert model back to proto
-	return &pb.Brand{
-		Id:          brandModel.ID,
-		Name:        brandModel.Name,
-		Slug:        brandModel.Slug,
-		Description: brandModel.Description,
-		CreatedAt:   timestamppb.New(brandModel.CreatedAt),
-		UpdatedAt:   timestamppb.New(brandModel.UpdatedAt),
-	}, nil
+	// Invalidate brand cache
+	if err := s.cacheManager.InvalidateBrandLists(ctx); err != nil {
+		s.logger.Warn("Failed to invalidate brand cache", zap.Error(err))
+		// Continue even if cache invalidation fails
+	}
+
+	// Convert model back to proto using the helper function
+	return convertBrandModelToProto(brandModel), nil
 }
 
 func (s *ProductService) GetBrand(ctx context.Context, req *pb.GetBrandRequest) (*pb.Brand, error) {
@@ -914,12 +1053,18 @@ func (s *ProductService) GetBrand(ctx context.Context, req *pb.GetBrandRequest) 
 }
 
 func (s *ProductService) ListBrands(ctx context.Context, req *pb.ListBrandsRequest) (*pb.ListBrandsResponse, error) {
-	s.logger.Info("ListBrands service method called")
-	s.logger.Info("ListBrands service method called")
+	s.logger.Info("ListBrands service method called", zap.Int32("page", req.Page), zap.Int32("limit", req.Limit))
 
-	// Define cache key based on pagination (if any)
-	// For now, assuming no pagination for brands, cache all.
-	cacheKey := "brands:all" // Adjust if pagination is added
+	// Set default pagination values if not provided
+	if req.Page <= 0 {
+		req.Page = 1
+	}
+	if req.Limit <= 0 {
+		req.Limit = 10
+	}
+
+	// Define cache key based on pagination
+	cacheKey := fmt.Sprintf("brands:page:%d:limit:%d", req.Page, req.Limit)
 
 	// Try cache first
 	cachedBrands, err := s.cacheManager.GetBrandList(ctx, cacheKey)
@@ -932,9 +1077,14 @@ func (s *ProductService) ListBrands(ctx context.Context, req *pb.ListBrandsReque
 	}
 	s.logger.Debug("Cache miss for brand list", zap.String("key", cacheKey), zap.Error(err))
 
-	// Cache miss, get from database
-	// TODO: Implement pagination in repository if needed. For now, list all.
-	brands, total, err := s.brandRepo.ListBrands(ctx, 0, 0) // Assuming ListBrands(ctx, offset, limit) - 0, 0 means list all
+	// Calculate offset from page and limit
+	offset := (req.Page - 1) * req.Limit
+	if offset < 0 {
+		offset = 0 // Ensure offset is not negative
+	}
+
+	// Cache miss, get from database with pagination
+	brands, total, err := s.brandRepo.ListBrands(ctx, int(offset), int(req.Limit))
 	if err != nil {
 		s.logger.Error("Failed to list brands from repository", zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to list brands: %v", err)
@@ -1001,6 +1151,16 @@ func (s *ProductService) CreateCategory(ctx context.Context, req *pb.CreateCateg
 	// Invalidate category cache
 	if err := s.cacheManager.InvalidateCategoryLists(ctx); err != nil {
 		s.logger.Warn("Failed to invalidate category cache", zap.Error(err))
+	}
+
+	// Fetch the complete category with parent name to ensure it's properly populated
+	if category.ParentID != nil {
+		completeCategory, err := s.categoryRepo.GetCategoryByID(ctx, category.ID)
+		if err == nil {
+			category = completeCategory
+		} else {
+			s.logger.Warn("Failed to fetch complete category after creation", zap.Error(err))
+		}
 	}
 
 	return convertCategoryModelToProto(category), nil
@@ -1114,6 +1274,10 @@ func convertCategoryModelToProto(model *models.Category) *pb.Category {
 		protoCategory.ParentId = wrapperspb.String(*model.ParentID)
 	}
 
+	if model.DeletedAt != nil {
+		protoCategory.DeletedAt = timestamppb.New(*model.DeletedAt)
+	}
+
 	return protoCategory
 }
 
@@ -1121,6 +1285,17 @@ func convertCategoryModelToProto(model *models.Category) *pb.Category {
 func (s *ProductService) populateProductRelations(ctx context.Context, product *models.Product) error {
 	if product == nil {
 		return fmt.Errorf("cannot populate relations for nil product")
+	}
+
+	// Get brand if brandID is set but brand is nil
+	if product.BrandID != nil && product.Brand == nil {
+		brand, err := s.brandRepo.GetBrandByID(ctx, *product.BrandID)
+		if err != nil {
+			s.logger.Error("Failed to get brand for product", zap.Error(err), zap.String("brand_id", *product.BrandID))
+			// Continue even if brand fails to load
+		} else {
+			product.Brand = brand
+		}
 	}
 
 	// Get variants
@@ -1134,6 +1309,45 @@ func (s *ProductService) populateProductRelations(ctx context.Context, product *
 	product.Variants = make([]models.ProductVariant, len(variants))
 	for i, v := range variants {
 		product.Variants[i] = *v
+
+		// Get variant images
+		variantImages, err := s.productRepo.GetVariantImages(ctx, v.ID)
+		if err != nil {
+			s.logger.Error("Failed to get variant images", zap.Error(err), zap.String("variant_id", v.ID))
+			// Continue even if variant images fail to load
+		} else {
+			product.Variants[i].Images = variantImages
+		}
+
+		// Get variant attributes
+		variantAttributes, err := s.productRepo.GetVariantAttributes(ctx, v.ID)
+		if err != nil {
+			s.logger.Error("Failed to get variant attributes", zap.Error(err), zap.String("variant_id", v.ID))
+			// Continue even if variant attributes fail to load
+		} else {
+			product.Variants[i].Attributes = variantAttributes
+		}
+	}
+
+	// Use the first variant's data for backward compatibility
+	if len(variants) > 0 {
+		defaultVariant := variants[0] // Use first variant
+
+		// Copy default variant's values to product's transient fields
+		product.Price = models.Price{
+			Amount:   defaultVariant.Price,
+			Currency: "USD", // Default currency
+		}
+		if defaultVariant.DiscountPrice != nil {
+			product.DiscountPrice = &models.Price{
+				Amount:   *defaultVariant.DiscountPrice,
+				Currency: "USD", // Default currency
+			}
+		} else {
+			product.DiscountPrice = nil
+		}
+		product.SKU = defaultVariant.SKU
+		product.InventoryQty = defaultVariant.InventoryQty
 	}
 
 	// Get tags
@@ -1206,6 +1420,15 @@ func (s *ProductService) populateProductRelations(ctx context.Context, product *
 		product.InventoryLocations = locations
 	}
 
+	// Get product images
+	images, err := s.productRepo.GetProductImages(ctx, product.ID)
+	if err != nil {
+		s.logger.Error("Failed to get product images", zap.Error(err), zap.String("product_id", product.ID))
+		// Continue even if product images fail to load
+	} else {
+		product.Images = images
+	}
+
 	return nil
 }
 
@@ -1230,7 +1453,7 @@ func convertProtoToModelForUpdate(proto *pb.Product, model *models.Product) *mod
 		model.ShortDescription = proto.ShortDescription
 	}
 	// Price is not nullable in proto, assume 0 is a valid value if intended
-	model.Price = proto.Price
+	model.Price = models.Price{Amount: proto.Price, Currency: "USD"}
 
 	if proto.Sku != "" {
 		model.SKU = proto.Sku // Corrected field name
@@ -1248,7 +1471,7 @@ func convertProtoToModelForUpdate(proto *pb.Product, model *models.Product) *mod
 
 	// Handle nullable fields from proto
 	if proto.DiscountPrice != nil {
-		model.DiscountPrice = &proto.DiscountPrice.Value
+		model.DiscountPrice = &models.Price{Amount: proto.DiscountPrice.Value, Currency: "USD"}
 	} else {
 		model.DiscountPrice = nil // Explicitly set to nil if not provided
 	}
@@ -1270,4 +1493,23 @@ func convertProtoToModelForUpdate(proto *pb.Product, model *models.Product) *mod
 	// and calling appropriate repository methods (e.g., AddProductCategory, RemoveProductCategory)
 
 	return model
+}
+
+func createDefaultVariant(product *models.Product) models.ProductVariant {
+	now := time.Now().UTC()
+
+	var discountPrice *float64
+	if product.DiscountPrice != nil {
+		discountPrice = &product.DiscountPrice.Amount
+	}
+
+	return models.ProductVariant{
+		Title:         &product.Title,
+		SKU:           product.SKU,
+		Price:         product.Price.Amount,
+		DiscountPrice: discountPrice,
+		InventoryQty:  product.InventoryQty,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
 }
