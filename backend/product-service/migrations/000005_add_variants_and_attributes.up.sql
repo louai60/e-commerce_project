@@ -45,7 +45,6 @@ CREATE TABLE product_variant_attributes (
 );
 CREATE INDEX idx_pva_variant_id ON product_variant_attributes(product_variant_id);
 CREATE INDEX idx_pva_attribute_id ON product_variant_attributes(attribute_id);
-
 -- Step 4: Modify the products table
 -- Add a reference to a default variant (optional, but useful for listings/defaults)
 ALTER TABLE products ADD COLUMN default_variant_id UUID NULL;

@@ -10,6 +10,7 @@ import (
 
 var (
 	ErrProductNotFound      = errors.New("product not found")
+	ErrProductSlugExists    = errors.New("product with this slug already exists")
 	ErrProductAlreadyExists = errors.New("product already exists")
 	ErrVariantNotFound      = errors.New("variant not found")
 	ErrVariantAlreadyExists = errors.New("variant already exists")
@@ -47,6 +48,17 @@ type ProductImage struct {
 	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
 }
 
+// VariantImage represents an image associated with a product variant
+type VariantImage struct {
+	ID        string    `json:"id" db:"id"`
+	VariantID string    `json:"variant_id" db:"variant_id"`
+	URL       string    `json:"url" db:"url"`
+	AltText   string    `json:"alt_text" db:"alt_text"`
+	Position  int       `json:"position" db:"position"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
+}
+
 // Attribute defines the structure for product attributes like 'Color', 'Size'.
 type Attribute struct {
 	ID        string     `json:"id" db:"id"`
@@ -77,20 +89,22 @@ type ProductVariant struct {
 
 	// Related entities (not stored directly in product_variants table)
 	Attributes []VariantAttributeValue `json:"attributes,omitempty" db:"-"` // Populated via join
+	Images     []VariantImage          `json:"images,omitempty" db:"-"`     // Populated via join
+}
+
+// Price represents the price structure for a product
+type Price struct {
+	Amount   float64 `json:"amount" db:"amount"`
+	Currency string  `json:"currency" db:"currency"`
 }
 
 // Product represents the core product entity.
 type Product struct {
-	ID               string `json:"id" db:"id"`
-	Title            string `json:"title" db:"title"`
-	Slug             string `json:"slug" db:"slug"`
-	Description      string `json:"description" db:"description"`
-	ShortDescription string `json:"short_description" db:"short_description"`
-	// Legacy fields needed for repository compatibility
-	Price            float64    `json:"price" db:"price"`
-	DiscountPrice    *float64   `json:"discount_price,omitempty" db:"discount_price"`
-	SKU              string     `json:"sku" db:"sku"`
-	InventoryQty     int        `json:"inventory_qty" db:"inventory_qty"`
+	ID               string     `json:"id" db:"id"`
+	Title            string     `json:"title" db:"title"`
+	Slug             string     `json:"slug" db:"slug"`
+	Description      string     `json:"description" db:"description"`
+	ShortDescription string     `json:"short_description" db:"short_description"`
 	InventoryStatus  string     `json:"inventory_status" db:"inventory_status"` // 'in_stock', 'out_of_stock', etc.
 	Weight           *float64   `json:"weight" db:"weight"`                     // Weight might stay at product level if consistent across variants
 	IsPublished      bool       `json:"is_published" db:"is_published"`
@@ -98,7 +112,14 @@ type Product struct {
 	UpdatedAt        time.Time  `json:"updated_at" db:"updated_at"`
 	DeletedAt        *time.Time `json:"deleted_at,omitempty" db:"deleted_at"` // Added via migration 000003
 	BrandID          *string    `json:"brand_id" db:"brand_id"`
-	DefaultVariantID *string    `json:"default_variant_id,omitempty" db:"default_variant_id"` // Added via migration 000005
+
+	// Price structure
+	Price         Price  `json:"price" db:"-"`
+	DiscountPrice *Price `json:"discount_price,omitempty" db:"-"`
+
+	// Transient fields populated from default variant
+	SKU          string `json:"sku" db:"-"`
+	InventoryQty int    `json:"inventory_qty" db:"-"`
 
 	// Related entities (populated separately)
 	Brand              *Brand                 `json:"brand,omitempty" db:"-"`

@@ -467,6 +467,15 @@ func (r *PostgresRepository) GetProductVariants(ctx context.Context, productID s
 			return nil, fmt.Errorf("failed to get variant attributes: %w", err)
 		}
 
+		// Get images for this variant
+		variantImages, err := r.GetVariantImages(ctx, variant.ID)
+		if err != nil {
+			r.logger.Error("failed to get variant images", zap.Error(err), zap.String("variant_id", variant.ID))
+			// Continue even if images fail to load - don't fail the whole query
+		} else {
+			variant.Images = variantImages
+		}
+
 		variants = append(variants, &variant)
 	}
 
@@ -478,8 +487,8 @@ func (r *PostgresRepository) GetProductVariants(ctx context.Context, productID s
 	return variants, nil
 }
 
-// getVariantAttributes fetches attributes for a specific variant
-func (r *PostgresRepository) getVariantAttributes(ctx context.Context, variant *models.ProductVariant) error {
+// GetVariantAttributes fetches attributes for a specific variant by ID
+func (r *PostgresRepository) GetVariantAttributes(ctx context.Context, variantID string) ([]models.VariantAttributeValue, error) {
 	const query = `
 		SELECT a.name, pva.value
 		FROM product_variant_attributes pva
@@ -488,21 +497,39 @@ func (r *PostgresRepository) getVariantAttributes(ctx context.Context, variant *
 		ORDER BY a.name
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, variant.ID)
+	rows, err := r.db.QueryContext(ctx, query, variantID)
 	if err != nil {
-		return err
+		r.logger.Error("failed to get variant attributes", zap.Error(err), zap.String("variant_id", variantID))
+		return nil, fmt.Errorf("failed to get variant attributes: %w", err)
 	}
 	defer rows.Close()
 
+	var attributes []models.VariantAttributeValue
 	for rows.Next() {
 		var attr models.VariantAttributeValue
 		if err := rows.Scan(&attr.Name, &attr.Value); err != nil {
-			return err
+			r.logger.Error("failed to scan variant attribute", zap.Error(err))
+			return nil, fmt.Errorf("failed to scan variant attribute: %w", err)
 		}
-		variant.Attributes = append(variant.Attributes, attr)
+		attributes = append(attributes, attr)
 	}
 
-	return rows.Err()
+	if err := rows.Err(); err != nil {
+		r.logger.Error("error iterating variant attributes rows", zap.Error(err))
+		return nil, fmt.Errorf("error iterating variant attributes rows: %w", err)
+	}
+
+	return attributes, nil
+}
+
+// getVariantAttributes fetches attributes for a specific variant
+func (r *PostgresRepository) getVariantAttributes(ctx context.Context, variant *models.ProductVariant) error {
+	attributes, err := r.GetVariantAttributes(ctx, variant.ID)
+	if err != nil {
+		return err
+	}
+	variant.Attributes = attributes
+	return nil
 }
 
 // CreateVariant creates a new product variant with its attributes
@@ -556,6 +583,32 @@ func (r *PostgresRepository) CreateVariant(ctx context.Context, tx *sql.Tx, prod
 	if len(variant.Attributes) > 0 {
 		if err := r.createVariantAttributes(ctx, tx, variant); err != nil {
 			return err
+		}
+	}
+
+	// Insert variant images if any
+	if len(variant.Images) > 0 {
+		imageQuery := `
+			INSERT INTO variant_images (
+				variant_id, url, alt_text, position, created_at, updated_at
+			) VALUES ($1, $2, $3, $4, $5, $6)
+			RETURNING id`
+
+		for i := range variant.Images {
+			img := &variant.Images[i]
+			img.VariantID = variant.ID
+			img.CreatedAt = now
+			img.UpdatedAt = now
+
+			err = tx.QueryRowContext(
+				ctx, imageQuery,
+				img.VariantID, img.URL, img.AltText, img.Position, now, now,
+			).Scan(&img.ID)
+
+			if err != nil {
+				r.logger.Error("failed to create variant image", zap.Error(err))
+				return fmt.Errorf("failed to create variant image: %w", err)
+			}
 		}
 	}
 
@@ -1919,8 +1972,8 @@ func (r *PostgresRepository) UpsertInventoryLocation(ctx context.Context, locati
 		INSERT INTO product_inventory_locations (
 			product_id, warehouse_id, available_qty, created_at, updated_at
 		) VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT (product_id, warehouse_id) 
-		DO UPDATE SET 
+		ON CONFLICT (product_id, warehouse_id)
+		DO UPDATE SET
 			available_qty = EXCLUDED.available_qty,
 			updated_at = EXCLUDED.updated_at
 		RETURNING id`
@@ -1950,8 +2003,8 @@ func (r *PostgresRepository) UpsertProductSEO(ctx context.Context, seo *models.P
 		INSERT INTO product_seo (
 			product_id, meta_title, meta_description, keywords, tags, created_at, updated_at
 		) VALUES ($1, $2, $3, $4, $5, $6, $7)
-		ON CONFLICT (product_id) 
-		DO UPDATE SET 
+		ON CONFLICT (product_id)
+		DO UPDATE SET
 			meta_title = EXCLUDED.meta_title,
 			meta_description = EXCLUDED.meta_description,
 			keywords = EXCLUDED.keywords,
@@ -1986,8 +2039,8 @@ func (r *PostgresRepository) UpsertProductShipping(ctx context.Context, shipping
 		INSERT INTO product_shipping (
 			product_id, free_shipping, estimated_days, express_available, created_at, updated_at
 		) VALUES ($1, $2, $3, $4, $5, $6)
-		ON CONFLICT (product_id) 
-		DO UPDATE SET 
+		ON CONFLICT (product_id)
+		DO UPDATE SET
 			free_shipping = EXCLUDED.free_shipping,
 			estimated_days = EXCLUDED.estimated_days,
 			express_available = EXCLUDED.express_available,
@@ -2009,5 +2062,139 @@ func (r *PostgresRepository) UpsertProductShipping(ctx context.Context, shipping
 	}
 
 	shipping.CreatedAt = now
+	return nil
+}
+
+// AddVariantImage adds a new image to a variant
+func (r *PostgresRepository) AddVariantImage(ctx context.Context, image *models.VariantImage) error {
+	query := `
+		INSERT INTO variant_images (id, variant_id, url, alt_text, position, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`
+
+	now := time.Now()
+	image.CreatedAt = now
+	image.UpdatedAt = now
+
+	_, err := r.db.ExecContext(ctx, query,
+		image.ID,
+		image.VariantID,
+		image.URL,
+		image.AltText,
+		image.Position,
+		image.CreatedAt,
+		image.UpdatedAt,
+	)
+
+	if err != nil {
+		r.logger.Error("failed to add variant image", zap.Error(err))
+		return fmt.Errorf("failed to add variant image: %w", err)
+	}
+
+	return nil
+}
+
+// GetVariantImages gets all images for a variant
+func (r *PostgresRepository) GetVariantImages(ctx context.Context, variantID string) ([]models.VariantImage, error) {
+	query := `
+		SELECT id, variant_id, url, alt_text, position, created_at, updated_at
+		FROM variant_images
+		WHERE variant_id = $1
+		ORDER BY position ASC
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, variantID)
+	if err != nil {
+		r.logger.Error("failed to get variant images", zap.Error(err))
+		return nil, fmt.Errorf("failed to get variant images: %w", err)
+	}
+	defer rows.Close()
+
+	var images []models.VariantImage
+	for rows.Next() {
+		var image models.VariantImage
+		err := rows.Scan(
+			&image.ID,
+			&image.VariantID,
+			&image.URL,
+			&image.AltText,
+			&image.Position,
+			&image.CreatedAt,
+			&image.UpdatedAt,
+		)
+		if err != nil {
+			r.logger.Error("failed to scan variant image", zap.Error(err))
+			return nil, fmt.Errorf("failed to scan variant image: %w", err)
+		}
+		images = append(images, image)
+	}
+
+	if err = rows.Err(); err != nil {
+		r.logger.Error("error iterating variant images", zap.Error(err))
+		return nil, fmt.Errorf("error iterating variant images: %w", err)
+	}
+
+	return images, nil
+}
+
+// UpdateVariantImage updates an existing variant image
+func (r *PostgresRepository) UpdateVariantImage(ctx context.Context, image *models.VariantImage) error {
+	query := `
+		UPDATE variant_images
+		SET url = $1, alt_text = $2, position = $3, updated_at = $4
+		WHERE id = $5
+	`
+
+	image.UpdatedAt = time.Now()
+
+	result, err := r.db.ExecContext(ctx, query,
+		image.URL,
+		image.AltText,
+		image.Position,
+		image.UpdatedAt,
+		image.ID,
+	)
+
+	if err != nil {
+		r.logger.Error("failed to update variant image", zap.Error(err))
+		return fmt.Errorf("failed to update variant image: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		r.logger.Error("failed to get rows affected", zap.Error(err))
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("variant image not found: %s", image.ID)
+	}
+
+	return nil
+}
+
+// DeleteVariantImage deletes a variant image
+func (r *PostgresRepository) DeleteVariantImage(ctx context.Context, id string) error {
+	query := `
+		DELETE FROM variant_images
+		WHERE id = $1
+	`
+
+	result, err := r.db.ExecContext(ctx, query, id)
+	if err != nil {
+		r.logger.Error("failed to delete variant image", zap.Error(err))
+		return fmt.Errorf("failed to delete variant image: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		r.logger.Error("failed to get rows affected", zap.Error(err))
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("variant image not found: %s", id)
+	}
+
 	return nil
 }

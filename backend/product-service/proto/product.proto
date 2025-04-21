@@ -12,6 +12,16 @@ message VariantAttributeValue {
     string value = 2; // e.g., 'Red'
 }
 
+message VariantImage {
+    string id = 1;
+    string variant_id = 2;
+    string url = 3;
+    string alt_text = 4;
+    int32 position = 5;
+    google.protobuf.Timestamp created_at = 6;
+    google.protobuf.Timestamp updated_at = 7;
+}
+
 message ProductVariant {
     string id = 1;
     string product_id = 2;
@@ -21,8 +31,9 @@ message ProductVariant {
     google.protobuf.DoubleValue discount_price = 6;
     int32 inventory_qty = 7;
     repeated VariantAttributeValue attributes = 8;
-    google.protobuf.Timestamp created_at = 9;
-    google.protobuf.Timestamp updated_at = 10;
+    repeated VariantImage images = 9;
+    google.protobuf.Timestamp created_at = 10;
+    google.protobuf.Timestamp updated_at = 11;
 }
 
 message ProductTag {
@@ -98,10 +109,10 @@ message Product {
     string slug = 3;
     string description = 4;
     string short_description = 5;
-    double price = 6;
-    google.protobuf.DoubleValue discount_price = 7;
-    string sku = 8;
-    int32 inventory_qty = 9;
+    double price = 6;                                // Populated from default variant
+    google.protobuf.DoubleValue discount_price = 7; // Populated from default variant
+    string sku = 8;                                 // Populated from default variant
+    int32 inventory_qty = 9;                        // Populated from default variant
     string inventory_status = 10; // 'in_stock', 'out_of_stock', etc.
     google.protobuf.DoubleValue weight = 11;
     bool is_published = 12;
@@ -234,6 +245,31 @@ message CreateCategoryRequest {
     Category category = 1;
 }
 
+// Image upload related messages
+message UploadImageRequest {
+    bytes file = 1;
+    string folder = 2;
+    string alt_text = 3;
+    int32 position = 4;
+    string filename = 5;
+    string mime_type = 6;
+}
+
+message UploadImageResponse {
+    string url = 1;
+    string public_id = 2;
+    string alt_text = 3;
+    int32 position = 4;
+}
+
+message DeleteImageRequest {
+    string public_id = 1;
+}
+
+message DeleteImageResponse {
+    bool success = 1;
+}
+
 // Service definition
 service ProductService {
     rpc CreateProduct (CreateProductRequest) returns (Product);
@@ -249,4 +285,8 @@ service ProductService {
     rpc CreateCategory (CreateCategoryRequest) returns (Category);
     rpc GetCategory (GetCategoryRequest) returns (Category);
     rpc ListCategories (ListCategoriesRequest) returns (ListCategoriesResponse);
+
+    // Image upload methods
+    rpc UploadImage (UploadImageRequest) returns (UploadImageResponse);
+    rpc DeleteImage (DeleteImageRequest) returns (DeleteImageResponse);
 }

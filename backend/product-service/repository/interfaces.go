@@ -22,6 +22,18 @@ type ProductRepository interface {
 	UpdateVariant(ctx context.Context, tx *sql.Tx, variant *models.ProductVariant) error
 	DeleteVariant(ctx context.Context, tx *sql.Tx, variantID string) error
 
+	// Variant attribute methods
+	GetVariantAttributes(ctx context.Context, variantID string) ([]models.VariantAttributeValue, error)
+
+	// Variant image methods
+	AddVariantImage(ctx context.Context, image *models.VariantImage) error
+	GetVariantImages(ctx context.Context, variantID string) ([]models.VariantImage, error)
+	UpdateVariantImage(ctx context.Context, image *models.VariantImage) error
+	DeleteVariantImage(ctx context.Context, id string) error
+
+	// Product image methods
+	GetProductImages(ctx context.Context, productID string) ([]models.ProductImage, error)
+
 	// Tag-related methods
 	GetProductTags(ctx context.Context, productID string) ([]models.ProductTag, error)
 	AddProductTag(ctx context.Context, tag *models.ProductTag) error
