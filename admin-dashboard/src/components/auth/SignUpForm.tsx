@@ -87,7 +87,7 @@ export default function SignUpForm() {
 
       // Add the admin key header for admin registration
       const headers = {
-        'X-Admin-Key': 'ken_ena_admin'
+        'X-Admin-Key': process.env.ADMIN_KEY || ''
       };
 
       await AuthService.register(registerData, headers);
