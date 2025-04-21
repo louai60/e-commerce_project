@@ -1,0 +1,56 @@
+    column_name     |          data_type          | character_maximum_length | is_nullable 
+--------------------+-----------------------------+--------------------------+-------------
+ id                 | uuid                        |                          | NO
+ title              | character varying           |                      255 | NO
+ slug               | character varying           |                      255 | NO
+ description        | text                        |                          | YES
+ short_description  | text                        |                          | YES
+ weight             | numeric                     |                          | YES
+ is_published       | boolean                     |                          | YES
+ created_at         | timestamp with time zone    |                          | YES
+ updated_at         | timestamp with time zone    |                          | YES
+ brand_id           | uuid                        |                          | YES
+ deleted_at         | timestamp without time zone |                          | YES
+ default_variant_id | uuid                        |                          | YES
+ inventory_status   | character varying           |                       50 | YES
+(13 rows)
+
+  column_name   |        data_type         | character_maximum_length | is_nullable 
+----------------+--------------------------+--------------------------+-------------
+ id             | uuid                     |                          | NO
+ product_id     | uuid                     |                          | NO
+ sku            | character varying        |                      100 | NO
+ title          | character varying        |                      255 | YES
+ price          | numeric                  |                          | NO
+ discount_price | numeric                  |                          | YES
+ inventory_qty  | integer                  |                          | NO
+ created_at     | timestamp with time zone |                          | YES
+ updated_at     | timestamp with time zone |                          | YES
+ deleted_at     | timestamp with time zone |                          | YES
+(10 rows)
+
+         table_name          | column_count | row_count 
+-----------------------------+--------------+-----------
+ attributes                  |           36 |         2
+ brands                      |            7 |         1
+ categories                  |            9 |         1
+ product_attributes          |            6 |         1
+ product_categories          |            2 |         1
+ product_discounts           |            7 |         1
+ product_images              |            7 |         1
+ product_inventory_locations |            6 |         1
+ product_seo                 |            8 |         1
+ product_shipping            |            7 |         1
+ product_specifications      |            7 |         1
+ product_tags                |            5 |         1
+ product_variant_attributes  |            5 |         1
+ product_variants            |           10 |         1
+ products                    |           13 |         1
+ schema_migrations           |            2 |         1
+ variant_images              |            7 |         1
+(17 rows)
+
+ constraint_name | constraint_type | column_name 
+-----------------+-----------------+-------------
+(0 rows)
+
