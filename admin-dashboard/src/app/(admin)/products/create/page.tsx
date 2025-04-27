@@ -6,12 +6,14 @@ import { useBrands, useCategories } from "@/hooks/useProducts";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
-import { ChevronDownIcon } from "@/icons";
+import { ChevronDownIcon, PlusIcon } from "@/icons";
 import { toast } from "react-hot-toast";
 import { ImageUpload } from "@/components/ui/image-upload/ImageUpload";
 import { api } from '@/lib/api';
 import { useProductContext } from "@/contexts/ProductContext";
 import { Product } from "@/services/product.service";
+import CreateCategoryModal from "@/components/modals/CreateCategoryModal";
+import CreateBrandModal from "@/components/modals/CreateBrandModal";
 
 interface ProductFormData {
   title: string;
@@ -33,11 +35,13 @@ interface ProductFormData {
 
 export default function CreateProductPage() {
   const router = useRouter();
-  const { brands, isLoading: brandsLoading } = useBrands();
-  const { categories, isLoading: categoriesLoading } = useCategories();
+  const { brands, isLoading: brandsLoading, mutate: refreshBrands } = useBrands();
+  const { categories, isLoading: categoriesLoading, mutate: refreshCategories } = useCategories();
   const { refreshProducts, addOptimisticProduct } = useProductContext();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
   const [formData, setFormData] = useState<ProductFormData>({
     title: "",
     slug: "",
@@ -198,12 +202,10 @@ export default function CreateProductPage() {
           inventory_qty: Number(productData.inventory_qty),
           inventory_status: productData.inventory_status,
           is_published: productData.is_published,
-          // Properly format brand_id as a wrapperspb.StringValue
-          brand_id: productData.brand_id ? { value: productData.brand_id } : undefined,
-          // Use category_ids instead of categories
-          category_ids: productData.categories ?
-            productData.categories.map(id => ({ value: id })) :
-            undefined,
+          // Send brand_id as a string, not an object with a value property
+          brand_id: productData.brand_id || undefined,
+          // Use category_ids instead of categories - send as array of strings
+          category_ids: productData.categories || undefined,
           images: productData.images
         }
       };
@@ -439,7 +441,19 @@ export default function CreateProductPage() {
               </div>
 
               <div>
-                <Label htmlFor="brand_id">Brand</Label>
+                <div className="flex items-center justify-between mb-1">
+                  <Label htmlFor="brand_id">Brand</Label>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    type="button"
+                    className="text-xs flex items-center gap-1 h-6 px-2"
+                    onClick={() => setIsBrandModalOpen(true)}
+                  >
+                    <PlusIcon className="h-3 w-3" />
+                    Add Brand
+                  </Button>
+                </div>
                 <div className="relative">
                   <select
                     id="brand_id"
@@ -464,7 +478,19 @@ export default function CreateProductPage() {
             </div>
 
             <div>
-              <Label htmlFor="categories">Categories</Label>
+              <div className="flex items-center justify-between mb-1">
+                <Label htmlFor="categories">Categories</Label>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  className="text-xs flex items-center gap-1 h-6 px-2"
+                  onClick={() => setIsCategoryModalOpen(true)}
+                >
+                  <PlusIcon className="h-3 w-3" />
+                  Add Category
+                </Button>
+              </div>
               <div className="relative">
                 <select
                   id="categories"
@@ -567,6 +593,20 @@ export default function CreateProductPage() {
           </div>
         </form>
       </div>
+
+      {/* Category Modal */}
+      <CreateCategoryModal
+        isOpen={isCategoryModalOpen}
+        onClose={() => setIsCategoryModalOpen(false)}
+        onSuccess={() => refreshCategories()}
+      />
+
+      {/* Brand Modal */}
+      <CreateBrandModal
+        isOpen={isBrandModalOpen}
+        onClose={() => setIsBrandModalOpen(false)}
+        onSuccess={() => refreshBrands()}
+      />
     </div>
   );
 }

@@ -33,7 +33,7 @@ func (r *ProductRepository) GetProduct(ctx context.Context, id string) (*models.
 		SELECT
 			p.id, p.title, p.slug, p.description, p.short_description,
 			p.weight, p.is_published, p.created_at, p.updated_at, p.deleted_at,
-			p.brand_id, p.default_variant_id, p.inventory_status,
+			p.brand_id, p.inventory_status, p.price, p.discount_price, p.sku, p.inventory_qty,
 			b.id, b.name, b.slug, b.description, b.created_at, b.updated_at, b.deleted_at
 		FROM products p
 		LEFT JOIN brands b ON p.brand_id = b.id AND b.deleted_at IS NULL
@@ -41,16 +41,19 @@ func (r *ProductRepository) GetProduct(ctx context.Context, id string) (*models.
 	`
 
 	product := &models.Product{}
-	var brandID, defaultVariantID sql.NullString
+	var brandID sql.NullString
 	var brand models.Brand
 	var brandCreatedAt, brandUpdatedAt sql.NullTime
+	var brandIDStr, brandNameStr, brandSlugStr, brandDescStr sql.NullString
+	var price float64
+	var discountPrice sql.NullFloat64
+	var inventoryQty int
 
-	// Note: Scanning product.DeletedAt which is *time.Time
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&product.ID, &product.Title, &product.Slug, &product.Description, &product.ShortDescription,
 		&product.Weight, &product.IsPublished, &product.CreatedAt, &product.UpdatedAt, &product.DeletedAt,
-		&brandID, &defaultVariantID, &product.InventoryStatus,
-		&brand.ID, &brand.Name, &brand.Slug, &brand.Description, &brandCreatedAt, &brandUpdatedAt, &brand.DeletedAt,
+		&brandID, &product.InventoryStatus, &price, &discountPrice, &product.SKU, &inventoryQty,
+		&brandIDStr, &brandNameStr, &brandSlugStr, &brandDescStr, &brandCreatedAt, &brandUpdatedAt, &brand.DeletedAt,
 	)
 
 	if err != nil {
@@ -61,25 +64,62 @@ func (r *ProductRepository) GetProduct(ctx context.Context, id string) (*models.
 		return nil, fmt.Errorf("failed to get product: %w", err)
 	}
 
+	// Set the price struct
+	product.Price = models.Price{
+		Amount:   price,
+		Currency: "USD", // Default currency
+	}
+
+	if discountPrice.Valid {
+		product.DiscountPrice = &models.Price{
+			Amount:   discountPrice.Float64,
+			Currency: "USD", // Default currency
+		}
+	}
+
+	// Set inventory quantity
+	product.InventoryQty = inventoryQty
+
 	// Assign scanned nullable fields
 	if brandID.Valid {
 		product.BrandID = &brandID.String
-		brand.CreatedAt = brandCreatedAt.Time
-		brand.UpdatedAt = brandUpdatedAt.Time
-		product.Brand = &brand
+
+		// Only set brand if we have a valid brand ID
+		if brandIDStr.Valid {
+			brand.ID = brandIDStr.String
+			if brandNameStr.Valid {
+				brand.Name = brandNameStr.String
+			}
+			if brandSlugStr.Valid {
+				brand.Slug = brandSlugStr.String
+			}
+			if brandDescStr.Valid {
+				brand.Description = brandDescStr.String
+			}
+			if brandCreatedAt.Valid {
+				brand.CreatedAt = brandCreatedAt.Time
+			}
+			if brandUpdatedAt.Valid {
+				brand.UpdatedAt = brandUpdatedAt.Time
+			}
+			product.Brand = &brand
+		}
 	}
 
 	// Get associated data
 	var errs []error
 	errs = append(errs, r.getProductImages(ctx, product))
 	errs = append(errs, r.getProductCategories(ctx, product))
-	errs = append(errs, r.getProductVariantsAndAttributes(ctx, product)) // Fetch variants
+	errs = append(errs, r.getProductVariantsAndAttributes(ctx, product))
+	errs = append(errs, r.getProductSpecifications(ctx, product))
+	errs = append(errs, r.getProductTags(ctx, product))
+	errs = append(errs, r.getProductSEO(ctx, product))
+	errs = append(errs, r.getProductShipping(ctx, product))
+	errs = append(errs, r.getProductInventoryLocations(ctx, product))
 
 	for _, e := range errs {
 		if e != nil {
-			// Log the specific error
 			r.logger.Error("failed to get product associations", zap.Error(e), zap.String("product_id", id))
-			// Return a generic error or the first error encountered
 			return nil, fmt.Errorf("failed to get product associations: %w", e)
 		}
 	}
@@ -143,6 +183,21 @@ func (r *ProductRepository) getProductVariantsAndAttributes(ctx context.Context,
 		}
 	}
 
+	if err := rows.Err(); err != nil {
+		r.logger.Error("error iterating product variant rows", zap.Error(err))
+		return fmt.Errorf("error iterating product variants: %w", err)
+	}
+
+	// Fetch variant images for each variant
+	for _, variantID := range variantOrder {
+		if v, ok := variantsMap[variantID]; ok {
+			if err := r.getVariantImages(ctx, v); err != nil {
+				r.logger.Error("failed to get variant images", zap.Error(err), zap.String("variant_id", v.ID))
+				return fmt.Errorf("failed to get variant images: %w", err)
+			}
+		}
+	}
+
 	// Reconstruct the product.Variants slice in the correct order
 	product.Variants = []models.ProductVariant{} // Clear existing (if any)
 	for _, variantID := range variantOrder {
@@ -151,12 +206,36 @@ func (r *ProductRepository) getProductVariantsAndAttributes(ctx context.Context,
 		}
 	}
 
-	if err := rows.Err(); err != nil {
-		r.logger.Error("error iterating product variant rows", zap.Error(err))
-		return fmt.Errorf("error iterating product variants: %w", err)
+	return nil
+}
+
+// getVariantImages fetches images for a specific variant
+func (r *ProductRepository) getVariantImages(ctx context.Context, variant *models.ProductVariant) error {
+	const query = `
+		SELECT id, variant_id, url, alt_text, position, created_at, updated_at
+		FROM variant_images
+		WHERE variant_id = $1
+		ORDER BY position ASC
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, variant.ID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var img models.VariantImage
+		if err := rows.Scan(
+			&img.ID, &img.VariantID, &img.URL, &img.AltText, &img.Position,
+			&img.CreatedAt, &img.UpdatedAt,
+		); err != nil {
+			return err
+		}
+		variant.Images = append(variant.Images, img)
 	}
 
-	return nil
+	return rows.Err()
 }
 
 // getProductImages fetches all images associated with a product
@@ -313,11 +392,12 @@ func (r *ProductRepository) ListProducts(ctx context.Context, filters models.Pro
 		var brandCreatedAt, brandUpdatedAt sql.NullTime
 
 		// Scan only the selected fields
+		var brandIDStr, brandNameStr, brandSlugStr, brandDescStr sql.NullString
 		if err := rows.Scan(
 			&product.ID, &product.Title, &product.Slug, &product.Description, &product.ShortDescription,
 			&product.Weight, &product.IsPublished, &product.CreatedAt, &product.UpdatedAt, &product.DeletedAt,
 			&brandID, &product.InventoryStatus,
-			&brand.ID, &brand.Name, &brand.Slug, &brand.Description, &brandCreatedAt, &brandUpdatedAt, &brand.DeletedAt,
+			&brandIDStr, &brandNameStr, &brandSlugStr, &brandDescStr, &brandCreatedAt, &brandUpdatedAt, &brand.DeletedAt,
 		); err != nil {
 			r.logger.Error("failed to scan product row in ListProducts", zap.Error(err))
 			return nil, 0, fmt.Errorf("failed to scan product row: %w", err)
@@ -326,9 +406,27 @@ func (r *ProductRepository) ListProducts(ctx context.Context, filters models.Pro
 		// Assign scanned nullable fields
 		if brandID.Valid {
 			product.BrandID = &brandID.String
-			brand.CreatedAt = brandCreatedAt.Time
-			brand.UpdatedAt = brandUpdatedAt.Time
-			product.Brand = &brand
+
+			// Only set brand if we have a valid brand ID
+			if brandIDStr.Valid {
+				brand.ID = brandIDStr.String
+				if brandNameStr.Valid {
+					brand.Name = brandNameStr.String
+				}
+				if brandSlugStr.Valid {
+					brand.Slug = brandSlugStr.String
+				}
+				if brandDescStr.Valid {
+					brand.Description = brandDescStr.String
+				}
+				if brandCreatedAt.Valid {
+					brand.CreatedAt = brandCreatedAt.Time
+				}
+				if brandUpdatedAt.Valid {
+					brand.UpdatedAt = brandUpdatedAt.Time
+				}
+				product.Brand = &brand
+			}
 		}
 
 		// Note: Variants, Images, Categories are NOT fetched in ListProducts for performance.
@@ -373,9 +471,16 @@ func (r *ProductRepository) CreateProduct(ctx context.Context, product *models.P
 		RETURNING id
 	`
 
+	// Extract price amount from Price struct
+	price := product.Price.Amount
+	var discountPrice *float64
+	if product.DiscountPrice != nil {
+		discountPrice = &product.DiscountPrice.Amount
+	}
+
 	err = tx.QueryRowContext(ctx, productQuery,
 		product.Title, product.Slug, product.Description, product.ShortDescription,
-		product.Price, product.DiscountPrice, product.SKU, product.InventoryQty,
+		price, discountPrice, product.SKU, product.InventoryQty,
 		product.InventoryStatus, product.Weight, product.IsPublished, product.BrandID, now, now,
 	).Scan(&product.ID)
 	if err != nil {
@@ -412,18 +517,102 @@ func (r *ProductRepository) CreateProduct(ctx context.Context, product *models.P
 		}
 	}
 
-	// Handle categories if any
-	if len(product.Categories) > 0 {
-		const categoryQuery = `
-			INSERT INTO product_categories (product_id, category_id)
-			VALUES ($1, $2)
+	// Handle variants if any
+	if len(product.Variants) > 0 {
+		for i := range product.Variants {
+			variant := &product.Variants[i]
+			if err := r.CreateVariant(ctx, tx, product.ID, variant); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Handle specifications if any
+	if len(product.Specifications) > 0 {
+		const specQuery = `
+			INSERT INTO product_specifications (
+				product_id, name, value, unit, created_at, updated_at
+			) VALUES ($1, $2, $3, $4, $5, $6)
 		`
 
-		for _, category := range product.Categories {
-			_, err = tx.ExecContext(ctx, categoryQuery, product.ID, category.ID)
+		for i := range product.Specifications {
+			spec := &product.Specifications[i]
+			_, err = tx.ExecContext(ctx, specQuery,
+				product.ID, spec.Name, spec.Value, spec.Unit, now, now)
 			if err != nil {
-				r.logger.Error("failed to create product category association", zap.Error(err))
-				return fmt.Errorf("failed to create product category association: %w", err)
+				r.logger.Error("failed to create product specification", zap.Error(err))
+				return fmt.Errorf("failed to create product specification: %w", err)
+			}
+		}
+	}
+
+	// Handle tags if any
+	if len(product.Tags) > 0 {
+		const tagQuery = `
+			INSERT INTO product_tags (
+				product_id, tag, created_at, updated_at
+			) VALUES ($1, $2, $3, $4)
+		`
+
+		for _, tag := range product.Tags {
+			_, err = tx.ExecContext(ctx, tagQuery,
+				product.ID, tag, now, now)
+			if err != nil {
+				r.logger.Error("failed to create product tag", zap.Error(err))
+				return fmt.Errorf("failed to create product tag: %w", err)
+			}
+		}
+	}
+
+	// Handle SEO if available
+	if product.SEO != nil {
+		const seoQuery = `
+			INSERT INTO product_seo (
+				product_id, meta_title, meta_description, keywords, tags, created_at, updated_at
+			) VALUES ($1, $2, $3, $4, $5, $6, $7)
+		`
+
+		_, err = tx.ExecContext(ctx, seoQuery,
+			product.ID, product.SEO.MetaTitle, product.SEO.MetaDescription,
+			pq.Array(product.SEO.Keywords), pq.Array(product.SEO.Tags), now, now)
+		if err != nil {
+			r.logger.Error("failed to create product SEO", zap.Error(err))
+			return fmt.Errorf("failed to create product SEO: %w", err)
+		}
+	}
+
+	// Handle shipping if available
+	if product.Shipping != nil {
+		const shippingQuery = `
+			INSERT INTO product_shipping (
+				product_id, free_shipping, estimated_days, express_available, created_at, updated_at
+			) VALUES ($1, $2, $3, $4, $5, $6)
+		`
+
+		_, err = tx.ExecContext(ctx, shippingQuery,
+			product.ID, product.Shipping.FreeShipping, product.Shipping.EstimatedDays,
+			product.Shipping.ExpressAvailable, now, now)
+		if err != nil {
+			r.logger.Error("failed to create product shipping", zap.Error(err))
+			return fmt.Errorf("failed to create product shipping: %w", err)
+		}
+	}
+
+	// Handle inventory locations if any
+	if len(product.InventoryLocations) > 0 {
+		const locationQuery = `
+			INSERT INTO product_inventory_locations (
+				product_id, warehouse_id, available_qty, created_at, updated_at
+			) VALUES ($1, $2, $3, $4, $5)
+		`
+
+		for i := range product.InventoryLocations {
+			loc := &product.InventoryLocations[i]
+			_, err = tx.ExecContext(ctx, locationQuery,
+				product.ID, loc.WarehouseID, loc.AvailableQty, now, now)
+			if err != nil {
+				r.logger.Error("failed to create inventory location", zap.Error(err))
+				return fmt.Errorf("failed to create inventory location: %w", err)
 			}
 		}
 	}
@@ -443,7 +632,6 @@ func (r *ProductRepository) UpdateProduct(ctx context.Context, product *models.P
 		r.logger.Error("failed to begin transaction", zap.Error(err))
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-
 	defer func() {
 		if err != nil {
 			if rbErr := tx.Rollback(); rbErr != nil {
@@ -452,21 +640,25 @@ func (r *ProductRepository) UpdateProduct(ctx context.Context, product *models.P
 		}
 	}()
 
-	now := time.Now().UTC() // Use UTC time
-	product.UpdatedAt = now
-
-	const productQuery = `
+	now := time.Now()
+	query := `
 		UPDATE products SET
 			title = $1, slug = $2, description = $3, short_description = $4,
 			price = $5, discount_price = $6, sku = $7, inventory_qty = $8,
-			inventory_status = $9, weight = $10, is_published = $11, brand_id = $12, updated_at = $13
-		WHERE id = $14 AND deleted_at IS NULL
-	`
+			weight = $9, is_published = $10, brand_id = $11, updated_at = $12
+		WHERE id = $13 AND deleted_at IS NULL`
 
-	result, err := tx.ExecContext(ctx, productQuery,
+	// Extract price amount from Price struct
+	price := product.Price.Amount
+	var discountPrice *float64
+	if product.DiscountPrice != nil {
+		discountPrice = &product.DiscountPrice.Amount
+	}
+
+	result, err := tx.ExecContext(ctx, query,
 		product.Title, product.Slug, product.Description, product.ShortDescription,
-		product.Price, product.DiscountPrice, product.SKU, product.InventoryQty,
-		product.InventoryStatus, product.Weight, product.IsPublished, product.BrandID, now, product.ID,
+		price, discountPrice, product.SKU, product.InventoryQty,
+		product.Weight, product.IsPublished, product.BrandID, now, product.ID,
 	)
 	if err != nil {
 		r.logger.Error("failed to update product", zap.Error(err), zap.String("product_id", product.ID))
@@ -643,9 +835,9 @@ func (r *ProductRepository) getVariantAttributes(ctx context.Context, variant *m
 func (r *ProductRepository) CreateVariant(ctx context.Context, tx *sql.Tx, productID string, variant *models.ProductVariant) error {
 	// Check if we need to manage the transaction ourselves
 	var manageTx bool
+	var err error
 	if tx == nil {
 		manageTx = true
-		var err error
 		tx, err = r.db.BeginTx(ctx, nil)
 		if err != nil {
 			r.logger.Error("failed to begin transaction", zap.Error(err))
@@ -673,7 +865,7 @@ func (r *ProductRepository) CreateVariant(ctx context.Context, tx *sql.Tx, produ
 		RETURNING id
 	`
 
-	err := tx.QueryRowContext(ctx, variantQuery,
+	err = tx.QueryRowContext(ctx, variantQuery,
 		variant.ProductID, variant.SKU, variant.Title, variant.Price, variant.DiscountPrice,
 		variant.InventoryQty, now, now,
 	).Scan(&variant.ID)
@@ -688,14 +880,40 @@ func (r *ProductRepository) CreateVariant(ctx context.Context, tx *sql.Tx, produ
 
 	// Insert variant attributes if any
 	if len(variant.Attributes) > 0 {
-		if err := r.createVariantAttributes(ctx, tx, variant); err != nil {
+		if err = r.createVariantAttributes(ctx, tx, variant); err != nil {
 			return err
+		}
+	}
+
+	// Insert variant images if any
+	if len(variant.Images) > 0 {
+		imageQuery := `
+			INSERT INTO variant_images (
+				variant_id, url, alt_text, position, created_at, updated_at
+			) VALUES ($1, $2, $3, $4, $5, $6)
+			RETURNING id`
+
+		for i := range variant.Images {
+			img := &variant.Images[i]
+			img.VariantID = variant.ID
+			img.CreatedAt = now
+			img.UpdatedAt = now
+
+			err = tx.QueryRowContext(
+				ctx, imageQuery,
+				img.VariantID, img.URL, img.AltText, img.Position, now, now,
+			).Scan(&img.ID)
+
+			if err != nil {
+				r.logger.Error("failed to create variant image", zap.Error(err))
+				return fmt.Errorf("failed to create variant image: %w", err)
+			}
 		}
 	}
 
 	// Commit if we're managing the transaction
 	if manageTx {
-		if err := tx.Commit(); err != nil {
+		if err = tx.Commit(); err != nil {
 			r.logger.Error("failed to commit transaction", zap.Error(err))
 			return fmt.Errorf("failed to commit transaction: %w", err)
 		}
@@ -734,10 +952,13 @@ func (r *ProductRepository) createVariantAttributes(ctx context.Context, tx *sql
 			}
 		}
 
+		// Use consistent timestamp for all operations
+		now := time.Now().UTC()
+
 		// Create the variant-attribute association
 		_, err = tx.ExecContext(ctx,
 			"INSERT INTO product_variant_attributes (product_variant_id, attribute_id, value, created_at, updated_at) VALUES ($1, $2, $3, $4, $5)",
-			variant.ID, attrID, attr.Value, time.Now().UTC(), time.Now().UTC(),
+			variant.ID, attrID, attr.Value, now, now,
 		)
 
 		if err != nil {
@@ -753,9 +974,9 @@ func (r *ProductRepository) createVariantAttributes(ctx context.Context, tx *sql
 func (r *ProductRepository) UpdateVariant(ctx context.Context, tx *sql.Tx, variant *models.ProductVariant) error {
 	// Check if we need to manage the transaction ourselves
 	var manageTx bool
+	var err error
 	if tx == nil {
 		manageTx = true
-		var err error
 		tx, err = r.db.BeginTx(ctx, nil)
 		if err != nil {
 			r.logger.Error("failed to begin transaction", zap.Error(err))
@@ -809,14 +1030,47 @@ func (r *ProductRepository) UpdateVariant(ctx context.Context, tx *sql.Tx, varia
 
 	// Insert new attributes if any
 	if len(variant.Attributes) > 0 {
-		if err := r.createVariantAttributes(ctx, tx, variant); err != nil {
+		if err = r.createVariantAttributes(ctx, tx, variant); err != nil {
 			return err
+		}
+	}
+
+	// Delete existing images and recreate them
+	_, err = tx.ExecContext(ctx, "DELETE FROM variant_images WHERE variant_id = $1", variant.ID)
+	if err != nil {
+		r.logger.Error("failed to delete variant images", zap.Error(err), zap.String("variant_id", variant.ID))
+		return fmt.Errorf("failed to delete variant images: %w", err)
+	}
+
+	// Insert new images if any
+	if len(variant.Images) > 0 {
+		imageQuery := `
+			INSERT INTO variant_images (
+				variant_id, url, alt_text, position, created_at, updated_at
+			) VALUES ($1, $2, $3, $4, $5, $6)
+			RETURNING id`
+
+		for i := range variant.Images {
+			img := &variant.Images[i]
+			img.VariantID = variant.ID
+			img.CreatedAt = now
+			img.UpdatedAt = now
+
+			err = tx.QueryRowContext(
+				ctx, imageQuery,
+				img.VariantID, img.URL, img.AltText, img.Position, now, now,
+			).Scan(&img.ID)
+
+			if err != nil {
+				r.logger.Error("failed to create variant image", zap.Error(err))
+				return fmt.Errorf("failed to create variant image: %w", err)
+			}
 		}
 	}
 
 	// Commit if we're managing the transaction
 	if manageTx {
-		if err := tx.Commit(); err != nil {
+		if err = tx.Commit(); err != nil {
 			r.logger.Error("failed to commit transaction", zap.Error(err))
 			return fmt.Errorf("failed to commit transaction: %w", err)
 		}
@@ -829,9 +1083,9 @@ func (r *ProductRepository) UpdateVariant(ctx context.Context, tx *sql.Tx, varia
 func (r *ProductRepository) DeleteVariant(ctx context.Context, tx *sql.Tx, variantID string) error {
 	// Check if we need to manage the transaction ourselves
 	var manageTx bool
+	var err error
 	if tx == nil {
 		manageTx = true
-		var err error
 		tx, err = r.db.BeginTx(ctx, nil)
 		if err != nil {
 			r.logger.Error("failed to begin transaction", zap.Error(err))
@@ -870,11 +1124,230 @@ func (r *ProductRepository) DeleteVariant(ctx context.Context, tx *sql.Tx, varia
 
 	// Commit if we're managing the transaction
 	if manageTx {
-		if err := tx.Commit(); err != nil {
+		if err = tx.Commit(); err != nil {
 			r.logger.Error("failed to commit transaction", zap.Error(err))
 			return fmt.Errorf("failed to commit transaction: %w", err)
 		}
 	}
 
 	return nil
+}
+
+// GetByID retrieves a product by ID with its core details, brand, categories, images, and variants.
+func (r *ProductRepository) GetByID(ctx context.Context, id string) (*models.Product, error) {
+	product := &models.Product{}
+
+	query := `
+		SELECT p.*, b.id as brand_id, b.name as brand_name, b.slug as brand_slug,
+			   b.description as brand_description, b.created_at as brand_created_at,
+			   b.updated_at as brand_updated_at
+		FROM products p
+		LEFT JOIN brands b ON p.brand_id = b.id
+		WHERE p.id = $1 AND p.deleted_at IS NULL`
+
+	var brand models.Brand
+	var brandCreatedAt, brandUpdatedAt sql.NullTime
+	var price float64
+	var discountPrice sql.NullFloat64
+
+	err := r.db.QueryRowContext(ctx, query, id).Scan(
+		&product.ID, &product.Title, &product.Slug, &product.Description,
+		&product.ShortDescription, &price, &discountPrice,
+		&product.SKU, &product.InventoryQty, &product.Weight,
+		&product.IsPublished, &product.CreatedAt, &product.UpdatedAt,
+		&product.BrandID,
+		&brand.ID, &brand.Name, &brand.Slug, &brand.Description,
+		&brandCreatedAt, &brandUpdatedAt,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, models.ErrProductNotFound
+		}
+		r.logger.Error("failed to get product", zap.Error(err), zap.String("product_id", id))
+		return nil, fmt.Errorf("failed to get product: %w", err)
+	}
+
+	// Set the price struct
+	product.Price = models.Price{
+		Amount:   price,
+		Currency: "USD", // Default currency
+	}
+
+	if discountPrice.Valid {
+		product.DiscountPrice = &models.Price{
+			Amount:   discountPrice.Float64,
+			Currency: "USD", // Default currency
+		}
+	}
+
+	if product.BrandID != nil {
+		brand.CreatedAt = brandCreatedAt.Time
+		brand.UpdatedAt = brandUpdatedAt.Time
+		product.Brand = &brand
+	}
+
+	// Get associated data
+	var errs []error
+	errs = append(errs, r.getProductImages(ctx, product))
+	errs = append(errs, r.getProductCategories(ctx, product))
+	errs = append(errs, r.getProductVariantsAndAttributes(ctx, product))
+	errs = append(errs, r.getProductSpecifications(ctx, product))
+	errs = append(errs, r.getProductTags(ctx, product))
+	errs = append(errs, r.getProductSEO(ctx, product))
+	errs = append(errs, r.getProductShipping(ctx, product))
+	errs = append(errs, r.getProductInventoryLocations(ctx, product))
+
+	for _, e := range errs {
+		// Log the specific error
+		r.logger.Error("failed to get product associations", zap.Error(e), zap.String("product_id", id))
+		// Return a generic error or the first error encountered
+		return nil, fmt.Errorf("failed to get product associations: %w", e)
+	}
+
+	return product, nil
+}
+
+// getProductSpecifications fetches specifications for a product
+func (r *ProductRepository) getProductSpecifications(ctx context.Context, product *models.Product) error {
+	const query = `
+		SELECT name, value, unit
+		FROM product_specifications
+		WHERE product_id = $1
+		ORDER BY name
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, product.ID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var spec models.ProductSpecification
+		if err := rows.Scan(&spec.Name, &spec.Value, &spec.Unit); err != nil {
+			return err
+		}
+		product.Specifications = append(product.Specifications, spec)
+	}
+
+	return rows.Err()
+}
+
+// getProductTags fetches tags for a product
+func (r *ProductRepository) getProductTags(ctx context.Context, product *models.Product) error {
+	const query = `
+		SELECT id, tag, created_at, updated_at
+		FROM product_tags
+		WHERE product_id = $1
+		ORDER BY tag
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, product.ID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var tag models.ProductTag
+		if err := rows.Scan(&tag.ID, &tag.Tag, &tag.CreatedAt, &tag.UpdatedAt); err != nil {
+			return err
+		}
+		tag.ProductID = product.ID
+		product.Tags = append(product.Tags, tag)
+	}
+
+	return rows.Err()
+}
+
+// getProductSEO fetches SEO data for a product
+func (r *ProductRepository) getProductSEO(ctx context.Context, product *models.Product) error {
+	const query = `
+		SELECT id, meta_title, meta_description, keywords, tags, created_at, updated_at
+		FROM product_seo
+		WHERE product_id = $1
+	`
+
+	var keywords, tags []string
+	product.SEO = &models.ProductSEO{}
+	product.SEO.ProductID = product.ID
+
+	err := r.db.QueryRowContext(ctx, query, product.ID).Scan(
+		&product.SEO.ID,
+		&product.SEO.MetaTitle,
+		&product.SEO.MetaDescription,
+		pq.Array(&keywords),
+		pq.Array(&tags),
+		&product.SEO.CreatedAt,
+		&product.SEO.UpdatedAt,
+	)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// Initialize with default values if no SEO data exists
+			product.SEO.MetaTitle = product.Title
+			product.SEO.MetaDescription = product.ShortDescription
+			product.SEO.Keywords = []string{}
+			product.SEO.Tags = []string{}
+			return nil // No SEO data is not an error
+		}
+		return err
+	}
+
+	product.SEO.Keywords = keywords
+	product.SEO.Tags = tags
+	return nil
+}
+
+// getProductShipping fetches shipping data for a product
+func (r *ProductRepository) getProductShipping(ctx context.Context, product *models.Product) error {
+	const query = `
+		SELECT free_shipping, estimated_days, express_available
+		FROM product_shipping
+		WHERE product_id = $1
+	`
+
+	product.Shipping = &models.ProductShipping{}
+
+	err := r.db.QueryRowContext(ctx, query, product.ID).Scan(
+		&product.Shipping.FreeShipping,
+		&product.Shipping.EstimatedDays,
+		&product.Shipping.ExpressAvailable,
+	)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil // No shipping data is not an error
+		}
+		return err
+	}
+
+	return nil
+}
+
+// getProductInventoryLocations fetches inventory locations for a product
+func (r *ProductRepository) getProductInventoryLocations(ctx context.Context, product *models.Product) error {
+	const query = `
+		SELECT warehouse_id, available_qty
+		FROM product_inventory_locations
+		WHERE product_id = $1
+		ORDER BY warehouse_id
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, product.ID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var loc models.InventoryLocation
+		if err := rows.Scan(&loc.WarehouseID, &loc.AvailableQty); err != nil {
+			return err
+		}
+		product.InventoryLocations = append(product.InventoryLocations, loc)
+	}
+
+	return rows.Err()
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -39,6 +40,48 @@ type DatabaseConfig struct {
 	User string `mapstructure:"user"`
 	// Password string `mapstructure:"-"`
 	SSLMode string `mapstructure:"sslMode"`
+
+	// Connection pool settings
+	MaxOpenConns    int           `mapstructure:"maxOpenConns"`
+	MaxIdleConns    int           `mapstructure:"maxIdleConns"`
+	ConnMaxLifetime time.Duration `mapstructure:"connMaxLifetime"`
+
+	// Read replica configuration
+	Replicas []ReplicaConfig `mapstructure:"replicas"`
+
+	// Sharding configuration
+	Sharding ShardingConfig `mapstructure:"sharding"`
+}
+
+// ReplicaConfig holds configuration for a database replica
+type ReplicaConfig struct {
+	Host    string `mapstructure:"host"`
+	Port    string `mapstructure:"port"`
+	Name    string `mapstructure:"name"`
+	User    string `mapstructure:"user"`
+	SSLMode string `mapstructure:"sslMode"`
+}
+
+// ShardingConfig holds configuration for database sharding
+type ShardingConfig struct {
+	Enabled      bool          `mapstructure:"enabled"`
+	Strategy     string        `mapstructure:"strategy"` // "modulo" or "consistent_hashing"
+	ShardCount   int           `mapstructure:"shardCount"`
+	VirtualNodes int           `mapstructure:"virtualNodes"` // For consistent hashing
+	Shards       []ShardConfig `mapstructure:"shards"`
+}
+
+// ShardConfig holds configuration for a database shard
+type ShardConfig struct {
+	ShardID      int             `mapstructure:"shardId"`
+	Host         string          `mapstructure:"host"`
+	Port         string          `mapstructure:"port"`
+	Name         string          `mapstructure:"name"`
+	User         string          `mapstructure:"user"`
+	SSLMode      string          `mapstructure:"sslMode"`
+	MaxOpenConns int             `mapstructure:"maxOpenConns"`
+	MaxIdleConns int             `mapstructure:"maxIdleConns"`
+	Replicas     []ReplicaConfig `mapstructure:"replicas"`
 }
 
 // SecretsConfig holds all sensitive configuration that comes from env vars

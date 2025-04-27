@@ -28,7 +28,7 @@ type ProductService struct {
 	productRepo  repository.ProductRepository
 	brandRepo    repository.BrandRepository
 	categoryRepo repository.CategoryRepository
-	cacheManager *cache.CacheManager
+	cacheManager cache.CacheInterface
 	logger       *zap.Logger
 	cld          *cloudinary.Cloudinary
 }
@@ -38,7 +38,7 @@ func NewProductService(
 	productRepo repository.ProductRepository,
 	brandRepo repository.BrandRepository,
 	categoryRepo repository.CategoryRepository,
-	cacheManager *cache.CacheManager,
+	cacheManager cache.CacheInterface,
 	logger *zap.Logger,
 ) *ProductService {
 	// Initialize Cloudinary
@@ -123,6 +123,15 @@ func (s *ProductService) CreateProduct(ctx context.Context, req *pb.CreateProduc
 		}
 	}
 
+	// Set inventory status based on quantity if not already set
+	if product.InventoryStatus == "" {
+		if product.InventoryQty > 0 {
+			product.InventoryStatus = "IN_STOCK"
+		} else {
+			product.InventoryStatus = "OUT_OF_STOCK"
+		}
+	}
+
 	// Create the product
 	if err := s.productRepo.CreateProduct(ctx, product); err != nil {
 		s.logger.Error("Failed to create product", zap.Error(err))
@@ -136,6 +145,15 @@ func (s *ProductService) CreateProduct(ctx context.Context, req *pb.CreateProduc
 	if len(req.Product.Variants) == 0 {
 		defaultVariant := createDefaultVariant(product)
 		defaultVariant.ProductID = product.ID
+
+		// Ensure SKU is set for the default variant
+		if defaultVariant.SKU == "" {
+			// Generate a SKU if none provided
+			defaultVariant.SKU = fmt.Sprintf("SKU-%s", product.ID[:8])
+			// Also update the product's SKU
+			product.SKU = defaultVariant.SKU
+		}
+
 		if err := s.productRepo.CreateVariant(ctx, nil, product.ID, &defaultVariant); err != nil {
 			s.logger.Error("Failed to create default variant", zap.Error(err))
 			// Continue even if default variant creation fails
@@ -183,6 +201,9 @@ func (s *ProductService) CreateProduct(ctx context.Context, req *pb.CreateProduc
 					}
 				}
 			}
+
+			// Inherit fields from parent product
+			variant.InheritFromProduct(product)
 
 			if err := s.productRepo.CreateVariant(ctx, nil, product.ID, variant); err != nil {
 				s.logger.Error("Failed to create variant", zap.Error(err))
@@ -259,6 +280,66 @@ func (s *ProductService) CreateProduct(ctx context.Context, req *pb.CreateProduc
 				s.logger.Error("Failed to add product tag", zap.Error(err))
 				// Continue with other tags even if one fails
 			}
+		}
+	}
+
+	// Process inventory locations if provided
+	if len(req.Product.InventoryLocations) > 0 {
+		for _, locProto := range req.Product.InventoryLocations {
+			location := &models.InventoryLocation{
+				ProductID:    product.ID,
+				WarehouseID:  locProto.WarehouseId,
+				AvailableQty: int(locProto.AvailableQty),
+				CreatedAt:    time.Now().UTC(),
+				UpdatedAt:    time.Now().UTC(),
+			}
+
+			if err := s.productRepo.UpsertInventoryLocation(ctx, location); err != nil {
+				s.logger.Error("Failed to add inventory location", zap.Error(err))
+				// Continue with other locations even if one fails
+			}
+		}
+	}
+
+	// Process attributes if provided
+	if len(req.Product.Attributes) > 0 {
+		for _, attrProto := range req.Product.Attributes {
+			attr := &models.ProductAttribute{
+				ProductID: product.ID,
+				Name:      attrProto.Name,
+				Value:     attrProto.Value,
+				CreatedAt: time.Now().UTC(),
+				UpdatedAt: time.Now().UTC(),
+			}
+
+			if err := s.productRepo.AddProductAttribute(ctx, attr); err != nil {
+				s.logger.Error("Failed to add product attribute", zap.Error(err))
+				// Continue with other attributes even if one fails
+			}
+		}
+	}
+
+	// Process discount if provided
+	if req.Product.Discount != nil {
+		discountProto := req.Product.Discount
+		var expiresAt *time.Time
+		if discountProto.ExpiresAt != nil {
+			expTime := discountProto.ExpiresAt.AsTime()
+			expiresAt = &expTime
+		}
+
+		discount := &models.ProductDiscount{
+			ProductID: product.ID,
+			Type:      discountProto.Type,
+			Value:     discountProto.Value,
+			ExpiresAt: expiresAt,
+			CreatedAt: time.Now().UTC(),
+			UpdatedAt: time.Now().UTC(),
+		}
+
+		if err := s.productRepo.AddProductDiscount(ctx, discount); err != nil {
+			s.logger.Error("Failed to add product discount", zap.Error(err))
+			// Continue even if discount fails to save
 		}
 	}
 
@@ -339,19 +420,57 @@ func (s *ProductService) ListProducts(ctx context.Context, req *pb.ListProductsR
 	if offset < 0 {
 		offset = 0 // Ensure offset is not negative
 	}
+
+	// Get basic product list
 	products, total, err := s.productRepo.List(ctx, int(offset), int(req.Limit))
 	if err != nil {
 		s.logger.Error("Failed to list products", zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to list products")
 	}
 
-	// Cache the result
-	if err := s.cacheManager.SetProductList(ctx, cacheKey, products); err != nil {
+	// Enhance each product with complete data
+	enhancedProducts := make([]*models.Product, 0, len(products))
+	for _, product := range products {
+		// Get complete product data
+		enhancedProduct, err := s.productRepo.GetByID(ctx, product.ID)
+		if err != nil {
+			s.logger.Error("Failed to get enhanced product data",
+				zap.Error(err),
+				zap.String("product_id", product.ID))
+			// Continue with the basic product data
+			enhancedProducts = append(enhancedProducts, product)
+		} else {
+			// Populate related entities
+			if err := s.populateProductRelations(ctx, enhancedProduct); err != nil {
+				s.logger.Error("Failed to populate product relations",
+					zap.Error(err),
+					zap.String("product_id", product.ID))
+				// Continue with the basic product data
+			}
+			enhancedProducts = append(enhancedProducts, enhancedProduct)
+		}
+	}
+
+	// Cache the enhanced result
+	if err := s.cacheManager.SetProductList(ctx, cacheKey, enhancedProducts); err != nil {
 		s.logger.Warn("Failed to cache product list", zap.Error(err))
 	}
 
+	// Log the number of products and their data completeness
+	for i, product := range enhancedProducts {
+		s.logger.Debug("Product in list",
+			zap.Int("index", i),
+			zap.String("id", product.ID),
+			zap.Int("image_count", len(product.Images)),
+			zap.Int("spec_count", len(product.Specifications)),
+			zap.Int("tag_count", len(product.Tags)),
+			zap.Bool("has_seo", product.SEO != nil),
+			zap.Bool("has_shipping", product.Shipping != nil),
+			zap.Float64("price", product.Price.Amount))
+	}
+
 	return &pb.ListProductsResponse{
-		Products: convertProductModelsToProtos(products),
+		Products: convertProductModelsToProtos(enhancedProducts),
 		Total:    int32(total),
 	}, nil
 }
@@ -827,6 +946,15 @@ func (s *ProductService) UpdateProduct(ctx context.Context, req *pb.UpdateProduc
 	// 2. Update base product
 	updatedProduct := convertProtoToModelForUpdate(req.Product, existingProduct)
 	updatedProduct.UpdatedAt = time.Now().UTC()
+
+	// Set inventory status based on quantity if not already set
+	if updatedProduct.InventoryStatus == "" {
+		if updatedProduct.InventoryQty > 0 {
+			updatedProduct.InventoryStatus = "IN_STOCK"
+		} else {
+			updatedProduct.InventoryStatus = "OUT_OF_STOCK"
+		}
+	}
 
 	if err := s.productRepo.UpdateProduct(ctx, updatedProduct); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to update product: %v", err)
@@ -1327,6 +1455,9 @@ func (s *ProductService) populateProductRelations(ctx context.Context, product *
 		} else {
 			product.Variants[i].Attributes = variantAttributes
 		}
+
+		// Inherit fields from parent product
+		product.Variants[i].InheritFromProduct(product)
 	}
 
 	// Use the first variant's data for backward compatibility
@@ -1464,6 +1595,13 @@ func convertProtoToModelForUpdate(proto *pb.Product, model *models.Product) *mod
 	// Update inventory status if provided
 	if proto.InventoryStatus != "" {
 		model.InventoryStatus = proto.InventoryStatus
+	} else {
+		// Set inventory status based on quantity if not provided
+		if model.InventoryQty > 0 {
+			model.InventoryStatus = "IN_STOCK"
+		} else {
+			model.InventoryStatus = "OUT_OF_STOCK"
+		}
 	}
 
 	// IsPublished is not nullable in proto
@@ -1503,12 +1641,34 @@ func createDefaultVariant(product *models.Product) models.ProductVariant {
 		discountPrice = &product.DiscountPrice.Amount
 	}
 
+	// Ensure we have a valid price
+	price := product.Price.Amount
+	if price <= 0 {
+		price = 9.99 // Default price if none provided
+	}
+
+	// Ensure we have a valid SKU
+	sku := product.SKU
+	if sku == "" {
+		sku = fmt.Sprintf("SKU-%s", uuid.New().String()[:8])
+	}
+
+	// Ensure inventory status is set based on quantity
+	inventoryQty := product.InventoryQty
+	if product.InventoryStatus == "" {
+		if inventoryQty > 0 {
+			product.InventoryStatus = "IN_STOCK"
+		} else {
+			product.InventoryStatus = "OUT_OF_STOCK"
+		}
+	}
+
 	return models.ProductVariant{
 		Title:         &product.Title,
-		SKU:           product.SKU,
-		Price:         product.Price.Amount,
+		SKU:           sku,
+		Price:         price,
 		DiscountPrice: discountPrice,
-		InventoryQty:  product.InventoryQty,
+		InventoryQty:  inventoryQty,
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}

@@ -1,17 +1,18 @@
 package handlers
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/louai60/e-commerce_project/backend/api-gateway/formatters"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	pb "github.com/louai60/e-commerce_project/backend/product-service/proto"
@@ -224,6 +225,9 @@ func (h *ProductHandler) ListProducts(c *gin.Context) {
 		Limit: int32(limit),
 	}
 
+	// Log that we're retrieving products
+	h.logger.Info("Retrieving product list", zap.Int("page", page), zap.Int("limit", limit))
+
 	resp, err := h.client.ListProducts(context.Background(), req)
 	if err != nil {
 		h.logger.Error("Failed to list products", zap.Error(err))
@@ -231,7 +235,15 @@ func (h *ProductHandler) ListProducts(c *gin.Context) {
 		return
 	}
 
+	// Log the number of products retrieved
+	h.logger.Info("Retrieved products", zap.Int("count", len(resp.Products)), zap.Int32("total", resp.Total))
+
+	// Format the response
 	formattedResponse := formatters.FormatProductList(resp.Products, page, limit, int(resp.Total))
+
+	// Log the number of formatted products
+	h.logger.Info("Formatted products", zap.Int("count", len(formattedResponse.Products)))
+
 	c.JSON(http.StatusOK, formattedResponse)
 }
 
@@ -244,106 +256,197 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 		return
 	}
 
-	// Log the raw request body for debugging
-	bodyBytes, err := io.ReadAll(c.Request.Body)
-	if err != nil {
-		h.logger.Error("Failed to read request body", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read request body"})
-		return
+	var req struct {
+		Product struct {
+			Title            string                           `json:"title" binding:"required"`
+			Slug             string                           `json:"slug" binding:"required"`
+			Description      string                           `json:"description" binding:"required"`
+			ShortDescription string                           `json:"short_description"`
+			Price            float64                          `json:"price" binding:"required"`
+			DiscountPrice    *float64                         `json:"discount_price,omitempty"`
+			SKU              string                           `json:"sku" binding:"required"`
+			InventoryQty     int                              `json:"inventory_qty" binding:"required"`
+			InventoryStatus  string                           `json:"inventory_status" binding:"required"`
+			Weight           *float64                         `json:"weight,omitempty"`
+			IsPublished      bool                             `json:"is_published"`
+			BrandID          *string                          `json:"brand_id,omitempty"`
+			Images           []formatters.EnhancedImageInfo   `json:"images,omitempty"`
+			Categories       []formatters.CategoryInfo        `json:"categories,omitempty"`
+			Variants         []formatters.EnhancedVariantInfo `json:"variants,omitempty"`
+			Tags             []string                         `json:"tags,omitempty"`
+			Attributes       []formatters.AttributeInfo       `json:"attributes,omitempty"`
+			Specifications   []formatters.SpecificationInfo   `json:"specifications,omitempty"`
+			SEO              *formatters.EnhancedSEOInfo      `json:"seo,omitempty"`
+			Shipping         *formatters.EnhancedShippingInfo `json:"shipping,omitempty"`
+			Discount         *formatters.DiscountInfo         `json:"discount,omitempty"`
+		} `json:"product" binding:"required"`
 	}
 
-	// Restore the request body for further processing
-	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-
-	// Log the raw request
-	h.logger.Info("Received product creation request", zap.String("body", string(bodyBytes)))
-
-	var req pb.CreateProductRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		h.logger.Error("Failed to bind JSON", zap.Error(err), zap.String("body", string(bodyBytes)))
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Validate that Product is not nil
-	if req.Product == nil {
-		h.logger.Error("Product data is nil")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "product data is required"})
-		return
+	// Convert request to proto message
+	product := &pb.Product{
+		Title:            req.Product.Title,
+		Slug:             req.Product.Slug,
+		Description:      req.Product.Description,
+		ShortDescription: req.Product.ShortDescription,
+		Price:            req.Product.Price,
+		Sku:              req.Product.SKU,
+		InventoryQty:     int32(req.Product.InventoryQty),
+		InventoryStatus:  req.Product.InventoryStatus,
+		IsPublished:      req.Product.IsPublished,
 	}
 
-	// Handle image uploads if present
-	if req.Product.Images != nil && len(req.Product.Images) > 0 {
+	// Set optional fields
+	if req.Product.DiscountPrice != nil {
+		product.DiscountPrice = &wrapperspb.DoubleValue{Value: *req.Product.DiscountPrice}
+	}
+	if req.Product.Weight != nil {
+		product.Weight = &wrapperspb.DoubleValue{Value: *req.Product.Weight}
+	}
+	if req.Product.BrandID != nil {
+		product.BrandId = &wrapperspb.StringValue{Value: *req.Product.BrandID}
+	}
+
+	// Convert variants
+	if len(req.Product.Variants) > 0 {
+		product.Variants = make([]*pb.ProductVariant, len(req.Product.Variants))
+		for i, variant := range req.Product.Variants {
+			product.Variants[i] = &pb.ProductVariant{
+				Sku:              variant.SKU,
+				Title:            variant.Title,
+				Price:            variant.Price,
+				InventoryQty:     int32(variant.InventoryQty),
+				Description:      variant.Description,
+				ShortDescription: variant.ShortDescription,
+			}
+
+			// Set optional fields
+			if variant.DiscountPrice != 0 {
+				product.Variants[i].DiscountPrice = &wrapperspb.DoubleValue{Value: variant.DiscountPrice}
+			}
+
+			// Convert variant attributes
+			if len(variant.Attributes) > 0 {
+				product.Variants[i].Attributes = make([]*pb.VariantAttributeValue, len(variant.Attributes))
+				for j, attr := range variant.Attributes {
+					product.Variants[i].Attributes[j] = &pb.VariantAttributeValue{
+						Name:  attr.Name,
+						Value: attr.Value,
+					}
+				}
+			}
+
+			// Convert variant images
+			if len(variant.Images) > 0 {
+				product.Variants[i].Images = make([]*pb.VariantImage, len(variant.Images))
+				for j, img := range variant.Images {
+					product.Variants[i].Images[j] = &pb.VariantImage{
+						Url:      img.URL,
+						AltText:  img.AltText,
+						Position: int32(img.Position),
+					}
+				}
+			}
+		}
+	}
+
+	// Convert images
+	if len(req.Product.Images) > 0 {
+		product.Images = make([]*pb.ProductImage, len(req.Product.Images))
 		for i, img := range req.Product.Images {
-			if img == nil {
-				continue
-			}
-
-			if img.Url != "" {
-				// Image already has a URL, skip upload
-				continue
-			}
-
-			// Get the file from the form data
-			file, err := c.FormFile("images[" + strconv.Itoa(i) + "]")
-			if err != nil {
-				h.logger.Error("Failed to get file from form", zap.Error(err))
-				c.JSON(http.StatusBadRequest, gin.H{"error": "failed to get image file"})
-				return
-			}
-
-			// Open the file
-			src, err := file.Open()
-			if err != nil {
-				h.logger.Error("Failed to open file", zap.Error(err))
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to process file"})
-				return
-			}
-			defer src.Close()
-
-			// Read the file content
-			fileBytes, err := io.ReadAll(src)
-			if err != nil {
-				h.logger.Error("Failed to read file", zap.Error(err))
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read file"})
-				return
-			}
-
-			// Create the gRPC request for image upload
-			uploadReq := &pb.UploadImageRequest{
-				File:     fileBytes,
-				Folder:   "products",
+			product.Images[i] = &pb.ProductImage{
+				Url:      img.URL,
 				AltText:  img.AltText,
-				Position: img.Position,
-				Filename: file.Filename,
-				MimeType: file.Header.Get("Content-Type"),
+				Position: int32(img.Position),
 			}
+		}
+	}
 
-			// Upload the image
-			uploadResp, err := h.client.UploadImage(c.Request.Context(), uploadReq)
-			if err != nil {
-				h.logger.Error("Failed to upload image", zap.Error(err))
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to upload image"})
-				return
+	// Convert categories
+	if len(req.Product.Categories) > 0 {
+		product.Categories = make([]*pb.Category, len(req.Product.Categories))
+		for i, cat := range req.Product.Categories {
+			product.Categories[i] = &pb.Category{
+				Id:   cat.ID,
+				Name: cat.Name,
+				Slug: cat.Slug,
 			}
+		}
+	}
 
-			// Update the image URL
-			img.Url = uploadResp.Url
+	// Convert tags
+	if len(req.Product.Tags) > 0 {
+		product.Tags = make([]*pb.ProductTag, len(req.Product.Tags))
+		for i, tag := range req.Product.Tags {
+			product.Tags[i] = &pb.ProductTag{
+				Tag: tag,
+			}
+		}
+	}
+
+	// Convert specifications
+	if len(req.Product.Specifications) > 0 {
+		product.Specifications = make([]*pb.ProductSpecification, len(req.Product.Specifications))
+		for i, spec := range req.Product.Specifications {
+			product.Specifications[i] = &pb.ProductSpecification{
+				Name:  spec.Name,
+				Value: spec.Value,
+				Unit:  spec.Unit,
+			}
+		}
+	}
+
+	// Convert SEO
+	if req.Product.SEO != nil {
+		product.Seo = &pb.ProductSEO{
+			MetaTitle:       req.Product.SEO.MetaTitle,
+			MetaDescription: req.Product.SEO.MetaDescription,
+			Keywords:        req.Product.SEO.Keywords,
+			Tags:            req.Product.SEO.MetaTags,
+		}
+	}
+
+	// Convert shipping
+	if req.Product.Shipping != nil {
+		estimatedDays, err := strconv.Atoi(req.Product.Shipping.EstimatedDays)
+		if err != nil {
+			estimatedDays = 0 // Default value if conversion fails
+		}
+		product.Shipping = &pb.ProductShipping{
+			FreeShipping:     req.Product.Shipping.FreeShipping,
+			EstimatedDays:    int32(estimatedDays),
+			ExpressAvailable: req.Product.Shipping.ExpressShippingAvailable,
+		}
+	}
+
+	// Convert discount
+	if req.Product.Discount != nil {
+		product.Discount = &pb.ProductDiscount{
+			Type:  req.Product.Discount.Type,
+			Value: req.Product.Discount.Value,
+		}
+		if req.Product.Discount.ExpiresAt != "" {
+			if t, err := time.Parse(time.RFC3339, req.Product.Discount.ExpiresAt); err == nil {
+				product.Discount.ExpiresAt = timestamppb.New(t)
+			}
 		}
 	}
 
 	// Create the product
-	h.logger.Info("Sending product creation request to product service",
-		zap.Any("product", req.Product))
+	grpcReq := &pb.CreateProductRequest{
+		Product: product,
+	}
 
-	resp, err := h.client.CreateProduct(c.Request.Context(), &req)
+	resp, err := h.client.CreateProduct(c.Request.Context(), grpcReq)
 	if err != nil {
-		h.logger.Error("Failed to create product", zap.Error(err))
 		h.handleGRPCError(c, err, "Failed to create product")
 		return
 	}
 
-	// Format the response
 	formattedProduct := formatters.FormatProduct(resp)
 	c.JSON(http.StatusCreated, formattedProduct)
 }
@@ -357,77 +460,226 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 		return
 	}
 
-	var req pb.UpdateProductRequest
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "product ID is required"})
+		return
+	}
+
+	var req struct {
+		Product struct {
+			Title            string                           `json:"title,omitempty"`
+			Slug             string                           `json:"slug,omitempty"`
+			Description      string                           `json:"description,omitempty"`
+			ShortDescription string                           `json:"short_description,omitempty"`
+			Price            float64                          `json:"price,omitempty"`
+			DiscountPrice    *float64                         `json:"discount_price,omitempty"`
+			SKU              string                           `json:"sku,omitempty"`
+			InventoryQty     int                              `json:"inventory_qty,omitempty"`
+			InventoryStatus  string                           `json:"inventory_status,omitempty"`
+			Weight           *float64                         `json:"weight,omitempty"`
+			IsPublished      bool                             `json:"is_published,omitempty"`
+			BrandID          *string                          `json:"brand_id,omitempty"`
+			Images           []formatters.EnhancedImageInfo   `json:"images,omitempty"`
+			Categories       []formatters.CategoryInfo        `json:"categories,omitempty"`
+			Variants         []formatters.EnhancedVariantInfo `json:"variants,omitempty"`
+			Tags             []string                         `json:"tags,omitempty"`
+			Attributes       []formatters.AttributeInfo       `json:"attributes,omitempty"`
+			Specifications   []formatters.SpecificationInfo   `json:"specifications,omitempty"`
+			SEO              *formatters.EnhancedSEOInfo      `json:"seo,omitempty"`
+			Shipping         *formatters.EnhancedShippingInfo `json:"shipping,omitempty"`
+			Discount         *formatters.DiscountInfo         `json:"discount,omitempty"`
+		} `json:"product" binding:"required"`
+	}
+
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Handle new image uploads if present
+	// Convert request to proto message
+	product := &pb.Product{
+		Id: id,
+	}
+
+	// Set fields that are present in the request
+	if req.Product.Title != "" {
+		product.Title = req.Product.Title
+	}
+	if req.Product.Slug != "" {
+		product.Slug = req.Product.Slug
+	}
+	if req.Product.Description != "" {
+		product.Description = req.Product.Description
+	}
+	if req.Product.ShortDescription != "" {
+		product.ShortDescription = req.Product.ShortDescription
+	}
+	if req.Product.Price != 0 {
+		product.Price = req.Product.Price
+	}
+	if req.Product.SKU != "" {
+		product.Sku = req.Product.SKU
+	}
+	if req.Product.InventoryQty != 0 {
+		product.InventoryQty = int32(req.Product.InventoryQty)
+	}
+	if req.Product.InventoryStatus != "" {
+		product.InventoryStatus = req.Product.InventoryStatus
+	}
+	if req.Product.IsPublished {
+		product.IsPublished = req.Product.IsPublished
+	}
+
+	// Set optional fields
+	if req.Product.DiscountPrice != nil {
+		product.DiscountPrice = &wrapperspb.DoubleValue{Value: *req.Product.DiscountPrice}
+	}
+	if req.Product.Weight != nil {
+		product.Weight = &wrapperspb.DoubleValue{Value: *req.Product.Weight}
+	}
+	if req.Product.BrandID != nil {
+		product.BrandId = &wrapperspb.StringValue{Value: *req.Product.BrandID}
+	}
+
+	// Convert variants
+	if len(req.Product.Variants) > 0 {
+		product.Variants = make([]*pb.ProductVariant, len(req.Product.Variants))
+		for i, variant := range req.Product.Variants {
+			product.Variants[i] = &pb.ProductVariant{
+				Sku:              variant.SKU,
+				Title:            variant.Title,
+				Price:            variant.Price,
+				InventoryQty:     int32(variant.InventoryQty),
+				Description:      variant.Description,
+				ShortDescription: variant.ShortDescription,
+			}
+
+			// Set optional fields
+			if variant.DiscountPrice != 0 {
+				product.Variants[i].DiscountPrice = &wrapperspb.DoubleValue{Value: variant.DiscountPrice}
+			}
+
+			// Convert variant attributes
+			if len(variant.Attributes) > 0 {
+				product.Variants[i].Attributes = make([]*pb.VariantAttributeValue, len(variant.Attributes))
+				for j, attr := range variant.Attributes {
+					product.Variants[i].Attributes[j] = &pb.VariantAttributeValue{
+						Name:  attr.Name,
+						Value: attr.Value,
+					}
+				}
+			}
+
+			// Convert variant images
+			if len(variant.Images) > 0 {
+				product.Variants[i].Images = make([]*pb.VariantImage, len(variant.Images))
+				for j, img := range variant.Images {
+					product.Variants[i].Images[j] = &pb.VariantImage{
+						Url:      img.URL,
+						AltText:  img.AltText,
+						Position: int32(img.Position),
+					}
+				}
+			}
+		}
+	}
+
+	// Convert images
 	if len(req.Product.Images) > 0 {
+		product.Images = make([]*pb.ProductImage, len(req.Product.Images))
 		for i, img := range req.Product.Images {
-			if img.Url != "" {
-				// Image already has a URL, skip upload
-				continue
-			}
-
-			// Get the file from the form data
-			file, err := c.FormFile("images[" + strconv.Itoa(i) + "]")
-			if err != nil {
-				h.logger.Error("Failed to get file from form", zap.Error(err))
-				c.JSON(http.StatusBadRequest, gin.H{"error": "failed to get image file"})
-				return
-			}
-
-			// Open the file
-			src, err := file.Open()
-			if err != nil {
-				h.logger.Error("Failed to open file", zap.Error(err))
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to process file"})
-				return
-			}
-			defer src.Close()
-
-			// Read the file content
-			fileBytes, err := io.ReadAll(src)
-			if err != nil {
-				h.logger.Error("Failed to read file", zap.Error(err))
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read file"})
-				return
-			}
-
-			// Create the gRPC request for image upload
-			uploadReq := &pb.UploadImageRequest{
-				File:     fileBytes,
-				Folder:   "products",
+			product.Images[i] = &pb.ProductImage{
+				Url:      img.URL,
 				AltText:  img.AltText,
-				Position: img.Position,
-				Filename: file.Filename,
-				MimeType: file.Header.Get("Content-Type"),
+				Position: int32(img.Position),
 			}
+		}
+	}
 
-			// Upload the image
-			uploadResp, err := h.client.UploadImage(c.Request.Context(), uploadReq)
-			if err != nil {
-				h.logger.Error("Failed to upload image", zap.Error(err))
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to upload image"})
-				return
+	// Convert categories
+	if len(req.Product.Categories) > 0 {
+		product.Categories = make([]*pb.Category, len(req.Product.Categories))
+		for i, cat := range req.Product.Categories {
+			product.Categories[i] = &pb.Category{
+				Id:   cat.ID,
+				Name: cat.Name,
+				Slug: cat.Slug,
 			}
+		}
+	}
 
-			// Update the image URL
-			req.Product.Images[i].Url = uploadResp.Url
+	// Convert tags
+	if len(req.Product.Tags) > 0 {
+		product.Tags = make([]*pb.ProductTag, len(req.Product.Tags))
+		for i, tag := range req.Product.Tags {
+			product.Tags[i] = &pb.ProductTag{
+				Tag: tag,
+			}
+		}
+	}
+
+	// Convert specifications
+	if len(req.Product.Specifications) > 0 {
+		product.Specifications = make([]*pb.ProductSpecification, len(req.Product.Specifications))
+		for i, spec := range req.Product.Specifications {
+			product.Specifications[i] = &pb.ProductSpecification{
+				Name:  spec.Name,
+				Value: spec.Value,
+				Unit:  spec.Unit,
+			}
+		}
+	}
+
+	// Convert SEO
+	if req.Product.SEO != nil {
+		product.Seo = &pb.ProductSEO{
+			MetaTitle:       req.Product.SEO.MetaTitle,
+			MetaDescription: req.Product.SEO.MetaDescription,
+			Keywords:        req.Product.SEO.Keywords,
+			Tags:            req.Product.SEO.MetaTags,
+		}
+	}
+
+	// Convert shipping
+	if req.Product.Shipping != nil {
+		estimatedDays, err := strconv.Atoi(req.Product.Shipping.EstimatedDays)
+		if err != nil {
+			estimatedDays = 0 // Default value if conversion fails
+		}
+		product.Shipping = &pb.ProductShipping{
+			FreeShipping:     req.Product.Shipping.FreeShipping,
+			EstimatedDays:    int32(estimatedDays),
+			ExpressAvailable: req.Product.Shipping.ExpressShippingAvailable,
+		}
+	}
+
+	// Convert discount
+	if req.Product.Discount != nil {
+		product.Discount = &pb.ProductDiscount{
+			Type:  req.Product.Discount.Type,
+			Value: req.Product.Discount.Value,
+		}
+		if req.Product.Discount.ExpiresAt != "" {
+			if t, err := time.Parse(time.RFC3339, req.Product.Discount.ExpiresAt); err == nil {
+				product.Discount.ExpiresAt = timestamppb.New(t)
+			}
 		}
 	}
 
 	// Update the product
-	resp, err := h.client.UpdateProduct(c.Request.Context(), &req)
+	grpcReq := &pb.UpdateProductRequest{
+		Product: product,
+	}
+
+	resp, err := h.client.UpdateProduct(c.Request.Context(), grpcReq)
 	if err != nil {
-		h.logger.Error("Failed to update product", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update product"})
+		h.handleGRPCError(c, err, "Failed to update product")
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	formattedProduct := formatters.FormatProduct(resp)
+	c.JSON(http.StatusOK, formattedProduct)
 }
 
 // DeleteProduct handles deleting a product

@@ -8,26 +8,26 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
+	"github.com/louai60/e-commerce_project/backend/user-service/db"
 	"github.com/louai60/e-commerce_project/backend/user-service/models"
 	"go.uber.org/zap"
 )
 
 type PostgresRepository struct {
-	db     *sqlx.DB  // Change from *sql.DB to *sqlx.DB
+	*RepositoryBase
 	Logger *zap.Logger
 }
 
-func NewPostgresRepository(db *sqlx.DB, logger *zap.Logger) *PostgresRepository {
+func NewPostgresRepository(dbConfig *db.DBConfig, logger *zap.Logger) *PostgresRepository {
 	return &PostgresRepository{
-		db:     db,
-		Logger: logger,
+		RepositoryBase: NewRepositoryBase(dbConfig, logger),
+		Logger:         logger,
 	}
 }
 
 func (r *PostgresRepository) Ping(ctx context.Context) error {
-	return r.db.PingContext(ctx)
+	return r.GetReplica().PingContext(ctx)
 }
 
 // User operations
@@ -56,7 +56,8 @@ func (r *PostgresRepository) CreateUser(ctx context.Context, user *models.User) 
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		RETURNING user_id, created_at, updated_at`
 
-	err := r.db.QueryRowContext(ctx, query,
+	// Use ExecuteQueryRow for write operations (will use master)
+	err := r.ExecuteQueryRow(ctx, query,
 		user.Username,
 		user.Email,
 		user.HashedPassword,
@@ -82,7 +83,7 @@ func (r *PostgresRepository) CreateUser(ctx context.Context, user *models.User) 
 
 func (r *PostgresRepository) GetUser(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	query := `
-		SELECT 
+		SELECT
 			user_id, username, email, hashed_password, first_name, last_name,
 			COALESCE(phone_number, ''),
 			user_type, role, account_status,
@@ -90,11 +91,12 @@ func (r *PostgresRepository) GetUser(ctx context.Context, id uuid.UUID) (*models
 			COALESCE(refresh_token_id, ''),
 			created_at, updated_at,
 			COALESCE(last_login, created_at)
-		FROM users 
+		FROM users
 		WHERE user_id = $1`
-	
+
 	user := &models.User{}
-	if err := r.db.QueryRowContext(ctx, query, id).Scan(
+	// Use ExecuteQueryRow for read operations (will use replica if available)
+	if err := r.ExecuteQueryRow(ctx, query, id).Scan(
 		&user.UserID,
 		&user.Username,
 		&user.Email,
@@ -117,7 +119,7 @@ func (r *PostgresRepository) GetUser(ctx context.Context, id uuid.UUID) (*models
 		}
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
-	
+
 	return user, nil
 }
 
@@ -126,13 +128,14 @@ func (r *PostgresRepository) UpdateUser(ctx context.Context, user *models.User) 
 		UPDATE users
 		SET username = $1, email = $2, first_name = $3, last_name = $4,
 			phone_number = $5, user_type = $6, role = $7, account_status = $8,
-			email_verified = $9, phone_verified = $10, 
+			email_verified = $9, phone_verified = $10,
 			refresh_token_id = $11, last_login = $12, updated_at = $13
 		WHERE user_id = $14
 		RETURNING updated_at`
-	
+
 	now := time.Now()
-	return r.db.QueryRowContext(ctx, query,
+	// Use ExecuteQueryRow for write operations (will use master)
+	return r.ExecuteQueryRow(ctx, query,
 		user.Username,
 		user.Email,
 		user.FirstName,
@@ -144,15 +147,16 @@ func (r *PostgresRepository) UpdateUser(ctx context.Context, user *models.User) 
 		user.EmailVerified,
 		user.PhoneVerified,
 		user.RefreshTokenID, // Add RefreshTokenID
-		user.LastLogin,     // Add LastLogin
-		now,                // Use consistent timestamp for updated_at
+		user.LastLogin,      // Add LastLogin
+		now,                 // Use consistent timestamp for updated_at
 		user.UserID,
 	).Scan(&user.UpdatedAt)
 }
 
 func (r *PostgresRepository) DeleteUser(ctx context.Context, userID uuid.UUID) error {
 	query := `DELETE FROM users WHERE user_id = $1`
-	result, err := r.db.ExecContext(ctx, query, userID)
+	// Use ExecuteExec for write operations (will use master)
+	result, err := r.ExecuteExec(ctx, query, userID)
 	if err != nil {
 		return fmt.Errorf("failed to delete user: %w", err)
 	}
@@ -173,7 +177,7 @@ func (r *PostgresRepository) GetUserByEmail(ctx context.Context, email string) (
 	r.Logger.Info("Attempting to get user by email", zap.String("email", email))
 
 	query := `
-		SELECT 
+		SELECT
 			user_id, username, email, hashed_password, first_name, last_name,
 			COALESCE(phone_number, ''),
 			user_type, role, account_status,
@@ -181,11 +185,12 @@ func (r *PostgresRepository) GetUserByEmail(ctx context.Context, email string) (
 			COALESCE(refresh_token_id, ''),
 			created_at, updated_at,
 			COALESCE(last_login, created_at)
-		FROM users 
+		FROM users
 		WHERE LOWER(email) = LOWER($1)`
 
 	user := &models.User{}
-	err := r.db.QueryRowContext(ctx, query, email).Scan(
+	// Use ExecuteQueryRow for read operations (will use replica if available)
+	err := r.ExecuteQueryRow(ctx, query, email).Scan(
 		&user.UserID,
 		&user.Username,
 		&user.Email,
@@ -213,7 +218,7 @@ func (r *PostgresRepository) GetUserByEmail(ctx context.Context, email string) (
 		return nil, fmt.Errorf("failed to get user by email: %w", err)
 	}
 
-	r.Logger.Info("User found", 
+	r.Logger.Info("User found",
 		zap.String("email", email),
 		zap.String("userId", user.UserID.String()))
 	return user, nil
@@ -221,14 +226,15 @@ func (r *PostgresRepository) GetUserByEmail(ctx context.Context, email string) (
 
 func (r *PostgresRepository) GetUserByUsername(ctx context.Context, username string) (*models.User, error) {
 	query := `
-		SELECT user_id, username, email, hashed_password, first_name, last_name, 
-			   phone_number, user_type, role, account_status, email_verified, 
+		SELECT user_id, username, email, hashed_password, first_name, last_name,
+			   phone_number, user_type, role, account_status, email_verified,
 			   phone_verified, created_at, updated_at, last_login
 		FROM users
 		WHERE username = $1`
 
 	user := &models.User{}
-	err := r.db.QueryRowContext(ctx, query, username).Scan(
+	// Use ExecuteQueryRow for read operations (will use replica if available)
+	err := r.ExecuteQueryRow(ctx, query, username).Scan(
 		&user.UserID,
 		&user.Username,
 		&user.Email,
@@ -259,7 +265,7 @@ func (r *PostgresRepository) GetUserByUsername(ctx context.Context, username str
 func (r *PostgresRepository) ListUsers(ctx context.Context, page, limit int, where string, args ...interface{}) ([]*models.User, error) {
 	offset := (page - 1) * limit
 	query := `
-		SELECT user_id, username, email, first_name, last_name, phone_number, 
+		SELECT user_id, username, email, first_name, last_name, phone_number,
 			   user_type, role, account_status, created_at, updated_at, last_login
 		FROM users
 	`
@@ -268,7 +274,8 @@ func (r *PostgresRepository) ListUsers(ctx context.Context, page, limit int, whe
 	}
 	query += fmt.Sprintf(" LIMIT %d OFFSET %d", limit, offset)
 
-	rows, err := r.db.QueryContext(ctx, query, args...)
+	// Use ExecuteQuery for read operations (will use replica if available)
+	rows, err := r.ExecuteQuery(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query users: %w", err)
 	}
@@ -311,7 +318,8 @@ func (r *PostgresRepository) CountUsers(ctx context.Context, where string, args 
 	}
 
 	var count int64
-	err := r.db.QueryRowContext(ctx, query, args...).Scan(&count)
+	// Use ExecuteQueryRow for read operations (will use replica if available)
+	err := r.ExecuteQueryRow(ctx, query, args...).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count users: %w", err)
 	}
@@ -323,13 +331,14 @@ func (r *PostgresRepository) CountUsers(ctx context.Context, where string, args 
 
 func (r *PostgresRepository) CreateAddress(ctx context.Context, address *models.UserAddress) error {
 	query := `
-		INSERT INTO user_addresses (user_id, address_type, street_address1, 
-								  street_address2, city, state, postal_code, 
+		INSERT INTO user_addresses (user_id, address_type, street_address1,
+								  street_address2, city, state, postal_code,
 								  country, is_default)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING address_id, created_at, updated_at`
 
-	return r.db.QueryRowContext(ctx, query,
+	// Use ExecuteQueryRow for write operations (will use master)
+	return r.ExecuteQueryRow(ctx, query,
 		address.UserID, address.AddressType, address.StreetAddress1,
 		address.StreetAddress2, address.City, address.State,
 		address.PostalCode, address.Country, address.IsDefault,
@@ -343,7 +352,8 @@ func (r *PostgresRepository) GetAddresses(ctx context.Context, userID uuid.UUID)
 		FROM user_addresses
 		WHERE user_id = $1`
 
-	rows, err := r.db.QueryContext(ctx, query, userID)
+	// Use ExecuteQuery for read operations (will use replica if available)
+	rows, err := r.ExecuteQuery(ctx, query, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query addresses: %w", err)
 	}
@@ -388,7 +398,8 @@ func (r *PostgresRepository) UpdateAddress(ctx context.Context, address *models.
 		WHERE address_id = $10 AND user_id = $11
 		RETURNING updated_at`
 
-	return r.db.QueryRowContext(ctx, query,
+	// Use ExecuteQueryRow for write operations (will use master)
+	return r.ExecuteQueryRow(ctx, query,
 		address.AddressType,
 		address.StreetAddress1,
 		address.StreetAddress2,
@@ -405,7 +416,8 @@ func (r *PostgresRepository) UpdateAddress(ctx context.Context, address *models.
 
 func (r *PostgresRepository) DeleteAddress(ctx context.Context, addressID uuid.UUID, userID uuid.UUID) error {
 	query := `DELETE FROM user_addresses WHERE address_id = $1 AND user_id = $2`
-	result, err := r.db.ExecContext(ctx, query, addressID, userID)
+	// Use ExecuteExec for write operations (will use master)
+	result, err := r.ExecuteExec(ctx, query, addressID, userID)
 	if err != nil {
 		return fmt.Errorf("failed to delete address: %w", err)
 	}
@@ -431,7 +443,8 @@ func (r *PostgresRepository) GetDefaultAddress(ctx context.Context, userID uuid.
 		LIMIT 1`
 
 	address := &models.UserAddress{}
-	err := r.db.QueryRowContext(ctx, query, userID).Scan(
+	// Use ExecuteQueryRow for read operations (will use replica if available)
+	err := r.ExecuteQueryRow(ctx, query, userID).Scan(
 		&address.AddressID,
 		&address.UserID,
 		&address.AddressType,
@@ -460,13 +473,14 @@ func (r *PostgresRepository) GetDefaultAddress(ctx context.Context, userID uuid.
 
 func (r *PostgresRepository) CreatePaymentMethod(ctx context.Context, payment *models.PaymentMethod) error {
 	query := `
-		INSERT INTO payment_methods (user_id, payment_type, card_last_four, 
+		INSERT INTO payment_methods (user_id, payment_type, card_last_four,
 								   card_brand, expiration_month, expiration_year,
 								   is_default, billing_address_id, token)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING payment_method_id, created_at, updated_at`
 
-	return r.db.QueryRowContext(ctx, query,
+	// Use ExecuteQueryRow for write operations (will use master)
+	return r.ExecuteQueryRow(ctx, query,
 		payment.UserID, payment.PaymentType, payment.CardLastFour,
 		payment.CardBrand, payment.ExpirationMonth, payment.ExpirationYear,
 		payment.IsDefault, payment.BillingAddressID, payment.Token,
@@ -481,7 +495,8 @@ func (r *PostgresRepository) GetPaymentMethods(ctx context.Context, userID uuid.
 		FROM payment_methods
 		WHERE user_id = $1`
 
-	rows, err := r.db.QueryContext(ctx, query, userID)
+	// Use ExecuteQuery for read operations (will use replica if available)
+	rows, err := r.ExecuteQuery(ctx, query, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query payment methods: %w", err)
 	}
@@ -526,7 +541,8 @@ func (r *PostgresRepository) UpdatePaymentMethod(ctx context.Context, payment *m
 		WHERE payment_method_id = $10 AND user_id = $11
 		RETURNING updated_at`
 
-	return r.db.QueryRowContext(ctx, query,
+	// Use ExecuteQueryRow for write operations (will use master)
+	return r.ExecuteQueryRow(ctx, query,
 		payment.PaymentType,
 		payment.CardLastFour,
 		payment.CardBrand,
@@ -543,7 +559,8 @@ func (r *PostgresRepository) UpdatePaymentMethod(ctx context.Context, payment *m
 
 func (r *PostgresRepository) DeletePaymentMethod(ctx context.Context, paymentID uuid.UUID, userID uuid.UUID) error {
 	query := `DELETE FROM payment_methods WHERE payment_method_id = $1 AND user_id = $2`
-	result, err := r.db.ExecContext(ctx, query, paymentID, userID)
+	// Use ExecuteExec for write operations (will use master)
+	result, err := r.ExecuteExec(ctx, query, paymentID, userID)
 	if err != nil {
 		return fmt.Errorf("failed to delete payment method: %w", err)
 	}
@@ -570,7 +587,8 @@ func (r *PostgresRepository) GetDefaultPaymentMethod(ctx context.Context, userID
 		LIMIT 1`
 
 	payment := &models.PaymentMethod{}
-	err := r.db.QueryRowContext(ctx, query, userID).Scan(
+	// Use ExecuteQueryRow for read operations (will use replica if available)
+	err := r.ExecuteQueryRow(ctx, query, userID).Scan(
 		&payment.PaymentMethodID,
 		&payment.UserID,
 		&payment.PaymentType,
@@ -599,13 +617,14 @@ func (r *PostgresRepository) GetDefaultPaymentMethod(ctx context.Context, userID
 
 func (r *PostgresRepository) CreatePreferences(ctx context.Context, prefs *models.UserPreferences) error {
 	query := `
-		INSERT INTO user_preferences (user_id, language, currency, 
-									notification_email, notification_sms, 
+		INSERT INTO user_preferences (user_id, language, currency,
+									notification_email, notification_sms,
 									theme, timezone)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING created_at, updated_at`
 
-	return r.db.QueryRowContext(ctx, query,
+	// Use ExecuteQueryRow for write operations (will use master)
+	return r.ExecuteQueryRow(ctx, query,
 		prefs.UserID,
 		prefs.Language,
 		prefs.Currency,
@@ -624,7 +643,8 @@ func (r *PostgresRepository) GetPreferences(ctx context.Context, userID uuid.UUI
 		WHERE user_id = $1`
 
 	prefs := &models.UserPreferences{}
-	err := r.db.QueryRowContext(ctx, query, userID).Scan(
+	// Use ExecuteQueryRow for read operations (will use replica if available)
+	err := r.ExecuteQueryRow(ctx, query, userID).Scan(
 		&prefs.UserID,
 		&prefs.Language,
 		&prefs.Currency,
@@ -649,12 +669,13 @@ func (r *PostgresRepository) GetPreferences(ctx context.Context, userID uuid.UUI
 func (r *PostgresRepository) UpdatePreferences(ctx context.Context, prefs *models.UserPreferences) error {
 	query := `
 		UPDATE user_preferences
-		SET language = $1, currency = $2, notification_email = $3, 
+		SET language = $1, currency = $2, notification_email = $3,
 			notification_sms = $4, theme = $5, timezone = $6, updated_at = $7
 		WHERE user_id = $8
 		RETURNING updated_at`
 
-	return r.db.QueryRowContext(ctx, query,
+	// Use ExecuteQueryRow for write operations (will use master)
+	return r.ExecuteQueryRow(ctx, query,
 		prefs.Language,
 		prefs.Currency,
 		prefs.NotificationEmail,
@@ -673,10 +694,11 @@ func (r *PostgresRepository) UpdateRefreshTokenID(ctx context.Context, userID uu
 		SET refresh_token_id = NULLIF($1, ''), updated_at = $2
 		WHERE user_id = $3`
 
-	result, err := r.db.ExecContext(ctx, query, refreshTokenID, time.Now(), userID)
+	// Use ExecuteExec for write operations (will use master)
+	result, err := r.ExecuteExec(ctx, query, refreshTokenID, time.Now(), userID)
 	if err != nil {
-		r.Logger.Error("Failed to update refresh token ID", 
-			zap.String("userID", userID.String()), 
+		r.Logger.Error("Failed to update refresh token ID",
+			zap.String("userID", userID.String()),
 			zap.Error(err))
 		return fmt.Errorf("failed to update refresh token ID: %w", err)
 	}

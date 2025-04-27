@@ -34,6 +34,17 @@ message ProductVariant {
     repeated VariantImage images = 9;
     google.protobuf.Timestamp created_at = 10;
     google.protobuf.Timestamp updated_at = 11;
+
+    // Inherited fields from parent product
+    string description = 12;
+    string short_description = 13;
+    repeated ProductSpecification specifications = 14;
+    repeated ProductTag tags = 15;
+    repeated Category categories = 16;
+    Brand brand = 17;
+    ProductSEO seo = 18;
+    ProductShipping shipping = 19;
+    ProductDiscount discount = 20;
 }
 
 message ProductTag {

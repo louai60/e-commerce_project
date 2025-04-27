@@ -13,13 +13,14 @@ type BadgeColor =
   | "dark"
   | "danger";
 
-interface BadgeProps {
+export interface BadgeProps {
   variant?: BadgeVariant;
   size?: BadgeSize;
   color?: BadgeColor;
   startIcon?: React.ReactNode;
   endIcon?: React.ReactNode;
   children: React.ReactNode;
+  className?: string;
 }
 
 const Badge: React.FC<BadgeProps> = ({
@@ -29,6 +30,7 @@ const Badge: React.FC<BadgeProps> = ({
   startIcon,
   endIcon,
   children,
+  className = "",
 }) => {
   const baseStyles =
     "inline-flex items-center px-2.5 py-0.5 justify-center gap-1 rounded-full font-medium";
@@ -120,7 +122,7 @@ const Badge: React.FC<BadgeProps> = ({
   }
 
   return (
-    <span className={`${baseStyles} ${sizeClass} ${colorStyles}`}>
+    <span className={`${baseStyles} ${sizeClass} ${colorStyles} ${className}`}>
       {startIcon && <span className="mr-1">{startIcon}</span>}
       {children}
       {endIcon && <span className="ml-1">{endIcon}</span>}

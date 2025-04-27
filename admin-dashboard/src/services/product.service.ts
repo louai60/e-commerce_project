@@ -41,8 +41,12 @@ export interface Product {
     current: {
       USD: number;
       EUR?: number;
+      USD_DISCOUNT?: number;
+      EUR_DISCOUNT?: number;
     };
     currency: string;
+    value?: number;
+    savings_percentage?: number;
   };
   inventory: {
     status: string;
@@ -96,9 +100,26 @@ export class ProductService {
       const response = await api.get('/products', { params });
       console.log('API response:', response.data);
 
+      // Add more detailed logging for debugging
+      if (response.data && response.data.products) {
+        console.log('Number of products:', response.data.products.length);
+        if (response.data.products.length > 0) {
+          const firstProduct = response.data.products[0];
+          console.log('First product sample:', {
+            id: firstProduct.id,
+            title: firstProduct.title,
+            price: firstProduct.price,
+            images: firstProduct.images,
+            inventory: firstProduct.inventory
+          });
+        }
+      }
+
       // Ensure we have a valid response structure
       const data = response.data || {};
-      return {
+
+      // Create a properly structured response
+      const result = {
         products: data.products || [],
         total: data.total || 0,
         pagination: data.pagination || {
@@ -108,6 +129,9 @@ export class ProductService {
           total_items: 0
         }
       };
+
+      console.log('Returning structured product data:', result);
+      return result;
     } catch (error: any) {
       console.error('Error fetching products:', error.response?.data || error);
       throw error.response?.data || { error: 'Failed to fetch products' };
@@ -116,9 +140,38 @@ export class ProductService {
 
   static async getProduct(id: string): Promise<Product> {
     try {
+      console.log(`Fetching product with ID: ${id}`);
       const response = await api.get(`/products/${id}`);
+      console.log('Product API response:', JSON.stringify(response.data, null, 2));
+
+      // Add detailed logging for debugging
+      if (response.data) {
+        console.log('Product details:', {
+          id: response.data.id,
+          title: response.data.title,
+          price: response.data.price,
+          images: response.data.images,
+          inventory: response.data.inventory,
+          specifications: response.data.specifications,
+          tags: response.data.tags
+        });
+
+        // Check for missing or empty data
+        const missingData = [];
+        if (!response.data.images || response.data.images.length === 0) missingData.push('images');
+        if (!response.data.price || !response.data.price.current || !response.data.price.current.USD) missingData.push('price');
+        if (!response.data.inventory || response.data.inventory.quantity === 0) missingData.push('inventory');
+        if (!response.data.specifications || response.data.specifications.length === 0) missingData.push('specifications');
+        if (!response.data.tags || response.data.tags.length === 0) missingData.push('tags');
+
+        if (missingData.length > 0) {
+          console.warn('Missing or empty data in product response:', missingData.join(', '));
+        }
+      }
+
       return response.data;
     } catch (error: any) {
+      console.error('Error fetching product:', error.response?.data || error);
       throw error.response?.data || { error: 'Failed to fetch product' };
     }
   }
@@ -145,8 +198,8 @@ export class ProductService {
             available: productData.inventory_status === 'in_stock'
           },
           images: productData.images,
-          brand_id: productData.brand_id ? { value: productData.brand_id } : undefined,
-          category_ids: productData.categories ? productData.categories.map(id => ({ value: id })) : undefined,
+          brand_id: productData.brand_id || undefined,
+          category_ids: productData.categories || undefined,
           is_published: productData.is_published
         }
       };

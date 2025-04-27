@@ -1,7 +1,7 @@
 package main
 
 import (
-	"database/sql"
+	"context"
 	"fmt"
 	"net"
 	"os"
@@ -15,10 +15,12 @@ import (
 	"github.com/louai60/e-commerce_project/backend/common/logger"
 	"github.com/louai60/e-commerce_project/backend/product-service/cache"
 	"github.com/louai60/e-commerce_project/backend/product-service/config"
+	"github.com/louai60/e-commerce_project/backend/product-service/db"
 	"github.com/louai60/e-commerce_project/backend/product-service/handlers"
 	"github.com/louai60/e-commerce_project/backend/product-service/middleware"
 	pb "github.com/louai60/e-commerce_project/backend/product-service/proto"
 	"github.com/louai60/e-commerce_project/backend/product-service/repository"
+	"github.com/louai60/e-commerce_project/backend/product-service/repository/postgres"
 	"github.com/louai60/e-commerce_project/backend/product-service/service"
 )
 
@@ -41,17 +43,12 @@ func main() {
 		log.Fatal("Failed to load configuration", zap.Error(err))
 	}
 
-	// Initialize database connection
-	db, err := sql.Open("postgres", cfg.GetDSN())
+	// Initialize database configuration with master and replicas
+	dbConfig, err := db.NewDBConfig(cfg, log)
 	if err != nil {
-		log.Fatal("Failed to connect to database", zap.Error(err))
+		log.Fatal("Failed to initialize database configuration", zap.Error(err))
 	}
-	defer db.Close() // Ensure db connection is closed when main exits
-
-	// Set connection pool parameters
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(5)
-	db.SetConnMaxLifetime(5 * time.Minute)
+	defer dbConfig.Close() // Ensure all db connections are closed when main exits
 
 	// Create context with timeout for initialization
 	// Commented out since we're not using it for migrations anymore
@@ -65,22 +62,52 @@ func main() {
 	// }
 
 	// Initialize repositories
-	productRepo := repository.NewProductRepository(db, log)
-	brandRepo := repository.NewBrandRepository(db, log)
-	categoryRepo := repository.NewCategoryRepository(db, log)
+	// Use the adapter to make the new repository compatible with the existing interface
+	productRepo := postgres.NewProductRepositoryAdapter(dbConfig, log)
+	// For now, use the master connection for other repositories
+	brandRepo := repository.NewBrandRepository(dbConfig.Master, log)
+	categoryRepo := repository.NewCategoryRepository(dbConfig.Master, log)
 
-	// Initialize cache manager
-	cacheManager, err := cache.NewCacheManager(cache.CacheOptions{
-		Addr:     fmt.Sprintf("%s:%s", cfg.Redis.Host, cfg.Redis.Port),
-		Password: cfg.Redis.Password,
-		DB:       cfg.Redis.DB,
-		PoolSize: 10,
-		TTL:      15 * time.Minute,
+	// Initialize tiered cache manager with circuit breaker
+	cacheManager, err := cache.NewTieredCacheManager(cache.TieredCacheOptions{
+		RedisAddr:     fmt.Sprintf("%s:%s", cfg.Redis.Host, cfg.Redis.Port),
+		RedisPassword: cfg.Redis.Password,
+		RedisDB:       cfg.Redis.DB,
+		RedisPoolSize: 10,
+		DefaultTTL:    15 * time.Minute,
+		Logger:        log,
+		// Circuit breaker settings
+		FailureThreshold:         5,
+		ResetTimeout:             30 * time.Second,
+		HalfOpenSuccessThreshold: 2,
 	})
 	if err != nil {
-		log.Fatal("Failed to initialize cache manager", zap.Error(err))
+		log.Fatal("Failed to initialize tiered cache manager", zap.Error(err))
 	}
 	defer cacheManager.Close()
+
+	// Warm up cache with critical data
+	log.Info("Starting cache warm-up")
+	go func() {
+		// Wait a bit for services to initialize
+		time.Sleep(2 * time.Second)
+
+		// Create context with timeout for warm-up
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		// Warm up cache with critical data
+		result, err := cacheManager.WarmupCache(ctx)
+		if err != nil {
+			log.Error("Cache warm-up failed", zap.Error(err))
+			return
+		}
+
+		log.Info("Cache warm-up completed",
+			zap.Int("successCount", result.SuccessCount),
+			zap.Int("errorCount", result.ErrorCount),
+			zap.Duration("duration", result.Duration))
+	}()
 
 	// Initialize service with all required repositories
 	productService := service.NewProductService(

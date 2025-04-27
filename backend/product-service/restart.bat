@@ -1,0 +1,9 @@
+@echo off
+echo Stopping any running product service...
+taskkill /f /im product-service.exe 2>nul
+
+echo Building product service...
+go build -o product-service.exe main.go
+
+echo Starting product service...
+start product-service.exe

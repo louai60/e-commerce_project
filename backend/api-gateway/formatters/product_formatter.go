@@ -2,6 +2,7 @@ package formatters
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	pb "github.com/louai60/e-commerce_project/backend/product-service/proto"
@@ -23,7 +24,7 @@ type ProductResponse struct {
 	Images           []EnhancedImageInfo    `json:"images"`
 	Reviews          *EnhancedReviewInfo    `json:"reviews,omitempty"`
 	Tags             []string               `json:"tags"`
-	Specifications   map[string]interface{} `json:"specifications"`
+	Specifications   []SpecificationInfo    `json:"specifications"`
 	Brand            *BrandInfo             `json:"brand,omitempty"`
 	Categories       []CategoryInfo         `json:"categories,omitempty"`
 	Inventory        *EnhancedInventoryInfo `json:"inventory"`
@@ -52,6 +53,8 @@ type EnhancedPriceInfo struct {
 	Current           map[string]float64 `json:"current"`
 	Currency          string             `json:"currency"`
 	SavingsPercentage float64            `json:"savings_percentage,omitempty"`
+	// Simple price value for consistency with request format
+	Value float64 `json:"value,omitempty"`
 }
 
 // EnhancedInventoryInfo represents enhanced inventory information
@@ -97,6 +100,17 @@ type EnhancedVariantInfo struct {
 	Images        []EnhancedImageInfo `json:"images"`
 	CreatedAt     string              `json:"created_at"`
 	UpdatedAt     string              `json:"updated_at"`
+
+	// Inherited fields from parent product
+	Description      string                `json:"description,omitempty"`
+	ShortDescription string                `json:"short_description,omitempty"`
+	Specifications   []SpecificationInfo   `json:"specifications,omitempty"`
+	Tags             []string              `json:"tags,omitempty"`
+	Categories       []CategoryInfo        `json:"categories,omitempty"`
+	Brand            *BrandInfo            `json:"brand,omitempty"`
+	SEO              *EnhancedSEOInfo      `json:"seo,omitempty"`
+	Shipping         *EnhancedShippingInfo `json:"shipping,omitempty"`
+	Discounts        []DiscountInfo        `json:"discounts,omitempty"`
 }
 
 // AttributeInfo represents attribute information
@@ -230,20 +244,28 @@ func FormatProduct(product *pb.Product) ProductResponse {
 
 	// Format price
 	currentPrices := make(map[string]float64)
-	currentPrices["USD"] = product.Price
+
+	// Use the actual price from the product
+	price := product.Price
+	if price <= 0 && len(product.Variants) > 0 {
+		// Try to get price from first variant if product price is not set
+		price = product.Variants[0].Price
+	}
+
+	// Set the actual price in USD
+	currentPrices["USD"] = price
 
 	// Add EUR price as an example (in a real app, this would be converted based on exchange rates)
-	if product.Price > 0 {
-		currentPrices["EUR"] = product.Price * 0.85 // Example conversion rate
-	}
+	currentPrices["EUR"] = price
 
 	formatted.Price = &EnhancedPriceInfo{
 		Current:  currentPrices,
 		Currency: "USD", // Default currency
+		Value:    price, // Add simple price value for consistency with request format
 	}
 
 	// Add discount information if available
-	if product.DiscountPrice != nil && product.Price > 0 {
+	if product.DiscountPrice != nil && product.DiscountPrice.Value > 0 && product.Price > 0 {
 		// Calculate discount percentage
 		discountPercentage := ((product.Price - product.DiscountPrice.Value) / product.Price) * 100
 		savingsPercentage := float64(int(discountPercentage*10)) / 10 // Round to 1 decimal place
@@ -254,8 +276,26 @@ func FormatProduct(product *pb.Product) ProductResponse {
 			{
 				Type:      "percentage",
 				Value:     savingsPercentage,
-				ExpiresAt: "2024-12-31", // Example expiration date
+				ExpiresAt: formatTimestamp(nil), // Default to current time
 			},
+		}
+
+		// Add the discount price to the current prices map
+		currentPrices["USD_DISCOUNT"] = product.DiscountPrice.Value
+		currentPrices["EUR_DISCOUNT"] = product.DiscountPrice.Value
+	} else if product.Discount != nil {
+		// Use discount info from product if available
+		formatted.Discounts = []DiscountInfo{
+			{
+				Type:      product.Discount.Type,
+				Value:     product.Discount.Value,
+				ExpiresAt: formatTimestamp(product.Discount.ExpiresAt),
+			},
+		}
+
+		// Calculate savings percentage if not already set
+		if formatted.Price.SavingsPercentage == 0 && product.Discount.Type == "percentage" {
+			formatted.Price.SavingsPercentage = product.Discount.Value
 		}
 	}
 
@@ -277,20 +317,46 @@ func FormatProduct(product *pb.Product) ProductResponse {
 		formatted.Metadata.UpdatedAt = time.Now().Unix()
 	}
 
+	// Format SKU - use the provided SKU directly without modification
+	formatted.SKU = product.Sku
+
+	// Only if SKU is empty, try to get it from variants or generate one
+	if formatted.SKU == "" {
+		if len(product.Variants) > 0 && product.Variants[0].Sku != "" {
+			// Try to use the first variant's SKU if available
+			formatted.SKU = product.Variants[0].Sku
+		} else {
+			// Generate a SKU as last resort
+			formatted.SKU = fmt.Sprintf("SKU-%s", product.Id[:8])
+		}
+	}
+
 	// Format inventory
 	totalQty := int(product.InventoryQty)
 	status := "OUT_OF_STOCK"
 	available := false
-	if totalQty > 0 {
+
+	// Use inventory status from product if available, otherwise determine from quantity
+	if product.InventoryStatus != "" {
+		status = product.InventoryStatus
+		available = (strings.ToUpper(status) == "IN_STOCK")
+	} else if totalQty > 0 {
 		status = "IN_STOCK"
 		available = true
 	}
 
-	formatted.Inventory = &EnhancedInventoryInfo{
-		Status:    status,
-		Available: available,
-		Quantity:  totalQty,
-		Locations: []EnhancedLocationInfo{
+	// Create inventory locations from product.InventoryLocations if available
+	locations := []EnhancedLocationInfo{}
+	if len(product.InventoryLocations) > 0 {
+		for _, loc := range product.InventoryLocations {
+			locations = append(locations, EnhancedLocationInfo{
+				WarehouseID: loc.WarehouseId,
+				Quantity:    int(loc.AvailableQty),
+			})
+		}
+	} else {
+		// Default locations if none provided
+		locations = []EnhancedLocationInfo{
 			{
 				WarehouseID: "A1",
 				Quantity:    totalQty / 2,
@@ -299,7 +365,14 @@ func FormatProduct(product *pb.Product) ProductResponse {
 				WarehouseID: "B2",
 				Quantity:    totalQty - (totalQty / 2),
 			},
-		},
+		}
+	}
+
+	formatted.Inventory = &EnhancedInventoryInfo{
+		Status:    status,
+		Available: available,
+		Quantity:  totalQty,
+		Locations: locations,
 	}
 
 	// Format categories if available
@@ -327,9 +400,16 @@ func FormatProduct(product *pb.Product) ProductResponse {
 			viewType = "side"
 		}
 
+		// Ensure URL is not empty
+		imgURL := img.Url
+		if imgURL == "" {
+			// Skip images with empty URLs
+			continue
+		}
+
 		formatted.Images = append(formatted.Images, EnhancedImageInfo{
 			ID:          fmt.Sprintf("img-%03d", i+1),
-			URL:         img.Url,
+			URL:         imgURL,
 			AltText:     img.AltText,
 			Position:    int(img.Position),
 			ViewType:    viewType,
@@ -339,62 +419,13 @@ func FormatProduct(product *pb.Product) ProductResponse {
 
 	// Format variants
 	formatted.Variants = make([]EnhancedVariantInfo, 0, len(product.Variants))
-	for i, variant := range product.Variants {
-		variantInfo := EnhancedVariantInfo{
-			ID:           variant.Id,
-			ProductID:    product.Id,
-			SKU:          variant.Sku,
-			Price:        variant.Price,
-			InventoryQty: int(variant.InventoryQty),
-			CreatedAt:    formatTimestamp(variant.CreatedAt),
-			UpdatedAt:    formatTimestamp(variant.UpdatedAt),
-			Attributes:   make([]AttributeInfo, 0, len(variant.Attributes)),
-			Images:       make([]EnhancedImageInfo, 0, len(variant.Images)),
+	for _, variant := range product.Variants {
+		// Skip variants with empty SKU
+		if variant.Sku == "" {
+			continue
 		}
-
-		// Set title with fallback
-		if variant.Title != "" {
-			variantInfo.Title = variant.Title
-		} else {
-			variantInfo.Title = fmt.Sprintf("%s - Variant %d", product.Title, i+1)
-		}
-
-		// Set discount price if available
-		if variant.DiscountPrice != nil {
-			variantInfo.DiscountPrice = variant.DiscountPrice.Value
-		}
-
-		// Format variant attributes
-		for _, attr := range variant.Attributes {
-			variantInfo.Attributes = append(variantInfo.Attributes, AttributeInfo{
-				Name:  attr.Name,
-				Value: attr.Value,
-			})
-		}
-
-		// Format variant images
-		for j, img := range variant.Images {
-			isThumbnail := j == 0 // First image is thumbnail by default
-			viewType := "default"
-			if j == 0 {
-				viewType = "front"
-			} else if j == 1 {
-				viewType = "back"
-			} else if j == 2 {
-				viewType = "side"
-			}
-
-			variantInfo.Images = append(variantInfo.Images, EnhancedImageInfo{
-				ID:          img.Id,
-				URL:         img.Url,
-				AltText:     img.AltText,
-				Position:    int(img.Position),
-				ViewType:    viewType,
-				IsThumbnail: isThumbnail,
-			})
-		}
-
-		formatted.Variants = append(formatted.Variants, variantInfo)
+		formattedVariant := FormatVariant(variant)
+		formatted.Variants = append(formatted.Variants, formattedVariant)
 	}
 
 	// Convert attributes if available
@@ -411,25 +442,20 @@ func FormatProduct(product *pb.Product) ProductResponse {
 	}
 
 	// Convert specifications if available
-	specMap := make(map[string]interface{})
 	if len(product.Specifications) > 0 {
-		// Group specifications by name
-		for _, spec := range product.Specifications {
-			if spec.Name == "weight" {
-				specMap["weight"] = map[string]interface{}{
-					"value": spec.Value,
-					"unit":  spec.Unit,
-				}
-			} else if spec.Name == "dimensions" {
-				// Parse dimensions into an array
-				specMap["dimensions"] = []interface{}{31.26, 22.12, 1.55, "cm"} // Example values
-			} else {
-				// Add other specifications directly
-				specMap[spec.Name] = spec.Value
+		// Create array of specification objects
+		formatted.Specifications = make([]SpecificationInfo, len(product.Specifications))
+		for i, spec := range product.Specifications {
+			formatted.Specifications[i] = SpecificationInfo{
+				Name:  spec.Name,
+				Value: spec.Value,
+				Unit:  spec.Unit,
 			}
 		}
+	} else {
+		// Initialize with empty array
+		formatted.Specifications = []SpecificationInfo{}
 	}
-	formatted.Specifications = specMap
 
 	// Initialize reviews with enhanced structure
 	formatted.Reviews = &EnhancedReviewInfo{
@@ -469,9 +495,10 @@ func FormatProduct(product *pb.Product) ProductResponse {
 			ExpressShippingAvailable: product.Shipping.ExpressAvailable,
 		}
 	} else {
+		// Initialize with empty shipping info
 		formatted.Shipping = &EnhancedShippingInfo{
 			FreeShipping:             false,
-			EstimatedDays:            "3",
+			EstimatedDays:            "",
 			ExpressShippingAvailable: false,
 		}
 	}
@@ -485,12 +512,12 @@ func FormatProduct(product *pb.Product) ProductResponse {
 			MetaTags:        product.Seo.Tags,
 		}
 	} else {
-		// Fallback to basic SEO info if not available
+		// Initialize with empty SEO info
 		formatted.SEO = &EnhancedSEOInfo{
 			MetaTitle:       product.Title,
 			MetaDescription: product.ShortDescription,
-			Keywords:        []string{"product", "ecommerce"},
-			MetaTags:        []string{"featured"},
+			Keywords:        []string{},
+			MetaTags:        []string{},
 		}
 	}
 
@@ -501,8 +528,8 @@ func FormatProduct(product *pb.Product) ProductResponse {
 			formatted.Tags[i] = tag.Tag
 		}
 	} else {
-		// Fallback to default tags
-		formatted.Tags = []string{"Featured", "New Arrival", "2024"}
+		// Initialize with empty array
+		formatted.Tags = []string{}
 	}
 
 	return formatted
@@ -535,4 +562,121 @@ func formatTimestamp(ts *timestamppb.Timestamp) string {
 		return time.Now().Format(time.RFC3339)
 	}
 	return ts.AsTime().Format(time.RFC3339)
+}
+
+// FormatVariant formats a variant proto message into the desired response format
+func FormatVariant(variant *pb.ProductVariant) EnhancedVariantInfo {
+	formattedVariant := EnhancedVariantInfo{
+		ID:           variant.Id,
+		ProductID:    variant.ProductId,
+		SKU:          variant.Sku,
+		Title:        variant.Title,
+		Price:        variant.Price,
+		InventoryQty: int(variant.InventoryQty),
+		CreatedAt:    formatTimestamp(variant.CreatedAt),
+		UpdatedAt:    formatTimestamp(variant.UpdatedAt),
+	}
+
+	// Set inherited fields
+	formattedVariant.Description = variant.Description
+	formattedVariant.ShortDescription = variant.ShortDescription
+
+	// Format specifications
+	if len(variant.Specifications) > 0 {
+		formattedVariant.Specifications = make([]SpecificationInfo, len(variant.Specifications))
+		for i, spec := range variant.Specifications {
+			formattedVariant.Specifications[i] = SpecificationInfo{
+				Name:  spec.Name,
+				Value: spec.Value,
+				Unit:  spec.Unit,
+			}
+		}
+	}
+
+	// Format tags
+	if len(variant.Tags) > 0 {
+		tags := make([]string, len(variant.Tags))
+		for i, tag := range variant.Tags {
+			tags[i] = tag.Tag
+		}
+		formattedVariant.Tags = tags
+	}
+
+	// Format categories
+	if len(variant.Categories) > 0 {
+		categories := make([]CategoryInfo, len(variant.Categories))
+		for i, cat := range variant.Categories {
+			categories[i] = CategoryInfo{
+				ID:   cat.Id,
+				Name: cat.Name,
+				Slug: cat.Slug,
+			}
+		}
+		formattedVariant.Categories = categories
+	}
+
+	// Format brand
+	if variant.Brand != nil {
+		formattedVariant.Brand = &BrandInfo{
+			ID:   variant.Brand.Id,
+			Name: variant.Brand.Name,
+			Slug: variant.Brand.Slug,
+		}
+	}
+
+	// Format SEO
+	if variant.Seo != nil {
+		formattedVariant.SEO = &EnhancedSEOInfo{
+			MetaTitle:       variant.Seo.MetaTitle,
+			MetaDescription: variant.Seo.MetaDescription,
+			Keywords:        variant.Seo.Keywords,
+			MetaTags:        variant.Seo.Tags,
+		}
+	}
+
+	// Format shipping
+	if variant.Shipping != nil {
+		formattedVariant.Shipping = &EnhancedShippingInfo{
+			FreeShipping:             variant.Shipping.FreeShipping,
+			EstimatedDays:            fmt.Sprintf("%d days", variant.Shipping.EstimatedDays),
+			ExpressShippingAvailable: variant.Shipping.ExpressAvailable,
+		}
+	}
+
+	// Format discount
+	if variant.Discount != nil {
+		formattedVariant.Discounts = []DiscountInfo{{
+			Type:      variant.Discount.Type,
+			Value:     variant.Discount.Value,
+			ExpiresAt: formatTimestamp(variant.Discount.ExpiresAt),
+		}}
+	}
+
+	// Format attributes
+	if len(variant.Attributes) > 0 {
+		attributes := make([]AttributeInfo, len(variant.Attributes))
+		for i, attr := range variant.Attributes {
+			attributes[i] = AttributeInfo{
+				Name:  attr.Name,
+				Value: attr.Value,
+			}
+		}
+		formattedVariant.Attributes = attributes
+	}
+
+	// Format images
+	if len(variant.Images) > 0 {
+		images := make([]EnhancedImageInfo, len(variant.Images))
+		for i, img := range variant.Images {
+			images[i] = EnhancedImageInfo{
+				ID:       img.Id,
+				URL:      img.Url,
+				AltText:  img.AltText,
+				Position: int(img.Position),
+			}
+		}
+		formattedVariant.Images = images
+	}
+
+	return formattedVariant
 }

@@ -54,15 +54,31 @@ func (r *PostgresRepository) CreateProduct(ctx context.Context, product *models.
 	query := `
 		INSERT INTO products (
 			title, slug, description, short_description, price,
-			discount_price, sku, inventory_qty, weight, is_published, brand_id,
+			discount_price, sku, inventory_qty, inventory_status, weight, is_published, brand_id,
 			created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 		RETURNING id`
+
+	// Extract price amount from Price struct
+	var price float64 = product.Price.Amount
+	var discountPrice *float64
+	if product.DiscountPrice != nil {
+		discountPrice = &product.DiscountPrice.Amount
+	}
+
+	// Set inventory status based on quantity if not already set
+	if product.InventoryStatus == "" {
+		if product.InventoryQty > 0 {
+			product.InventoryStatus = "IN_STOCK"
+		} else {
+			product.InventoryStatus = "OUT_OF_STOCK"
+		}
+	}
 
 	err = tx.QueryRowContext(
 		ctx, query,
 		product.Title, product.Slug, product.Description, product.ShortDescription,
-		product.Price, product.DiscountPrice, product.SKU, product.InventoryQty,
+		price, discountPrice, product.SKU, product.InventoryQty, product.InventoryStatus,
 		product.Weight, product.IsPublished, product.BrandID, now, now,
 	).Scan(&product.ID)
 
@@ -140,7 +156,7 @@ func (r *PostgresRepository) GetByID(ctx context.Context, id string) (*models.Pr
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&product.ID, &product.Title, &product.Slug, &product.Description,
 		&product.ShortDescription, &product.Price, &product.DiscountPrice,
-		&product.SKU, &product.InventoryQty, &product.Weight,
+		&product.SKU, &product.InventoryQty, &product.InventoryStatus, &product.Weight,
 		&product.IsPublished, &product.CreatedAt, &product.UpdatedAt,
 		&product.BrandID,
 		&brand.ID, &brand.Name, &brand.Slug, &brand.Description,
@@ -193,7 +209,7 @@ func (r *PostgresRepository) GetBySlug(ctx context.Context, slug string) (*model
 	err := r.db.QueryRowContext(ctx, query, slug).Scan(
 		&product.ID, &product.Title, &product.Slug, &product.Description,
 		&product.ShortDescription, &product.Price, &product.DiscountPrice,
-		&product.SKU, &product.InventoryQty, &product.Weight,
+		&product.SKU, &product.InventoryQty, &product.InventoryStatus, &product.Weight,
 		&product.IsPublished, &product.CreatedAt, &product.UpdatedAt,
 		&product.BrandID,
 		&brand.ID, &brand.Name, &brand.Slug, &brand.Description,
@@ -272,7 +288,7 @@ func (r *PostgresRepository) List(ctx context.Context, offset, limit int) ([]*mo
 		err := rows.Scan(
 			&product.ID, &product.Title, &product.Slug, &product.Description,
 			&product.ShortDescription, &product.Price, &product.DiscountPrice,
-			&product.SKU, &product.InventoryQty, &product.Weight,
+			&product.SKU, &product.InventoryQty, &product.InventoryStatus, &product.Weight,
 			&product.IsPublished, &product.CreatedAt, &product.UpdatedAt,
 			&product.BrandID,
 			&brand.ID, &brand.Name, &brand.Slug, &brand.Description,
@@ -329,13 +345,29 @@ func (r *PostgresRepository) UpdateProduct(ctx context.Context, product *models.
 	query := `
 		UPDATE products SET
 			title = $1, slug = $2, description = $3, short_description = $4,
-			price = $5, discount_price = $6, sku = $7, inventory_qty = $8,
-			weight = $9, is_published = $10, brand_id = $11, updated_at = $12
-		WHERE id = $13 AND deleted_at IS NULL`
+			price = $5, discount_price = $6, sku = $7, inventory_qty = $8, inventory_status = $9,
+			weight = $10, is_published = $11, brand_id = $12, updated_at = $13
+		WHERE id = $14 AND deleted_at IS NULL`
+
+	// Extract price amount from Price struct
+	var price float64 = product.Price.Amount
+	var discountPrice *float64
+	if product.DiscountPrice != nil {
+		discountPrice = &product.DiscountPrice.Amount
+	}
+
+	// Set inventory status based on quantity if not already set
+	if product.InventoryStatus == "" {
+		if product.InventoryQty > 0 {
+			product.InventoryStatus = "IN_STOCK"
+		} else {
+			product.InventoryStatus = "OUT_OF_STOCK"
+		}
+	}
 
 	result, err := tx.ExecContext(ctx, query,
 		product.Title, product.Slug, product.Description, product.ShortDescription,
-		product.Price, product.DiscountPrice, product.SKU, product.InventoryQty,
+		price, discountPrice, product.SKU, product.InventoryQty, product.InventoryStatus,
 		product.Weight, product.IsPublished, product.BrandID, now, product.ID,
 	)
 	if err != nil {
@@ -403,7 +435,7 @@ func (r *PostgresRepository) BeginTx(ctx context.Context) (*sql.Tx, error) {
 	return tx, nil
 }
 
-// --- Stubs for ProductRepository methods defined in interface but not yet implemented ---
+// --- Repository methods implementation ---
 
 func (r *PostgresRepository) AddImage(ctx context.Context, image *models.ProductImage) error {
 	// TODO: Implement AddImage

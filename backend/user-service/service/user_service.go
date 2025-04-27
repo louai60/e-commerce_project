@@ -25,7 +25,7 @@ type UserService struct {
 	logger       *zap.Logger
 	rateLimiter  RateLimiter
 	tokenManager TokenManager
-	cacheManager *cache.UserCacheManager
+	cacheManager cache.CacheInterface
 }
 
 type RateLimiter interface {
@@ -60,7 +60,7 @@ type UserServiceI interface {
 
 func NewUserService(
 	repo repository.Repository,
-	cache *cache.UserCacheManager,
+	cache cache.CacheInterface,
 	logger *zap.Logger,
 	rateLimiter RateLimiter,
 	tokenManager *JWTManager,
@@ -103,13 +103,13 @@ func (s *UserService) Authenticate(ctx context.Context, email, password string) 
 }
 
 func (s *UserService) UpdateRefreshTokenID(ctx context.Context, userID uuid.UUID, refreshTokenID string) error {
-	s.logger.Info("Updating refresh token ID", 
+	s.logger.Info("Updating refresh token ID",
 		zap.String("userID", userID.String()))
 
 	user, err := s.GetUser(ctx, userID)
 	if err != nil {
-		s.logger.Error("Failed to get user", 
-			zap.String("userID", userID.String()), 
+		s.logger.Error("Failed to get user",
+			zap.String("userID", userID.String()),
 			zap.Error(err))
 		return err
 	}
@@ -117,8 +117,8 @@ func (s *UserService) UpdateRefreshTokenID(ctx context.Context, userID uuid.UUID
 	user.RefreshTokenID = refreshTokenID
 
 	if err := s.repo.UpdateUser(ctx, user); err != nil {
-		s.logger.Error("Failed to update user", 
-			zap.String("userID", userID.String()), 
+		s.logger.Error("Failed to update user",
+			zap.String("userID", userID.String()),
 			zap.Error(err))
 		return fmt.Errorf("failed to update user: %w", err)
 	}
@@ -186,13 +186,17 @@ func (s *UserService) GetUser(ctx context.Context, id uuid.UUID) (*models.User, 
 
 func (s *UserService) ListUsers(ctx context.Context, page, limit int32, filters map[string]interface{}) ([]*models.User, int64, error) {
 	// Validate pagination
-	if page < 1 { page = 1 }
-	if limit < 1 || limit > 100 { limit = 10 }
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
 
 	// Build query conditions
 	var conditions []string
 	var args []interface{}
-	
+
 	if userType, ok := filters["user_type"]; ok {
 		conditions = append(conditions, "user_type = ?")
 		args = append(args, userType)
@@ -246,15 +250,15 @@ func (s *UserService) CreateUser(ctx context.Context, req *models.RegisterReques
 	}
 
 	user := &models.User{
-		Email:         strings.ToLower(req.Email),
+		Email: strings.ToLower(req.Email),
 		// Username will be set to email by default in repository if empty
 		HashedPassword: string(hashedPassword),
-		FirstName:     req.FirstName,
-		LastName:      req.LastName,
+		FirstName:      req.FirstName,
+		LastName:       req.LastName,
 		// PhoneNumber is omitted
 		UserType:      req.UserType, // Use provided UserType
 		Role:          req.Role,     // Use provided Role
-		AccountStatus: "active",   // Default AccountStatus
+		AccountStatus: "active",     // Default AccountStatus
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
 	}
@@ -316,12 +320,12 @@ func (s *UserService) DeleteUser(ctx context.Context, id uuid.UUID) error {
 }
 
 func (s *UserService) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
-	s.logger.Info("Login attempt", 
+	s.logger.Info("Login attempt",
 		zap.String("email", req.Email))
 
 	user, err := s.repo.GetUserByEmail(ctx, req.Email)
 	if err != nil {
-		s.logger.Error("Failed to find user", 
+		s.logger.Error("Failed to find user",
 			zap.String("email", req.Email),
 			zap.Error(err))
 		return nil, status.Errorf(codes.NotFound, "user not found")
@@ -364,7 +368,6 @@ func (s *UserService) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Logi
 		return nil, status.Errorf(codes.Internal, "failed to update user state after login: %v", err)
 	}
 
-
 	// Prepare CookieInfo for gRPC response
 	cookieInfo := &pb.CookieInfo{
 		Name:     refreshTokenCookie.Name,
@@ -377,10 +380,10 @@ func (s *UserService) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Logi
 	}
 
 	return &pb.LoginResponse{
-		Token:        accessToken,
+		Token: accessToken,
 		// RefreshToken: refreshToken, // Removed - Handled by cookie
-		User:         convertUserToProto(user),
-		Cookie:       cookieInfo,
+		User:   convertUserToProto(user),
+		Cookie: cookieInfo,
 	}, nil
 }
 
@@ -401,15 +404,15 @@ func (s *UserService) GetUserByEmail(ctx context.Context, email string) (*models
 // Add Address Ads a new address to User's Profile
 
 func (s *UserService) AddAddress(ctx context.Context, userID uuid.UUID, address *models.UserAddress) (*models.UserAddress, error) {
-	s.logger.Debug("adding address for user", 
-		zap.String("user_id", userID.String()), 
+	s.logger.Debug("adding address for user",
+		zap.String("user_id", userID.String()),
 		zap.String("address_type", address.AddressType))
 
 	// Verify user exists
 	_, err := s.repo.GetUser(ctx, userID)
 	if err != nil {
-		s.logger.Error("user not found when adding address", 
-			zap.String("user_id", userID.String()), 
+		s.logger.Error("user not found when adding address",
+			zap.String("user_id", userID.String()),
 			zap.Error(err))
 		return nil, fmt.Errorf("user not found: %w", err)
 	}
@@ -422,7 +425,7 @@ func (s *UserService) AddAddress(ctx context.Context, userID uuid.UUID, address 
 	// If this is set as default, update any existing default addresses
 	if address.IsDefault {
 		if err := s.repo.UpdateAddress(ctx, address); err != nil {
-			s.logger.Warn("failed to update existing default addresses", 
+			s.logger.Warn("failed to update existing default addresses",
 				zap.String("user_id", userID.String()),
 				zap.Error(err))
 		}
@@ -437,7 +440,7 @@ func (s *UserService) AddAddress(ctx context.Context, userID uuid.UUID, address 
 	}
 
 	s.logger.Info("successfully added address",
-		zap.String("address_id", address.AddressID.String()), 
+		zap.String("address_id", address.AddressID.String()),
 		zap.String("address_type", address.AddressType))
 	return address, nil
 }
@@ -478,9 +481,9 @@ func (s *UserService) RefreshToken(ctx context.Context, refreshToken string) (*p
 	}
 
 	return &pb.RefreshTokenResponse{
-		Token:        accessToken,
-		User:         convertUserToProto(user),
-		Cookie:       newCookieInfo,
+		Token:  accessToken,
+		User:   convertUserToProto(user),
+		Cookie: newCookieInfo,
 		// RefreshToken field remains removed
 	}, nil
 }

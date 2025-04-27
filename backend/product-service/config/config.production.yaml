@@ -6,8 +6,27 @@ server:
   allowOrigins: "https://api.nexcart.com"
 
 database:
+  # Master database configuration
   host: "product-db.internal"
   port: "5432"
   name: "nexcart_product"
   user: "product_service"
   sslMode: "verify-full"
+
+  # Connection pool settings
+  maxOpenConns: 50
+  maxIdleConns: 10
+  connMaxLifetime: "15m"
+
+  # Read replica configuration
+  replicas:
+    - host: "product-db-replica-1.internal"
+      port: "5432"
+      name: "nexcart_product"
+      user: "product_service_readonly"
+      sslMode: "verify-full"
+    - host: "product-db-replica-2.internal"
+      port: "5432"
+      name: "nexcart_product"
+      user: "product_service_readonly"
+      sslMode: "verify-full"

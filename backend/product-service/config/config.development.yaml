@@ -6,12 +6,64 @@ server:
   allowOrigins: "*"
 
 database:
-  # host: "ep-young-wind-a5a307fe-pooler.us-east-2.aws.neon.tech"
+  # Master database configuration
   host: "localhost"
   port: "5432"
   name: "nexcart_product"
   user: "postgres"
   sslMode: "disable"
+
+  # Connection pool settings
+  maxOpenConns: 25
+  maxIdleConns: 5
+  connMaxLifetime: "5m"
+
+  # Read replica configuration
+  # In development, we're using the same database for master and replica
+  # In production, these would point to actual read replicas
+  replicas:
+    - host: "localhost"
+      port: "5432"
+      name: "nexcart_product"
+      user: "postgres"
+      sslMode: "disable"
+
+  # Sharding configuration (disabled by default in development)
+  sharding:
+    enabled: false
+    strategy: "modulo"
+    shardCount: 2
+    virtualNodes: 100
+    shards:
+      - shardId: 0
+        host: "localhost"
+        port: "5432"
+        name: "nexcart_product_shard_0"
+        user: "postgres"
+        sslMode: "disable"
+        maxOpenConns: 25
+        maxIdleConns: 5
+        replicas:
+          - host: "localhost"
+            port: "5432"
+            name: "nexcart_product_shard_0"
+            user: "postgres"
+            sslMode: "disable"
+
+      - shardId: 1
+        host: "localhost"
+        port: "5432"
+        name: "nexcart_product_shard_1"
+        user: "postgres"
+        sslMode: "disable"
+        maxOpenConns: 25
+        maxIdleConns: 5
+        replicas:
+          - host: "localhost"
+            port: "5432"
+            name: "nexcart_product_shard_1"
+            user: "postgres"
+            sslMode: "disable"
 
 
 redis:

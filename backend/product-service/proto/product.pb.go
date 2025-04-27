@@ -181,8 +181,18 @@ type ProductVariant struct {
 	Images        []*VariantImage          `protobuf:"bytes,9,rep,name=images,proto3" json:"images,omitempty"`
 	CreatedAt     *timestamppb.Timestamp   `protobuf:"bytes,10,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt     *timestamppb.Timestamp   `protobuf:"bytes,11,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// Inherited fields from parent product
+	Description      string                  `protobuf:"bytes,12,opt,name=description,proto3" json:"description,omitempty"`
+	ShortDescription string                  `protobuf:"bytes,13,opt,name=short_description,json=shortDescription,proto3" json:"short_description,omitempty"`
+	Specifications   []*ProductSpecification `protobuf:"bytes,14,rep,name=specifications,proto3" json:"specifications,omitempty"`
+	Tags             []*ProductTag           `protobuf:"bytes,15,rep,name=tags,proto3" json:"tags,omitempty"`
+	Categories       []*Category             `protobuf:"bytes,16,rep,name=categories,proto3" json:"categories,omitempty"`
+	Brand            *Brand                  `protobuf:"bytes,17,opt,name=brand,proto3" json:"brand,omitempty"`
+	Seo              *ProductSEO             `protobuf:"bytes,18,opt,name=seo,proto3" json:"seo,omitempty"`
+	Shipping         *ProductShipping        `protobuf:"bytes,19,opt,name=shipping,proto3" json:"shipping,omitempty"`
+	Discount         *ProductDiscount        `protobuf:"bytes,20,opt,name=discount,proto3" json:"discount,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *ProductVariant) Reset() {
@@ -288,6 +298,69 @@ func (x *ProductVariant) GetCreatedAt() *timestamppb.Timestamp {
 func (x *ProductVariant) GetUpdatedAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.UpdatedAt
+	}
+	return nil
+}
+
+func (x *ProductVariant) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *ProductVariant) GetShortDescription() string {
+	if x != nil {
+		return x.ShortDescription
+	}
+	return ""
+}
+
+func (x *ProductVariant) GetSpecifications() []*ProductSpecification {
+	if x != nil {
+		return x.Specifications
+	}
+	return nil
+}
+
+func (x *ProductVariant) GetTags() []*ProductTag {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
+}
+
+func (x *ProductVariant) GetCategories() []*Category {
+	if x != nil {
+		return x.Categories
+	}
+	return nil
+}
+
+func (x *ProductVariant) GetBrand() *Brand {
+	if x != nil {
+		return x.Brand
+	}
+	return nil
+}
+
+func (x *ProductVariant) GetSeo() *ProductSEO {
+	if x != nil {
+		return x.Seo
+	}
+	return nil
+}
+
+func (x *ProductVariant) GetShipping() *ProductShipping {
+	if x != nil {
+		return x.Shipping
+	}
+	return nil
+}
+
+func (x *ProductVariant) GetDiscount() *ProductDiscount {
+	if x != nil {
+		return x.Discount
 	}
 	return nil
 }
@@ -2541,7 +2614,7 @@ const file_proto_product_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xcc\x03\n" +
+	"updated_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xf7\x06\n" +
 	"\x0eProductVariant\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -2559,7 +2632,18 @@ const file_proto_product_proto_rawDesc = "" +
 	"created_at\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xc3\x01\n" +
+	"updated_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12 \n" +
+	"\vdescription\x18\f \x01(\tR\vdescription\x12+\n" +
+	"\x11short_description\x18\r \x01(\tR\x10shortDescription\x12E\n" +
+	"\x0especifications\x18\x0e \x03(\v2\x1d.product.ProductSpecificationR\x0especifications\x12'\n" +
+	"\x04tags\x18\x0f \x03(\v2\x13.product.ProductTagR\x04tags\x121\n" +
+	"\n" +
+	"categories\x18\x10 \x03(\v2\x11.product.CategoryR\n" +
+	"categories\x12$\n" +
+	"\x05brand\x18\x11 \x01(\v2\x0e.product.BrandR\x05brand\x12%\n" +
+	"\x03seo\x18\x12 \x01(\v2\x13.product.ProductSEOR\x03seo\x124\n" +
+	"\bshipping\x18\x13 \x01(\v2\x18.product.ProductShippingR\bshipping\x124\n" +
+	"\bdiscount\x18\x14 \x01(\v2\x18.product.ProductDiscountR\bdiscount\"\xc3\x01\n" +
 	"\n" +
 	"ProductTag\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
@@ -2848,85 +2932,92 @@ var file_proto_product_proto_depIdxs = []int32{
 	1,  // 4: product.ProductVariant.images:type_name -> product.VariantImage
 	33, // 5: product.ProductVariant.created_at:type_name -> google.protobuf.Timestamp
 	33, // 6: product.ProductVariant.updated_at:type_name -> google.protobuf.Timestamp
-	33, // 7: product.ProductTag.created_at:type_name -> google.protobuf.Timestamp
-	33, // 8: product.ProductTag.updated_at:type_name -> google.protobuf.Timestamp
-	33, // 9: product.ProductAttribute.created_at:type_name -> google.protobuf.Timestamp
-	33, // 10: product.ProductAttribute.updated_at:type_name -> google.protobuf.Timestamp
-	33, // 11: product.ProductSpecification.created_at:type_name -> google.protobuf.Timestamp
-	33, // 12: product.ProductSpecification.updated_at:type_name -> google.protobuf.Timestamp
-	33, // 13: product.ProductSEO.created_at:type_name -> google.protobuf.Timestamp
-	33, // 14: product.ProductSEO.updated_at:type_name -> google.protobuf.Timestamp
-	33, // 15: product.ProductShipping.created_at:type_name -> google.protobuf.Timestamp
-	33, // 16: product.ProductShipping.updated_at:type_name -> google.protobuf.Timestamp
-	33, // 17: product.ProductDiscount.expires_at:type_name -> google.protobuf.Timestamp
-	33, // 18: product.ProductDiscount.created_at:type_name -> google.protobuf.Timestamp
-	33, // 19: product.ProductDiscount.updated_at:type_name -> google.protobuf.Timestamp
-	33, // 20: product.InventoryLocation.created_at:type_name -> google.protobuf.Timestamp
-	33, // 21: product.InventoryLocation.updated_at:type_name -> google.protobuf.Timestamp
-	34, // 22: product.Product.discount_price:type_name -> google.protobuf.DoubleValue
-	34, // 23: product.Product.weight:type_name -> google.protobuf.DoubleValue
-	33, // 24: product.Product.created_at:type_name -> google.protobuf.Timestamp
-	33, // 25: product.Product.updated_at:type_name -> google.protobuf.Timestamp
-	35, // 26: product.Product.brand_id:type_name -> google.protobuf.StringValue
-	12, // 27: product.Product.brand:type_name -> product.Brand
-	11, // 28: product.Product.images:type_name -> product.ProductImage
-	13, // 29: product.Product.categories:type_name -> product.Category
-	2,  // 30: product.Product.variants:type_name -> product.ProductVariant
-	35, // 31: product.Product.default_variant_id:type_name -> google.protobuf.StringValue
-	3,  // 32: product.Product.tags:type_name -> product.ProductTag
-	4,  // 33: product.Product.attributes:type_name -> product.ProductAttribute
-	5,  // 34: product.Product.specifications:type_name -> product.ProductSpecification
-	6,  // 35: product.Product.seo:type_name -> product.ProductSEO
-	7,  // 36: product.Product.shipping:type_name -> product.ProductShipping
-	8,  // 37: product.Product.discount:type_name -> product.ProductDiscount
-	9,  // 38: product.Product.inventory_locations:type_name -> product.InventoryLocation
-	33, // 39: product.ProductImage.created_at:type_name -> google.protobuf.Timestamp
-	33, // 40: product.ProductImage.updated_at:type_name -> google.protobuf.Timestamp
-	33, // 41: product.Brand.created_at:type_name -> google.protobuf.Timestamp
-	33, // 42: product.Brand.updated_at:type_name -> google.protobuf.Timestamp
-	33, // 43: product.Brand.deleted_at:type_name -> google.protobuf.Timestamp
-	35, // 44: product.Category.parent_id:type_name -> google.protobuf.StringValue
-	33, // 45: product.Category.created_at:type_name -> google.protobuf.Timestamp
-	33, // 46: product.Category.updated_at:type_name -> google.protobuf.Timestamp
-	33, // 47: product.Category.deleted_at:type_name -> google.protobuf.Timestamp
-	10, // 48: product.CreateProductRequest.product:type_name -> product.Product
-	10, // 49: product.UpdateProductRequest.product:type_name -> product.Product
-	10, // 50: product.ListProductsResponse.products:type_name -> product.Product
-	12, // 51: product.ListBrandsResponse.brands:type_name -> product.Brand
-	12, // 52: product.CreateBrandRequest.brand:type_name -> product.Brand
-	13, // 53: product.ListCategoriesResponse.categories:type_name -> product.Category
-	13, // 54: product.CreateCategoryRequest.category:type_name -> product.Category
-	14, // 55: product.ProductService.CreateProduct:input_type -> product.CreateProductRequest
-	15, // 56: product.ProductService.GetProduct:input_type -> product.GetProductRequest
-	19, // 57: product.ProductService.ListProducts:input_type -> product.ListProductsRequest
-	16, // 58: product.ProductService.UpdateProduct:input_type -> product.UpdateProductRequest
-	17, // 59: product.ProductService.DeleteProduct:input_type -> product.DeleteProductRequest
-	24, // 60: product.ProductService.CreateBrand:input_type -> product.CreateBrandRequest
-	21, // 61: product.ProductService.GetBrand:input_type -> product.GetBrandRequest
-	22, // 62: product.ProductService.ListBrands:input_type -> product.ListBrandsRequest
-	28, // 63: product.ProductService.CreateCategory:input_type -> product.CreateCategoryRequest
-	25, // 64: product.ProductService.GetCategory:input_type -> product.GetCategoryRequest
-	26, // 65: product.ProductService.ListCategories:input_type -> product.ListCategoriesRequest
-	29, // 66: product.ProductService.UploadImage:input_type -> product.UploadImageRequest
-	31, // 67: product.ProductService.DeleteImage:input_type -> product.DeleteImageRequest
-	10, // 68: product.ProductService.CreateProduct:output_type -> product.Product
-	10, // 69: product.ProductService.GetProduct:output_type -> product.Product
-	20, // 70: product.ProductService.ListProducts:output_type -> product.ListProductsResponse
-	10, // 71: product.ProductService.UpdateProduct:output_type -> product.Product
-	18, // 72: product.ProductService.DeleteProduct:output_type -> product.DeleteProductResponse
-	12, // 73: product.ProductService.CreateBrand:output_type -> product.Brand
-	12, // 74: product.ProductService.GetBrand:output_type -> product.Brand
-	23, // 75: product.ProductService.ListBrands:output_type -> product.ListBrandsResponse
-	13, // 76: product.ProductService.CreateCategory:output_type -> product.Category
-	13, // 77: product.ProductService.GetCategory:output_type -> product.Category
-	27, // 78: product.ProductService.ListCategories:output_type -> product.ListCategoriesResponse
-	30, // 79: product.ProductService.UploadImage:output_type -> product.UploadImageResponse
-	32, // 80: product.ProductService.DeleteImage:output_type -> product.DeleteImageResponse
-	68, // [68:81] is the sub-list for method output_type
-	55, // [55:68] is the sub-list for method input_type
-	55, // [55:55] is the sub-list for extension type_name
-	55, // [55:55] is the sub-list for extension extendee
-	0,  // [0:55] is the sub-list for field type_name
+	5,  // 7: product.ProductVariant.specifications:type_name -> product.ProductSpecification
+	3,  // 8: product.ProductVariant.tags:type_name -> product.ProductTag
+	13, // 9: product.ProductVariant.categories:type_name -> product.Category
+	12, // 10: product.ProductVariant.brand:type_name -> product.Brand
+	6,  // 11: product.ProductVariant.seo:type_name -> product.ProductSEO
+	7,  // 12: product.ProductVariant.shipping:type_name -> product.ProductShipping
+	8,  // 13: product.ProductVariant.discount:type_name -> product.ProductDiscount
+	33, // 14: product.ProductTag.created_at:type_name -> google.protobuf.Timestamp
+	33, // 15: product.ProductTag.updated_at:type_name -> google.protobuf.Timestamp
+	33, // 16: product.ProductAttribute.created_at:type_name -> google.protobuf.Timestamp
+	33, // 17: product.ProductAttribute.updated_at:type_name -> google.protobuf.Timestamp
+	33, // 18: product.ProductSpecification.created_at:type_name -> google.protobuf.Timestamp
+	33, // 19: product.ProductSpecification.updated_at:type_name -> google.protobuf.Timestamp
+	33, // 20: product.ProductSEO.created_at:type_name -> google.protobuf.Timestamp
+	33, // 21: product.ProductSEO.updated_at:type_name -> google.protobuf.Timestamp
+	33, // 22: product.ProductShipping.created_at:type_name -> google.protobuf.Timestamp
+	33, // 23: product.ProductShipping.updated_at:type_name -> google.protobuf.Timestamp
+	33, // 24: product.ProductDiscount.expires_at:type_name -> google.protobuf.Timestamp
+	33, // 25: product.ProductDiscount.created_at:type_name -> google.protobuf.Timestamp
+	33, // 26: product.ProductDiscount.updated_at:type_name -> google.protobuf.Timestamp
+	33, // 27: product.InventoryLocation.created_at:type_name -> google.protobuf.Timestamp
+	33, // 28: product.InventoryLocation.updated_at:type_name -> google.protobuf.Timestamp
+	34, // 29: product.Product.discount_price:type_name -> google.protobuf.DoubleValue
+	34, // 30: product.Product.weight:type_name -> google.protobuf.DoubleValue
+	33, // 31: product.Product.created_at:type_name -> google.protobuf.Timestamp
+	33, // 32: product.Product.updated_at:type_name -> google.protobuf.Timestamp
+	35, // 33: product.Product.brand_id:type_name -> google.protobuf.StringValue
+	12, // 34: product.Product.brand:type_name -> product.Brand
+	11, // 35: product.Product.images:type_name -> product.ProductImage
+	13, // 36: product.Product.categories:type_name -> product.Category
+	2,  // 37: product.Product.variants:type_name -> product.ProductVariant
+	35, // 38: product.Product.default_variant_id:type_name -> google.protobuf.StringValue
+	3,  // 39: product.Product.tags:type_name -> product.ProductTag
+	4,  // 40: product.Product.attributes:type_name -> product.ProductAttribute
+	5,  // 41: product.Product.specifications:type_name -> product.ProductSpecification
+	6,  // 42: product.Product.seo:type_name -> product.ProductSEO
+	7,  // 43: product.Product.shipping:type_name -> product.ProductShipping
+	8,  // 44: product.Product.discount:type_name -> product.ProductDiscount
+	9,  // 45: product.Product.inventory_locations:type_name -> product.InventoryLocation
+	33, // 46: product.ProductImage.created_at:type_name -> google.protobuf.Timestamp
+	33, // 47: product.ProductImage.updated_at:type_name -> google.protobuf.Timestamp
+	33, // 48: product.Brand.created_at:type_name -> google.protobuf.Timestamp
+	33, // 49: product.Brand.updated_at:type_name -> google.protobuf.Timestamp
+	33, // 50: product.Brand.deleted_at:type_name -> google.protobuf.Timestamp
+	35, // 51: product.Category.parent_id:type_name -> google.protobuf.StringValue
+	33, // 52: product.Category.created_at:type_name -> google.protobuf.Timestamp
+	33, // 53: product.Category.updated_at:type_name -> google.protobuf.Timestamp
+	33, // 54: product.Category.deleted_at:type_name -> google.protobuf.Timestamp
+	10, // 55: product.CreateProductRequest.product:type_name -> product.Product
+	10, // 56: product.UpdateProductRequest.product:type_name -> product.Product
+	10, // 57: product.ListProductsResponse.products:type_name -> product.Product
+	12, // 58: product.ListBrandsResponse.brands:type_name -> product.Brand
+	12, // 59: product.CreateBrandRequest.brand:type_name -> product.Brand
+	13, // 60: product.ListCategoriesResponse.categories:type_name -> product.Category
+	13, // 61: product.CreateCategoryRequest.category:type_name -> product.Category
+	14, // 62: product.ProductService.CreateProduct:input_type -> product.CreateProductRequest
+	15, // 63: product.ProductService.GetProduct:input_type -> product.GetProductRequest
+	19, // 64: product.ProductService.ListProducts:input_type -> product.ListProductsRequest
+	16, // 65: product.ProductService.UpdateProduct:input_type -> product.UpdateProductRequest
+	17, // 66: product.ProductService.DeleteProduct:input_type -> product.DeleteProductRequest
+	24, // 67: product.ProductService.CreateBrand:input_type -> product.CreateBrandRequest
+	21, // 68: product.ProductService.GetBrand:input_type -> product.GetBrandRequest
+	22, // 69: product.ProductService.ListBrands:input_type -> product.ListBrandsRequest
+	28, // 70: product.ProductService.CreateCategory:input_type -> product.CreateCategoryRequest
+	25, // 71: product.ProductService.GetCategory:input_type -> product.GetCategoryRequest
+	26, // 72: product.ProductService.ListCategories:input_type -> product.ListCategoriesRequest
+	29, // 73: product.ProductService.UploadImage:input_type -> product.UploadImageRequest
+	31, // 74: product.ProductService.DeleteImage:input_type -> product.DeleteImageRequest
+	10, // 75: product.ProductService.CreateProduct:output_type -> product.Product
+	10, // 76: product.ProductService.GetProduct:output_type -> product.Product
+	20, // 77: product.ProductService.ListProducts:output_type -> product.ListProductsResponse
+	10, // 78: product.ProductService.UpdateProduct:output_type -> product.Product
+	18, // 79: product.ProductService.DeleteProduct:output_type -> product.DeleteProductResponse
+	12, // 80: product.ProductService.CreateBrand:output_type -> product.Brand
+	12, // 81: product.ProductService.GetBrand:output_type -> product.Brand
+	23, // 82: product.ProductService.ListBrands:output_type -> product.ListBrandsResponse
+	13, // 83: product.ProductService.CreateCategory:output_type -> product.Category
+	13, // 84: product.ProductService.GetCategory:output_type -> product.Category
+	27, // 85: product.ProductService.ListCategories:output_type -> product.ListCategoriesResponse
+	30, // 86: product.ProductService.UploadImage:output_type -> product.UploadImageResponse
+	32, // 87: product.ProductService.DeleteImage:output_type -> product.DeleteImageResponse
+	75, // [75:88] is the sub-list for method output_type
+	62, // [62:75] is the sub-list for method input_type
+	62, // [62:62] is the sub-list for extension type_name
+	62, // [62:62] is the sub-list for extension extendee
+	0,  // [0:62] is the sub-list for field type_name
 }
 
 func init() { file_proto_product_proto_init() }

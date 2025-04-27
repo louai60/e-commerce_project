@@ -14,6 +14,10 @@ var (
 	ErrProductAlreadyExists = errors.New("product already exists")
 	ErrVariantNotFound      = errors.New("variant not found")
 	ErrVariantAlreadyExists = errors.New("variant already exists")
+	ErrVariantSKUExists     = errors.New("variant with this SKU already exists")
+	ErrBrandNotFound        = errors.New("brand not found")
+	ErrCategoryNotFound     = errors.New("category not found")
+	ErrImageNotFound        = errors.New("image not found")
 )
 
 type Brand struct {
@@ -21,6 +25,7 @@ type Brand struct {
 	Name        string     `json:"name" db:"name"`
 	Slug        string     `json:"slug" db:"slug"`
 	Description string     `json:"description" db:"description"`
+	TenantID    *string    `json:"tenant_id,omitempty" db:"tenant_id"` // Added for sharding
 	CreatedAt   time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at" db:"updated_at"`
 	DeletedAt   *time.Time `json:"deleted_at,omitempty" db:"deleted_at"` // Added for soft delete
@@ -33,6 +38,7 @@ type Category struct {
 	Description string     `json:"description" db:"description"`
 	ParentID    *string    `json:"parent_id" db:"parent_id"`
 	ParentName  string     `json:"parent_name,omitempty" db:"-"`
+	TenantID    *string    `json:"tenant_id,omitempty" db:"tenant_id"` // Added for sharding
 	CreatedAt   time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at" db:"updated_at"`
 	DeletedAt   *time.Time `json:"deleted_at,omitempty" db:"deleted_at"` // Added for soft delete
@@ -90,6 +96,34 @@ type ProductVariant struct {
 	// Related entities (not stored directly in product_variants table)
 	Attributes []VariantAttributeValue `json:"attributes,omitempty" db:"-"` // Populated via join
 	Images     []VariantImage          `json:"images,omitempty" db:"-"`     // Populated via join
+
+	// Inherited fields (not stored, populated from parent product)
+	Description      string                 `json:"description,omitempty" db:"-"`
+	ShortDescription string                 `json:"short_description,omitempty" db:"-"`
+	Specifications   []ProductSpecification `json:"specifications,omitempty" db:"-"`
+	Tags             []ProductTag           `json:"tags,omitempty" db:"-"`
+	Categories       []Category             `json:"categories,omitempty" db:"-"`
+	Brand            *Brand                 `json:"brand,omitempty" db:"-"`
+	SEO              *ProductSEO            `json:"seo,omitempty" db:"-"`
+	Shipping         *ProductShipping       `json:"shipping,omitempty" db:"-"`
+	Discount         *ProductDiscount       `json:"discount,omitempty" db:"-"`
+}
+
+// InheritFromProduct populates the variant's inherited fields from the parent product
+func (v *ProductVariant) InheritFromProduct(product *Product) {
+	if product == nil {
+		return
+	}
+
+	v.Description = product.Description
+	v.ShortDescription = product.ShortDescription
+	v.Specifications = product.Specifications
+	v.Tags = product.Tags
+	v.Categories = product.Categories
+	v.Brand = product.Brand
+	v.SEO = product.SEO
+	v.Shipping = product.Shipping
+	v.Discount = product.Discount
 }
 
 // Price represents the price structure for a product
@@ -108,6 +142,7 @@ type Product struct {
 	InventoryStatus  string     `json:"inventory_status" db:"inventory_status"` // 'in_stock', 'out_of_stock', etc.
 	Weight           *float64   `json:"weight" db:"weight"`                     // Weight might stay at product level if consistent across variants
 	IsPublished      bool       `json:"is_published" db:"is_published"`
+	TenantID         *string    `json:"tenant_id,omitempty" db:"tenant_id"` // Added for sharding
 	CreatedAt        time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt        time.Time  `json:"updated_at" db:"updated_at"`
 	DeletedAt        *time.Time `json:"deleted_at,omitempty" db:"deleted_at"` // Added via migration 000003

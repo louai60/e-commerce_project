@@ -7,12 +7,13 @@ import (
 	"log"
 	"net"
 	"os"
+	"strconv"
 	"time"
 
-	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	"github.com/louai60/e-commerce_project/backend/user-service/cache"
 	"github.com/louai60/e-commerce_project/backend/user-service/config"
+	"github.com/louai60/e-commerce_project/backend/user-service/db"
 	"github.com/louai60/e-commerce_project/backend/user-service/handlers"
 	pb "github.com/louai60/e-commerce_project/backend/user-service/proto"
 	"github.com/louai60/e-commerce_project/backend/user-service/repository"
@@ -148,40 +149,28 @@ func main() {
 		logger.Fatal("Failed to load configuration", zap.Error(err))
 	}
 
-	// Initialize database connection
-	dbConnStr := fmt.Sprintf(
-		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-		cfg.Database.Host,
-		cfg.Database.Port,
-		cfg.Database.User,
-		cfg.Database.Password,
-		cfg.Database.Name,
-		cfg.Database.SSLMode,
-	)
-
-	db, err := sql.Open("postgres", dbConnStr)
+	// Initialize database configuration with master and replicas
+	dbConfig, err := db.NewDBConfig(cfg, logger)
 	if err != nil {
-		logger.Fatal("Failed to connect to database", zap.Error(err))
+		logger.Fatal("Failed to initialize database configuration", zap.Error(err))
 	}
-	defer db.Close()
+	defer dbConfig.Close()
 
 	// Test database connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := db.PingContext(ctx); err != nil {
+	if err := dbConfig.Master.PingContext(ctx); err != nil {
 		logger.Fatal("Failed to ping database", zap.Error(err))
 	}
 
 	// Initialize database tables
-	if err := initializeDatabase(ctx, db, logger); err != nil {
+	if err := initializeDatabase(ctx, dbConfig.Master.DB, logger); err != nil {
 		logger.Fatal("Failed to initialize database", zap.Error(err))
 	}
 
 	// Initialize repository
 	logger.Info("Initializing repository...")
-	// Initialize sqlx.DB from sql.DB
-	dbx := sqlx.NewDb(db, "postgres")
-	repo := repository.NewPostgresRepository(dbx, logger)
+	repo := repository.NewPostgresRepository(dbConfig, logger)
 
 	// Initialize rate limiter
 	rateLimiter := service.NewSimpleRateLimiter(
@@ -226,14 +215,57 @@ func main() {
 	if os.Getenv("APP_ENV") == "development" && os.Getenv("DOCKER_ENV") != "true" {
 		redisHost = "localhost"
 	}
-	
+
 	redisAddr := fmt.Sprintf("%s:%s", redisHost, cfg.Redis.Port)
-	logger.Info("Connecting to Redis", 
+	logger.Info("Connecting to Redis",
 		zap.String("address", redisAddr))
-		
-	cacheManager, err := cache.NewUserCacheManager(redisAddr)
+
+	// Initialize tiered cache manager with circuit breaker
+	redisPassword := os.Getenv("REDIS_PASSWORD")
+	redisDB := 0
+	if dbStr := os.Getenv("REDIS_DB"); dbStr != "" {
+		if db, err := strconv.Atoi(dbStr); err == nil {
+			redisDB = db
+		}
+	}
+
+	cacheManager, err := cache.NewTieredUserCacheManager(cache.TieredUserCacheOptions{
+		RedisAddr:     redisAddr,
+		RedisPassword: redisPassword,
+		RedisDB:       redisDB,
+		RedisPoolSize: 10,
+		DefaultTTL:    30 * time.Minute,
+		Logger:        logger,
+		// Circuit breaker settings
+		FailureThreshold:         5,
+		ResetTimeout:             30 * time.Second,
+		HalfOpenSuccessThreshold: 2,
+	})
+
+	// Warm up cache with critical data
+	logger.Info("Starting cache warm-up")
+	go func() {
+		// Wait a bit for services to initialize
+		time.Sleep(2 * time.Second)
+
+		// Create context with timeout for warm-up
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		// Warm up cache with critical data
+		result, err := cacheManager.WarmupCache(ctx)
+		if err != nil {
+			logger.Error("Cache warm-up failed", zap.Error(err))
+			return
+		}
+
+		logger.Info("Cache warm-up completed",
+			zap.Int("successCount", result.SuccessCount),
+			zap.Int("errorCount", result.ErrorCount),
+			zap.Duration("duration", result.Duration))
+	}()
 	if err != nil {
-		logger.Fatal("Failed to initialize cache manager", 
+		logger.Fatal("Failed to initialize tiered cache manager",
 			zap.Error(err),
 			zap.String("redis_addr", redisAddr))
 	}

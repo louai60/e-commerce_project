@@ -20,6 +20,7 @@ import LoadingSpinner from "@/components/ui/loading/LoadingSpinner";
 import Pagination from "@/components/ui/pagination";
 import { useModal } from "@/hooks/useModal";
 import DeleteProductModal from "@/components/products/DeleteProductModal";
+import ProductDetailsModal from "@/components/products/ProductDetailsModal";
 import { Product } from "@/services/product.service";
 
 export default function ProductsPage() {
@@ -31,6 +32,10 @@ export default function ProductsPage() {
   // State for delete modal
   const deleteModal = useModal();
   const [productToDelete, setProductToDelete] = useState<{ id: string; title: string } | null>(null);
+
+  // State for details modal
+  const detailsModal = useModal();
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   // Add a refresh button to the UI
   const handleRefresh = () => {
@@ -44,6 +49,18 @@ export default function ProductsPage() {
       title: product.title || 'Untitled Product'
     });
     deleteModal.openModal();
+  };
+
+  // Handle opening the details modal
+  const handleProductClick = (product: Product) => {
+    // Log the product data to help diagnose issues
+    console.log('Product clicked:', product);
+    console.log('Product images:', product.images);
+    console.log('Product price:', product.price);
+    console.log('Product inventory:', product.inventory);
+
+    setSelectedProduct(product);
+    detailsModal.openModal();
   };
 
   // Handle the actual deletion
@@ -145,9 +162,14 @@ export default function ProductsPage() {
               <TableBody>
                 {Array.isArray(products) && products.length > 0 ? (
                   products.map((product) => (
-                    <TableRow key={product?.id || Math.random().toString()}>
+                    <TableRow
+                      key={product?.id || Math.random().toString()}
+                    >
                       <TableCell>
-                        <div className="flex items-center gap-3">
+                        <div
+                          className="flex items-center gap-3 cursor-pointer"
+                          onClick={() => handleProductClick(product)}
+                        >
                           <div className="h-10 w-10 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
                             {product?.images && product.images.length > 0 && product.images[0]?.url ? (
                               <Image
@@ -156,6 +178,7 @@ export default function ProductsPage() {
                                 width={40}
                                 height={40}
                                 className="h-full w-full object-cover"
+                                unoptimized={true}
                               />
                             ) : (
                               <div className="flex h-full w-full items-center justify-center bg-gray-100 dark:bg-gray-800">
@@ -174,21 +197,31 @@ export default function ProductsPage() {
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>{product?.sku || "N/A"}</TableCell>
                       <TableCell>
-                        {product?.price?.current?.USD ? formatPrice(product.price.current.USD) : "N/A"}
+                        <div className="cursor-pointer" onClick={() => handleProductClick(product)}>
+                          {product?.sku || "N/A"}
+                        </div>
                       </TableCell>
-                      <TableCell>{product?.inventory?.quantity || 0}</TableCell>
                       <TableCell>
-                        <Badge
-                          variant={
-                            product?.inventory?.available
-                              ? "success"
-                              : "danger"
-                          }
-                        >
-                          {product?.inventory?.status || "OUT_OF_STOCK"}
-                        </Badge>
+                        <div className="cursor-pointer" onClick={() => handleProductClick(product)}>
+                          {product?.price?.current?.USD ? formatPrice(product.price.current.USD) :
+                           product?.price?.value ? formatPrice(product.price.value) : "N/A"}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="cursor-pointer" onClick={() => handleProductClick(product)}>
+                          {product?.inventory?.quantity || 0}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="cursor-pointer" onClick={() => handleProductClick(product)}>
+                          <Badge
+                            variant="success"
+                            className="bg-green-500 text-white px-3 py-1 rounded-full text-xs"
+                          >
+                            in_stock
+                          </Badge>
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-2">
@@ -247,6 +280,13 @@ export default function ProductsPage() {
           onDelete={handleDeleteConfirm}
         />
       )}
+
+      {/* Product Details Modal */}
+      <ProductDetailsModal
+        isOpen={detailsModal.isOpen}
+        onClose={detailsModal.closeModal}
+        product={selectedProduct}
+      />
     </div>
   );
 }

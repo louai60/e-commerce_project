@@ -27,6 +27,23 @@ type Config struct {
 		Password string
 		Name     string
 		SSLMode  string
+		MaxOpenConns    int
+		MaxIdleConns    int
+		ConnMaxLifetime time.Duration
+		ConnMaxIdleTime time.Duration
+		Replicas []struct {
+			Host     string
+			Port     string
+			User     string
+			Password string
+			Name     string
+			SSLMode  string
+			MaxOpenConns    int
+			MaxIdleConns    int
+			ConnMaxLifetime time.Duration
+			ConnMaxIdleTime time.Duration
+		}
+		ReplicaSelector string
 	}
 	Redis struct {
 		Host string
