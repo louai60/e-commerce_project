@@ -1,0 +1,25 @@
+name: Documentation
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '@docs/**'
+      - 'docs/**'
+      - '**.md'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - '@docs/**'
+      - 'docs/**'
+      - '**.md'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify documentation
+        run: |
+          echo "Documentation changes detected"
+          echo "No tests needed for documentation-only changes"

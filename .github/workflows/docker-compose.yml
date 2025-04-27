@@ -1,0 +1,42 @@
+name: Docker Compose CI
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'docker-compose.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'docker-compose.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup environment files
+        run: |
+          # Backend services
+          mkdir -p backend/product-service backend/user-service backend/api-gateway
+          touch backend/product-service/.env backend/user-service/.env backend/api-gateway/.env
+          
+          # Create .env files if they don't exist
+          if [ -f backend/product-service/.env.example ]; then
+            cp backend/product-service/.env.example backend/product-service/.env
+          fi
+          
+          if [ -f backend/user-service/.env.example ]; then
+            cp backend/user-service/.env.example backend/user-service/.env
+          fi
+          
+          if [ -f backend/api-gateway/.env.example ]; then
+            cp backend/api-gateway/.env.example backend/api-gateway/.env
+          fi
+      
+      - name: Validate docker-compose.yml
+        run: docker-compose config
+      
+      - name: Build all services
+        run: docker-compose build

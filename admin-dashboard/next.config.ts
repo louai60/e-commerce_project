@@ -9,6 +9,19 @@ const nextConfig: NextConfig = {
       'cloudinary.com',
       'images.unsplash.com',
       'placehold.co',
+      'localhost',
+      'dkfm4o59m.cloudinary.com',
+      'api.cloudinary.com',
+    ],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**',
+      },
+      {
+        protocol: 'http',
+        hostname: '**',
+      },
     ],
   },
   webpack(config) {
