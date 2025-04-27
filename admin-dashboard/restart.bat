@@ -1,0 +1,9 @@
+@echo off
+echo Stopping any running Next.js server...
+taskkill /f /im node.exe 2>nul
+
+echo Clearing Next.js cache...
+rmdir /s /q .next 2>nul
+
+echo Starting Next.js server...
+npm run dev

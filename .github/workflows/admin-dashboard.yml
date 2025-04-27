@@ -1,0 +1,39 @@
+name: Admin Dashboard CI
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'admin-dashboard/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'admin-dashboard/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: 'admin-dashboard/package-lock.json'
+
+      - name: Install dependencies
+        run: |
+          cd admin-dashboard
+          npm ci
+
+      - name: Lint
+        run: |
+          cd admin-dashboard
+          npm run lint
+
+      - name: Build
+        run: |
+          cd admin-dashboard
+          npm run build
