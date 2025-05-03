@@ -20,9 +20,6 @@ issues:
       linters:
         - errcheck
         - gosec
-    - path: cache/
-      linters:
-        - typecheck
     - path: service/
       linters:
         - typecheck
