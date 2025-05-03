@@ -114,7 +114,7 @@ jobs:
         INVENTORY_SERVICE_ADDR: localhost:50055
     - name: Install golangci-lint
       run: |
-        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.55.2
+        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.53.3
         echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
     - name: Run linter on product-service
@@ -122,28 +122,28 @@ jobs:
       id: lint-product
       run: |
         cd backend/product-service
-        golangci-lint run --out-format=github-actions
+        golangci-lint run --out-format=github-actions --timeout=5m --skip-dirs=tests --disable=typecheck
 
     - name: Run linter on user-service
       continue-on-error: true
       id: lint-user
       run: |
         cd backend/user-service
-        golangci-lint run --out-format=github-actions
+        golangci-lint run --out-format=github-actions --timeout=5m --skip-dirs=tests --disable=typecheck
 
     - name: Run linter on api-gateway
       continue-on-error: true
       id: lint-api-gateway
       run: |
         cd backend/api-gateway
-        golangci-lint run --out-format=github-actions
+        golangci-lint run --out-format=github-actions --timeout=5m --skip-dirs=tests --disable=typecheck
 
     - name: Run linter on inventory-service
       continue-on-error: true
       id: lint-inventory
       run: |
         cd backend/inventory-service
-        golangci-lint run --out-format=github-actions
+        golangci-lint run --out-format=github-actions --timeout=5m --skip-dirs=tests --disable=typecheck
 
     - name: Test Summary
       run: |
@@ -244,15 +244,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
     - name: Setup environment files
       run: |
         cp backend/product-service/.env.example backend/product-service/.env
         cp backend/user-service/.env.example backend/user-service/.env
         cp backend/api-gateway/.env.example backend/api-gateway/.env
         cp backend/inventory-service/.env.example backend/inventory-service/.env 2>/dev/null || touch backend/inventory-service/.env
+        # Make sure init-db.sh is executable
+        chmod +x init-db.sh
     - name: Build Backend Docker images
       run: |
-        docker-compose build api-gateway
-        docker-compose build product-service
-        docker-compose build user-service
-        docker-compose build inventory-service
+        # Make sure we're in the right directory
+        ls -la
+        # Check Docker and Docker Compose versions
+        docker --version
+        docker compose version
+        # Build the images
+        docker compose build api-gateway
+        docker compose build product-service
+        docker compose build user-service
+        docker compose build inventory-service

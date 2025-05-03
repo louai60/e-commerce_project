@@ -12,7 +12,7 @@ RUN go mod download
 COPY . .
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o inventory-service ./backend/inventory-service
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o inventory-service .
 
 # Use a minimal alpine image for the final stage
 FROM alpine:latest
@@ -23,7 +23,7 @@ WORKDIR /root/
 
 # Copy the binary from the builder stage
 COPY --from=builder /app/inventory-service .
-COPY --from=builder /app/backend/inventory-service/config ./config/
+COPY --from=builder /app/config ./config/
 
 # Expose the port
 EXPOSE 50055
