@@ -1,17 +1,17 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 
 const CustomSelect = ({ options }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedOption, setSelectedOption] = useState(options[0]);
 
-  const toggleDropdown = () => {
-    setIsOpen(!isOpen);
-  };
+  const toggleDropdown = useCallback(() => {
+    setIsOpen(prevState => !prevState);
+  }, []);
 
-  const handleOptionClick = (option) => {
+  const handleOptionClick = useCallback((option) => {
     setSelectedOption(option);
     toggleDropdown();
-  };
+  }, [toggleDropdown]);
 
   useEffect(() => {
     function handleClickOutside(event) {
