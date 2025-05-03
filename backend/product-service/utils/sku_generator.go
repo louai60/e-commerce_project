@@ -106,9 +106,10 @@ func GenerateUniqueSKU(ctx context.Context, repo SKUExistsChecker, brand, catego
 	}
 
 	// If we've tried maxAttempts times and still haven't found a unique SKU,
-	// generate a completely random one as a last resort
-	randomSKU := fmt.Sprintf("SKU-%s", generateRandomCode(8))
-	return randomSKU, nil
+	// generate a completely random one as a last resort with the required format
+	// The format must be "SKU-" followed by exactly 8 random characters
+	randomPart := generateRandomCode(8) // Generate exactly 8 random characters
+	return "SKU-" + randomPart, nil     // Prefix with "SKU-"
 }
 
 // GenerateUniqueProductSKU creates a unique SKU from a product struct

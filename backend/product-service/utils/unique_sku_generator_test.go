@@ -19,7 +19,33 @@ func (m *MockSKUChecker) IsSKUExists(ctx context.Context, sku string) (bool, err
 	if m.ReturnError {
 		return false, errors.New("database error")
 	}
+
+	// If this is a fallback SKU (starts with "SKU-"), it should not exist
+	// This ensures the fallback SKU is always returned as unique
+	if strings.HasPrefix(sku, "SKU-") {
+		return false, nil
+	}
+
 	return m.ExistingSKUs[sku], nil
+}
+
+// AlwaysExistsMockSKUChecker is a special mock that makes all non-fallback SKUs appear to exist
+type AlwaysExistsMockSKUChecker struct {
+	ReturnError bool
+}
+
+func (m *AlwaysExistsMockSKUChecker) IsSKUExists(ctx context.Context, sku string) (bool, error) {
+	if m.ReturnError {
+		return false, errors.New("database error")
+	}
+
+	// If it starts with "SKU-", it's a fallback SKU, so it should not exist
+	if strings.HasPrefix(sku, "SKU-") {
+		return false, nil
+	}
+
+	// All other SKUs should be treated as existing
+	return true, nil
 }
 
 func TestGenerateUniqueSKU(t *testing.T) {
@@ -65,15 +91,9 @@ func TestGenerateUniqueSKU(t *testing.T) {
 
 	// Test case 2: All attempts fail, should return a fallback SKU
 	t.Run("All Attempts Fail", func(t *testing.T) {
-		// Create a mock with many existing SKUs to force fallback
-		alwaysExistsMock := &MockSKUChecker{
-			ExistingSKUs: map[string]bool{},
-		}
-
-		// Pre-generate a bunch of SKUs to make them all "exist"
-		for i := 0; i < 1000; i++ {
-			alwaysExistsMock.ExistingSKUs[GenerateSKU("Nike", "Shoe", "Red", "42")] = true
-		}
+		// Create a mock that always returns true for any non-SKU- prefixed SKU
+		// This will force the function to use the fallback SKU
+		alwaysExistsMock := &AlwaysExistsMockSKUChecker{}
 
 		ctx := context.Background()
 		sku, err := GenerateUniqueSKU(ctx, alwaysExistsMock, "Nike", "Shoe", "Red", "42", 3)
