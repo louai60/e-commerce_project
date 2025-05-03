@@ -114,25 +114,25 @@ jobs:
     - name: Run linter on product-service
       uses: golangci/golangci-lint-action@v4
       with:
-        version: v1.54.2
+        version: v2.1.5
         working-directory: backend/product-service
 
     - name: Run linter on user-service
       uses: golangci/golangci-lint-action@v4
       with:
-        version: v1.54.2
+        version: v2.1.5
         working-directory: backend/user-service
 
     - name: Run linter on api-gateway
       uses: golangci/golangci-lint-action@v4
       with:
-        version: v1.54.2
+        version: v2.1.5
         working-directory: backend/api-gateway
 
     - name: Run linter on inventory-service
       uses: golangci/golangci-lint-action@v4
       with:
-        version: v1.54.2
+        version: v2.1.5
         working-directory: backend/inventory-service
 
   build:
