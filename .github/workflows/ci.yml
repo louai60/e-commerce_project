@@ -5,11 +5,17 @@ on:
     branches: [ main ]
     paths:
       - 'backend/**'
+      - '@docs/**'
+      - 'docs/**'
+      - '**.md'
       - '.github/workflows/ci.yml'
   pull_request:
     branches: [ main ]
     paths:
       - 'backend/**'
+      - '@docs/**'
+      - 'docs/**'
+      - '**.md'
       - '.github/workflows/ci.yml'
 
 jobs:
@@ -29,6 +35,7 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+          --health-start-period 10s
       redis:
         image: redis:alpine
         ports:
@@ -77,6 +84,22 @@ jobs:
         REDIS_HOST: localhost
         REDIS_PORT: 6379
 
+    # Test inventory-service
+    - name: Test inventory-service
+      run: |
+        cd backend/inventory-service
+        cp .env.example .env || touch .env
+        go mod download
+        go test ./...
+      env:
+        POSTGRES_HOST: localhost
+        POSTGRES_PORT: 5432
+        POSTGRES_USER: postgres
+        POSTGRES_PASSWORD: root
+        POSTGRES_DB: test_db
+        REDIS_HOST: localhost
+        REDIS_PORT: 6379
+
     # Test api-gateway
     - name: Test api-gateway
       run: |
@@ -87,6 +110,7 @@ jobs:
       env:
         PRODUCT_SERVICE_ADDR: localhost:50051
         USER_SERVICE_ADDR: localhost:50052
+        INVENTORY_SERVICE_ADDR: localhost:50055
     - name: Run linter on product-service
       uses: golangci/golangci-lint-action@v4
       with:
@@ -105,6 +129,12 @@ jobs:
         version: v1.54.2
         working-directory: backend/api-gateway
 
+    - name: Run linter on inventory-service
+      uses: golangci/golangci-lint-action@v4
+      with:
+        version: v1.54.2
+        working-directory: backend/inventory-service
+
   build:
     needs: test
     runs-on: ubuntu-latest
@@ -115,8 +145,10 @@ jobs:
         cp backend/product-service/.env.example backend/product-service/.env
         cp backend/user-service/.env.example backend/user-service/.env
         cp backend/api-gateway/.env.example backend/api-gateway/.env
+        cp backend/inventory-service/.env.example backend/inventory-service/.env 2>/dev/null || touch backend/inventory-service/.env
     - name: Build Backend Docker images
       run: |
         docker-compose build api-gateway
         docker-compose build product-service
         docker-compose build user-service
+        docker-compose build inventory-service
