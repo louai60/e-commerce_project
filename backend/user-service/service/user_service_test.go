@@ -9,81 +9,81 @@ import (
 
 // Mock implementations
 type MockRepository struct {
-    mock.Mock
+	mock.Mock
 }
 
 type MockRateLimiter struct {
-    mock.Mock
+	mock.Mock
 }
 
 type MockTokenManager struct {
-    mock.Mock
+	mock.Mock
 }
 
 // MockRateLimiter implementations
 func (m *MockRateLimiter) Allow(key string) error {
-    args := m.Called(key)
-    return args.Error(0)
+	args := m.Called(key)
+	return args.Error(0)
 }
 
 func (m *MockRateLimiter) Record(key string) {
-    m.Called(key)
+	m.Called(key)
 }
 
 // MockTokenManager implementations
 func (m *MockTokenManager) GenerateTokenPair(user *models.User) (string, string, error) {
-    args := m.Called(user)
-    return args.String(0), args.String(1), args.Error(2)
+	args := m.Called(user)
+	return args.String(0), args.String(1), args.Error(2)
 }
 
 func (m *MockTokenManager) ValidateToken(token string) (*models.User, error) {
-    args := m.Called(token)
-    if args.Get(0) == nil {
-        return nil, args.Error(1)
-    }
-    return args.Get(0).(*models.User), args.Error(1)
+	args := m.Called(token)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.User), args.Error(1)
 }
 
 // Repository mock methods (keep existing implementations)
 func (m *MockRepository) GetUser(ctx context.Context, id int64) (*models.User, error) {
-    args := m.Called(ctx, id)
-    if args.Get(0) == nil {
-        return nil, args.Error(1)
-    }
-    return args.Get(0).(*models.User), args.Error(1)
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.User), args.Error(1)
 }
 
 func (m *MockRepository) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
-    args := m.Called(ctx, email)
-    if args.Get(0) == nil {
-        return nil, args.Error(1)
-    }
-    return args.Get(0).(*models.User), args.Error(1)
+	args := m.Called(ctx, email)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.User), args.Error(1)
 }
 
 func (m *MockRepository) ListUsers(ctx context.Context, page, limit int32) ([]*models.User, int64, error) {
-    args := m.Called(ctx, page, limit)
-    return args.Get(0).([]*models.User), args.Get(1).(int64), args.Error(2)
+	args := m.Called(ctx, page, limit)
+	return args.Get(0).([]*models.User), args.Get(1).(int64), args.Error(2)
 }
 
 func (m *MockRepository) CreateUser(ctx context.Context, user *models.User) error {
-    args := m.Called(ctx, user)
-    return args.Error(0)
+	args := m.Called(ctx, user)
+	return args.Error(0)
 }
 
 func (m *MockRepository) UpdateUser(ctx context.Context, user *models.User) error {
-    args := m.Called(ctx, user)
-    return args.Error(0)
+	args := m.Called(ctx, user)
+	return args.Error(0)
 }
 
 func (m *MockRepository) DeleteUser(ctx context.Context, id string) error {
-    args := m.Called(ctx, id)
-    return args.Error(0)
+	args := m.Called(ctx, id)
+	return args.Error(0)
 }
 
 func (m *MockRepository) Ping(ctx context.Context) error {
-    args := m.Called(ctx)
-    return args.Error(0)
+	args := m.Called(ctx)
+	return args.Error(0)
 }
 
 // func TestUserService_GetUser(t *testing.T) {
@@ -167,53 +167,52 @@ func (m *MockRepository) Ping(ctx context.Context) error {
 //     mockTokenManager.AssertExpectations(t)
 // }
 
+// Successfully adds a new address for an existing user
+// func TestAddAddressSuccess(t *testing.T) {
+// 	// Setup mock controller
+// 	ctrl := gomock.NewController(t)
+// 	defer ctrl.Finish()
 
-    // Successfully adds a new address for an existing user
-	// func TestAddAddressSuccess(t *testing.T) {
-	// 	// Setup mock controller
-	// 	ctrl := gomock.NewController(t)
-	// 	defer ctrl.Finish()
-		
-	// 	// Create mock repository
-	// 	mockRepo := repository.NewMockUserRepository(ctrl)
-		
-	// 	// Create test logger
-	// 	logger, _ := zap.NewDevelopment()
-		
-	// 	// Create service with mocks
-	// 	userService := NewUserService(mockRepo, logger)
-		
-	// 	// Test data
-	// 	ctx := context.Background()
-	// 	userID := int64(123)
-	// 	address := &models.UserAddress{
-	// 		AddressType: "shipping",
-	// 		StreetAddress1: "123 Main St",
-	// 		City: "Test City",
-	// 		State: "TS",
-	// 		PostalCode: "12345",
-	// 		Country: "Test Country",
-	// 		IsDefault: true,
-	// 	}
-		
-	// 	// Mock expectations
-	// 	mockRepo.EXPECT().GetUser(ctx, userID).Return(&models.User{ID: userID, Email: "test@example.com"}, nil)
-	// 	mockRepo.EXPECT().UpdateAddress(ctx, gomock.Any()).Return(nil)
-	// 	mockRepo.EXPECT().CreateAddress(ctx, gomock.Any()).DoAndReturn(func(_ context.Context, addr *models.UserAddress) error {
-	// 		addr.AddressID = 456 // Simulate DB assigning ID
-	// 		return nil
-	// 	})
-		
-	// 	// Call the method
-	// 	result, err := userService.AddAddress(ctx, userID, address)
-		
-	// 	// Assertions
-	// 	assert.NoError(t, err)
-	// 	assert.NotNil(t, result)
-	// 	assert.Equal(t, int64(456), result.AddressID)
-	// 	assert.Equal(t, userID, result.UserID)
-	// 	assert.Equal(t, "shipping", result.AddressType)
-	// 	assert.True(t, result.IsDefault)
-	// 	assert.NotZero(t, result.CreatedAt)
-	// 	assert.NotZero(t, result.UpdatedAt)
-	// }
+// 	// Create mock repository
+// 	mockRepo := repository.NewMockUserRepository(ctrl)
+
+// 	// Create test logger
+// 	logger, _ := zap.NewDevelopment()
+
+// 	// Create service with mocks
+// 	userService := NewUserService(mockRepo, logger)
+
+// 	// Test data
+// 	ctx := context.Background()
+// 	userID := int64(123)
+// 	address := &models.UserAddress{
+// 		AddressType: "shipping",
+// 		StreetAddress1: "123 Main St",
+// 		City: "Test City",
+// 		State: "TS",
+// 		PostalCode: "12345",
+// 		Country: "Test Country",
+// 		IsDefault: true,
+// 	}
+
+// 	// Mock expectations
+// 	mockRepo.EXPECT().GetUser(ctx, userID).Return(&models.User{ID: userID, Email: "test@example.com"}, nil)
+// 	mockRepo.EXPECT().UpdateAddress(ctx, gomock.Any()).Return(nil)
+// 	mockRepo.EXPECT().CreateAddress(ctx, gomock.Any()).DoAndReturn(func(_ context.Context, addr *models.UserAddress) error {
+// 		addr.AddressID = 456 // Simulate DB assigning ID
+// 		return nil
+// 	})
+
+// 	// Call the method
+// 	result, err := userService.AddAddress(ctx, userID, address)
+
+// 	// Assertions
+// 	assert.NoError(t, err)
+// 	assert.NotNil(t, result)
+// 	assert.Equal(t, int64(456), result.AddressID)
+// 	assert.Equal(t, userID, result.UserID)
+// 	assert.Equal(t, "shipping", result.AddressType)
+// 	assert.True(t, result.IsDefault)
+// 	assert.NotZero(t, result.CreatedAt)
+// 	assert.NotZero(t, result.UpdatedAt)
+// }

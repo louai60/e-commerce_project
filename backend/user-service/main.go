@@ -29,7 +29,11 @@ func initializeDatabase(ctx context.Context, db *sql.DB, logger *zap.Logger) err
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			logger.Error("Failed to rollback transaction", zap.Error(err))
+		}
+	}()
 
 	// Create users table
 	_, err = tx.ExecContext(ctx, `
@@ -141,7 +145,11 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to initialize logger:", err)
 	}
-	defer logger.Sync()
+	defer func() {
+		if err := logger.Sync(); err != nil {
+			log.Printf("Failed to sync logger: %v", err)
+		}
+	}()
 
 	// Load configuration
 	cfg, err := config.LoadConfig()

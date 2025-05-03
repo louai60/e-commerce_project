@@ -8,7 +8,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/lib/pq v1.10.9
 	github.com/louai60/e-commerce_project/backend/common v0.0.0-20250427121004-e49258c945ba
-	github.com/louai60/e-commerce_project/backend/shared v0.0.0-00010101000000-000000000000
+	github.com/louai60/e-commerce_project/backend/shared v0.0.0
 	github.com/spf13/viper v1.20.1
 	go.uber.org/zap v1.27.0
 	google.golang.org/grpc v1.72.0

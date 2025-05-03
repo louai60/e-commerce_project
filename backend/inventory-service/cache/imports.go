@@ -7,5 +7,5 @@ import (
 	// Import Redis package to ensure it's available
 	_ "github.com/go-redis/redis/v8"
 	// Import shared package to ensure it's available
-	_ "github.com/louai60/e-commerce_project/backend/shared"
+	// _ "github.com/louai60/e-commerce_project/backend/shared"
 )
