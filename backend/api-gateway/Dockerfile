@@ -1,16 +1,15 @@
 # Build stage
 FROM golang:1.24-alpine AS builder
 
-WORKDIR /app
+# Set working directory for the build
+WORKDIR /src
 
-# Copy go.mod and go.sum files
-COPY go.mod go.sum ./
-
-# Download dependencies
-RUN go mod download
-
-# Copy the source code
+# Copy the entire backend directory to include all modules
+# The context is set to ./backend in docker-compose.yml
 COPY . .
+
+# Set working directory to the api-gateway service
+WORKDIR /src/api-gateway
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o api-gateway .
@@ -23,11 +22,11 @@ RUN apk --no-cache add ca-certificates
 WORKDIR /app
 
 # Copy the binary from the builder stage
-COPY --from=builder /app/api-gateway .
+COPY --from=builder /src/api-gateway/api-gateway .
 
 # Copy any necessary configuration files
-COPY --from=builder /app/.env.example ./.env
-COPY --from=builder /app/config ./config
+# Note: We don't copy .env.example to .env as environment variables will be provided by docker-compose
+COPY --from=builder /src/api-gateway/config ./config
 
 # Create uploads directory
 RUN mkdir -p ./uploads

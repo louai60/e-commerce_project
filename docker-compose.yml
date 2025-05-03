@@ -20,16 +20,26 @@ services:
       - api-gateway
 
   api-gateway:
-    build: ./backend/api-gateway
+    build:
+      context: ./backend
+      dockerfile: api-gateway/Dockerfile
     ports:
       - "8080:8080"
+    environment:
+      - PRODUCT_SERVICE_ADDR=product-service:50051
+      - USER_SERVICE_ADDR=user-service:50052
+      - INVENTORY_SERVICE_ADDR=inventory-service:50055
+      - ADMIN_SERVICE_ADDR=admin-service:50053
+      - ENV=production
     depends_on:
       - product-service
       - user-service
       - inventory-service
 
   product-service:
-    build: ./backend/product-service
+    build:
+      context: ./backend
+      dockerfile: product-service/Dockerfile
     ports:
       - "50051:50051"
     environment:
@@ -40,13 +50,16 @@ services:
       - POSTGRES_DB=nexcart_product
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - INVENTORY_SERVICE_ADDR=inventory-service:50055
     depends_on:
       - postgres
       - redis
       - inventory-service
 
   user-service:
-    build: ./backend/user-service
+    build:
+      context: ./backend
+      dockerfile: user-service/Dockerfile
     ports:
       - "50052:50052"
     environment:
@@ -62,7 +75,9 @@ services:
       - redis
 
   inventory-service:
-    build: ./backend/inventory-service
+    build:
+      context: ./backend
+      dockerfile: inventory-service/Dockerfile
     ports:
       - "50055:50055"
     environment:

@@ -1,29 +1,31 @@
+# Build stage
 FROM golang:1.24-alpine AS builder
 
-WORKDIR /app
+# Set working directory for the build
+WORKDIR /src
 
-# Copy go.mod and go.sum files
-COPY go.mod go.sum ./
-
-# Download dependencies
-RUN go mod download
-
-# Copy the source code
+# Copy the entire backend directory to include all modules
+# The context is set to ./backend in docker-compose.yml
 COPY . .
+
+# Set working directory to the inventory-service service
+WORKDIR /src/inventory-service
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o inventory-service .
 
-# Use a minimal alpine image for the final stage
+# Run stage
 FROM alpine:latest
 
 RUN apk --no-cache add ca-certificates
 
-WORKDIR /root/
+WORKDIR /app
 
 # Copy the binary from the builder stage
-COPY --from=builder /app/inventory-service .
-COPY --from=builder /app/config ./config/
+COPY --from=builder /src/inventory-service/inventory-service .
+
+# Copy any necessary configuration files
+COPY --from=builder /src/inventory-service/config ./config
 
 # Expose the port
 EXPOSE 50055
