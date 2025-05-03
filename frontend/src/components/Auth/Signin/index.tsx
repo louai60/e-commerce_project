@@ -92,7 +92,7 @@ const Signin = () => {
     const { name, value } = e.target;
     dispatchState({ type: 'SET_TOUCHED', name });
     validateField(name, value);
-  }, []);
+  }, [validateField]);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     // Clear local error on change
@@ -103,7 +103,7 @@ const Signin = () => {
     if (state.touched[name]) {
       validateField(name, value);
     }
-  }, [localError, state.touched]);
+  }, [localError, state, validateField]);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -147,7 +147,7 @@ const Signin = () => {
     } finally {
       setLocalLoading(false); // Stop loading indicator
     }
-  }, [contextLogin, state.formData, router, searchParams, validateField]); // Added validateField dependency
+  }, [contextLogin, state, router, searchParams, validateField]); // Added state dependency
 
   const getInputClasses = useMemo(() => (fieldName: string) => {
     const baseClasses = "rounded-lg border bg-gray-1 placeholder:text-dark-5 w-full py-3 px-5 outline-none duration-200 focus:border-transparent focus:shadow-input focus:ring-2 focus:ring-blue/20";
@@ -157,7 +157,7 @@ const Signin = () => {
     return state.validations[fieldName as keyof typeof state.validations]
       ? `${baseClasses} border-green-500`
       : `${baseClasses} border-red-500`;
-  }, [state.touched, state.validations]);
+  }, [state]);
 
   return (
     <>
@@ -297,7 +297,7 @@ const Signin = () => {
                     </svg>
                     <span className="font-medium">Google</span>
                   </button>
-                  
+
                   <button
                     type="button"
                     className="flex items-center justify-center border border-gray-300 rounded-lg py-2.5 px-4 hover:bg-gray-50 hover:border-gray-400 active:bg-gray-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"

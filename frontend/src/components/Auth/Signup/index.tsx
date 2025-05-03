@@ -24,7 +24,7 @@ const Signup = () => {
   const dispatch = useDispatch<AppDispatch>();
   const router = useRouter();
   const { loading: reduxLoading, error } = useSelector((state: RootState) => state.auth); // Rename redux loading state
-  
+
   const [formData, dispatchForm] = useReducer(formReducer, {
     email: '',
     password: '',
@@ -89,32 +89,32 @@ const Signup = () => {
     if (error) dispatch(clearError());
     const { name, value } = e.target;
     dispatchForm({ type: 'SET_FIELD', field: name, value });
-    
+
     if (touched[name]) {
       validateField(name, value);
     }
-    
+
     // Special case for confirm password validation
     if (name === 'password' && touched.confirmPassword) {
       validateField('confirmPassword', formData.confirmPassword);
     }
-  }, [error, touched, validateField, formData.confirmPassword, dispatch]);
+  }, [error, touched, validateField, formData, dispatch]);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validate all fields before submission
     let isFormValid = true;
     const newTouched = {} as Record<string, boolean>;
-    
+
     Object.keys(formData).forEach(key => {
       newTouched[key] = true;
       const fieldValid = validateField(key, formData[key as keyof typeof formData]);
       if (!fieldValid) isFormValid = false;
     });
-    
+
     setTouched(newTouched);
-    
+
     if (!isFormValid) {
       dispatch(setError('Please fix the errors in the form'));
       return;
@@ -122,7 +122,7 @@ const Signup = () => {
 
     try {
       setIsLoading(true); // Use local loading state setter
-      
+
       const registerData = {
         Email: formData.email,
         Username: formData.username,
@@ -168,7 +168,7 @@ const Signup = () => {
 
   const renderValidationIcon = useCallback((fieldName: string) => {
     if (!touched[fieldName]) return null;
-    
+
     return validations[fieldName as keyof typeof validations] ? (
       <Check className="absolute right-4 top-1/2 transform -translate-y-1/2 text-green-500" size={18} />
     ) : (
@@ -178,9 +178,9 @@ const Signup = () => {
 
   const getInputClasses = useCallback((fieldName: string) => {
     const baseClasses = "rounded-lg border bg-gray-1 placeholder:text-dark-5 w-full py-3 px-5 outline-none duration-200 focus:border-transparent focus:shadow-input focus:ring-2 focus:ring-blue/20";
-    
+
     if (!touched[fieldName]) return `${baseClasses} border-gray-3`;
-    
+
     return validations[fieldName as keyof typeof validations]
       ? `${baseClasses} border-green-500`
       : `${baseClasses} border-red-500`;
@@ -348,11 +348,11 @@ const Signup = () => {
                       {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
                   </div>
-                  
-                  {formData.password && ( 
+
+                  {formData.password && (
                     <div className="mt-2">
                       <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <div 
+                        <div
                           className={`h-full ${getPasswordStrengthColor}`}
                           style={{ width: `${(passwordStrength + 1) * 20}%` }}
                         ></div>
@@ -362,7 +362,7 @@ const Signup = () => {
                       </p>
                     </div>
                   )}
-                  
+
                   {touched.password && !validations.password && (
                     <p className="text-red-500 text-sm mt-1">Password must be at least 8 characters</p>
                   )}
