@@ -1,0 +1,318 @@
+syntax = "proto3";
+
+package inventory;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+
+option go_package = "github.com/louai60/e-commerce_project/backend/inventory-service/proto";
+
+service InventoryService {
+  // Product inventory management
+  rpc CreateInventoryItem(CreateInventoryItemRequest) returns (InventoryItemResponse);
+  rpc GetInventoryItem(GetInventoryItemRequest) returns (InventoryItemResponse);
+  rpc UpdateInventoryItem(UpdateInventoryItemRequest) returns (InventoryItemResponse);
+  rpc ListInventoryItems(ListInventoryItemsRequest) returns (ListInventoryItemsResponse);
+  
+  // Warehouse operations
+  rpc CreateWarehouse(CreateWarehouseRequest) returns (WarehouseResponse);
+  rpc GetWarehouse(GetWarehouseRequest) returns (WarehouseResponse);
+  rpc UpdateWarehouse(UpdateWarehouseRequest) returns (WarehouseResponse);
+  rpc ListWarehouses(ListWarehousesRequest) returns (ListWarehousesResponse);
+  
+  // Inventory location operations
+  rpc AddInventoryToLocation(AddInventoryToLocationRequest) returns (InventoryLocationResponse);
+  rpc RemoveInventoryFromLocation(RemoveInventoryFromLocationRequest) returns (InventoryLocationResponse);
+  rpc GetInventoryByLocation(GetInventoryByLocationRequest) returns (ListInventoryLocationsResponse);
+  
+  // Reservation operations
+  rpc ReserveInventory(ReserveInventoryRequest) returns (ReservationResponse);
+  rpc ConfirmReservation(ConfirmReservationRequest) returns (ReservationResponse);
+  rpc CancelReservation(CancelReservationRequest) returns (ReservationResponse);
+  
+  // Inventory check operations
+  rpc CheckInventoryAvailability(CheckInventoryAvailabilityRequest) returns (InventoryAvailabilityResponse);
+  
+  // Bulk operations
+  rpc BulkUpdateInventory(BulkUpdateInventoryRequest) returns (BulkUpdateInventoryResponse);
+}
+
+// Inventory Item messages
+message InventoryItem {
+  string id = 1;
+  string product_id = 2;
+  google.protobuf.StringValue variant_id = 3;
+  string sku = 4;
+  int32 total_quantity = 5;
+  int32 available_quantity = 6;
+  int32 reserved_quantity = 7;
+  int32 reorder_point = 8;
+  int32 reorder_quantity = 9;
+  string status = 10;
+  google.protobuf.Timestamp last_updated = 11;
+  google.protobuf.Timestamp created_at = 12;
+  google.protobuf.Timestamp updated_at = 13;
+  repeated InventoryLocation locations = 14;
+}
+
+// Warehouse messages
+message Warehouse {
+  string id = 1;
+  string name = 2;
+  string code = 3;
+  string address = 4;
+  string city = 5;
+  string state = 6;
+  string country = 7;
+  string postal_code = 8;
+  bool is_active = 9;
+  int32 priority = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+}
+
+// Inventory Location messages
+message InventoryLocation {
+  string id = 1;
+  string inventory_item_id = 2;
+  string warehouse_id = 3;
+  int32 quantity = 4;
+  int32 available_quantity = 5;
+  int32 reserved_quantity = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+  Warehouse warehouse = 9;
+}
+
+// Inventory Transaction messages
+message InventoryTransaction {
+  string id = 1;
+  string inventory_item_id = 2;
+  google.protobuf.StringValue warehouse_id = 3;
+  string transaction_type = 4;
+  int32 quantity = 5;
+  google.protobuf.StringValue reference_id = 6;
+  google.protobuf.StringValue reference_type = 7;
+  google.protobuf.StringValue notes = 8;
+  google.protobuf.StringValue created_by = 9;
+  google.protobuf.Timestamp created_at = 10;
+}
+
+// Inventory Reservation messages
+message InventoryReservation {
+  string id = 1;
+  string inventory_item_id = 2;
+  google.protobuf.StringValue warehouse_id = 3;
+  int32 quantity = 4;
+  string status = 5;
+  google.protobuf.Timestamp expiration_time = 6;
+  google.protobuf.StringValue reference_id = 7;
+  string reference_type = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+// Request and Response messages for each RPC
+message CreateInventoryItemRequest {
+  string product_id = 1;
+  google.protobuf.StringValue variant_id = 2;
+  string sku = 3;
+  int32 initial_quantity = 4;
+  int32 reorder_point = 5;
+  int32 reorder_quantity = 6;
+  repeated WarehouseAllocation warehouse_allocations = 7;
+}
+
+message WarehouseAllocation {
+  string warehouse_id = 1;
+  int32 quantity = 2;
+}
+
+message GetInventoryItemRequest {
+  oneof identifier {
+    string id = 1;
+    string product_id = 2;
+    string sku = 3;
+  }
+}
+
+message UpdateInventoryItemRequest {
+  string id = 1;
+  google.protobuf.Int32Value reorder_point = 2;
+  google.protobuf.Int32Value reorder_quantity = 3;
+  google.protobuf.StringValue status = 4;
+}
+
+message ListInventoryItemsRequest {
+  int32 page = 1;
+  int32 limit = 2;
+  google.protobuf.StringValue status = 3;
+  google.protobuf.StringValue warehouse_id = 4;
+  bool low_stock_only = 5;
+}
+
+message InventoryItemResponse {
+  InventoryItem inventory_item = 1;
+}
+
+message ListInventoryItemsResponse {
+  repeated InventoryItem inventory_items = 1;
+  int32 total = 2;
+}
+
+message CreateWarehouseRequest {
+  string name = 1;
+  string code = 2;
+  string address = 3;
+  string city = 4;
+  string state = 5;
+  string country = 6;
+  string postal_code = 7;
+  int32 priority = 8;
+}
+
+message GetWarehouseRequest {
+  oneof identifier {
+    string id = 1;
+    string code = 2;
+  }
+}
+
+message UpdateWarehouseRequest {
+  string id = 1;
+  google.protobuf.StringValue name = 2;
+  google.protobuf.StringValue address = 3;
+  google.protobuf.StringValue city = 4;
+  google.protobuf.StringValue state = 5;
+  google.protobuf.StringValue country = 6;
+  google.protobuf.StringValue postal_code = 7;
+  google.protobuf.Int32Value priority = 8;
+  google.protobuf.BoolValue is_active = 9;
+}
+
+message ListWarehousesRequest {
+  int32 page = 1;
+  int32 limit = 2;
+  google.protobuf.BoolValue is_active = 3;
+}
+
+message WarehouseResponse {
+  Warehouse warehouse = 1;
+}
+
+message ListWarehousesResponse {
+  repeated Warehouse warehouses = 1;
+  int32 total = 2;
+}
+
+message AddInventoryToLocationRequest {
+  string inventory_item_id = 1;
+  string warehouse_id = 2;
+  int32 quantity = 3;
+  string reference_id = 4;
+  string reference_type = 5;
+  string notes = 6;
+}
+
+message RemoveInventoryFromLocationRequest {
+  string inventory_item_id = 1;
+  string warehouse_id = 2;
+  int32 quantity = 3;
+  string reference_id = 4;
+  string reference_type = 5;
+  string notes = 6;
+}
+
+message GetInventoryByLocationRequest {
+  string warehouse_id = 1;
+  int32 page = 2;
+  int32 limit = 3;
+}
+
+message InventoryLocationResponse {
+  InventoryLocation inventory_location = 1;
+}
+
+message ListInventoryLocationsResponse {
+  repeated InventoryLocation inventory_locations = 1;
+  int32 total = 2;
+}
+
+message ReserveInventoryRequest {
+  repeated ReservationItem items = 1;
+  string reference_id = 2;
+  string reference_type = 3;
+  int32 reservation_minutes = 4;
+}
+
+message ReservationItem {
+  string inventory_item_id = 1;
+  int32 quantity = 2;
+  google.protobuf.StringValue warehouse_id = 3;
+}
+
+message ConfirmReservationRequest {
+  string reservation_id = 1;
+}
+
+message CancelReservationRequest {
+  string reservation_id = 1;
+}
+
+message ReservationResponse {
+  InventoryReservation reservation = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+message CheckInventoryAvailabilityRequest {
+  repeated AvailabilityCheckItem items = 1;
+}
+
+message AvailabilityCheckItem {
+  string product_id = 1;
+  google.protobuf.StringValue variant_id = 2;
+  string sku = 3;
+  int32 quantity = 4;
+}
+
+message InventoryAvailabilityResponse {
+  repeated ItemAvailability items = 1;
+  bool all_available = 2;
+}
+
+message ItemAvailability {
+  string product_id = 1;
+  google.protobuf.StringValue variant_id = 2;
+  string sku = 3;
+  int32 requested_quantity = 4;
+  int32 available_quantity = 5;
+  bool is_available = 6;
+  string status = 7;
+}
+
+message BulkUpdateInventoryRequest {
+  repeated BulkUpdateItem items = 1;
+}
+
+message BulkUpdateItem {
+  string sku = 1;
+  int32 quantity_delta = 2;
+  string warehouse_id = 3;
+  string reference_id = 4;
+  string reference_type = 5;
+  string notes = 6;
+}
+
+message BulkUpdateInventoryResponse {
+  repeated BulkUpdateResult results = 1;
+  int32 success_count = 2;
+  int32 failure_count = 3;
+}
+
+message BulkUpdateResult {
+  string sku = 1;
+  bool success = 2;
+  string message = 3;
+  InventoryItem updated_item = 4;
+}

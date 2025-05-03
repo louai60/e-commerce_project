@@ -1,0 +1,22 @@
+server:
+  port: "50055"
+  host: "0.0.0.0"
+
+database:
+  host: "localhost"
+  port: "5432"
+  user: "postgres"
+  password: "root"
+  name: "nexcart_inventory"
+  max_open_conns: 25
+  max_idle_conns: 5
+  conn_max_lifetime_minutes: 5
+
+redis:
+  host: "localhost"
+  port: "6379"
+  password: ""
+  db: 0
+
+logging:
+  level: "debug"

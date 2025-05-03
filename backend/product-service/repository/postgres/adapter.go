@@ -65,7 +65,7 @@ func (a *ProductRepositoryAdapter) GetBySlug(ctx context.Context, slug string) (
 	err := a.repo.db.QueryRowContext(ctx, query, slug).Scan(
 		&product.ID, &product.Title, &product.Slug, &product.Description, &product.ShortDescription,
 		&product.Weight, &product.IsPublished, &product.CreatedAt, &product.UpdatedAt, &product.DeletedAt,
-		&brandID, &product.InventoryStatus,
+		&brandID,
 	)
 
 	if err != nil {
@@ -210,7 +210,7 @@ func (a *ProductRepositoryAdapter) GetVariantsByProductID(ctx context.Context, p
 	const query = `
 		SELECT
 			pv.id, pv.product_id, pv.sku, pv.title, pv.price, pv.discount_price,
-			pv.inventory_qty, pv.created_at, pv.updated_at, pv.deleted_at
+			pv.created_at, pv.updated_at, pv.deleted_at
 		FROM product_variants pv
 		WHERE pv.product_id = $1 AND pv.deleted_at IS NULL
 		ORDER BY pv.created_at
@@ -228,7 +228,7 @@ func (a *ProductRepositoryAdapter) GetVariantsByProductID(ctx context.Context, p
 		var variant models.ProductVariant
 		if err := rows.Scan(
 			&variant.ID, &variant.ProductID, &variant.SKU, &variant.Title, &variant.Price, &variant.DiscountPrice,
-			&variant.InventoryQty, &variant.CreatedAt, &variant.UpdatedAt, &variant.DeletedAt,
+			&variant.CreatedAt, &variant.UpdatedAt, &variant.DeletedAt,
 		); err != nil {
 			a.logger.Error("failed to scan product variant", zap.Error(err))
 			return nil, fmt.Errorf("failed to scan product variant: %w", err)
@@ -490,6 +490,30 @@ func (a *ProductRepositoryAdapter) UpdateProductSpecification(ctx context.Contex
 func (a *ProductRepositoryAdapter) RemoveProductSpecification(ctx context.Context, specID string) error {
 	// Implement this method
 	return nil
+}
+
+// IsSKUExists checks if a SKU already exists in the database
+func (a *ProductRepositoryAdapter) IsSKUExists(ctx context.Context, sku string) (bool, error) {
+	if sku == "" {
+		return false, nil // Empty SKU can't exist
+	}
+
+	query := `
+		SELECT EXISTS(
+			SELECT 1 FROM products WHERE sku = $1 AND deleted_at IS NULL
+			UNION
+			SELECT 1 FROM product_variants WHERE sku = $1 AND deleted_at IS NULL
+		)
+	`
+
+	var exists bool
+	err := a.repo.db.QueryRowContext(ctx, query, sku).Scan(&exists)
+	if err != nil {
+		a.logger.Error("failed to check if SKU exists", zap.Error(err), zap.String("sku", sku))
+		return false, fmt.Errorf("failed to check if SKU exists: %w", err)
+	}
+
+	return exists, nil
 }
 
 // GetProductSEO gets the SEO data for a product

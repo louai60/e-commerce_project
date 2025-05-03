@@ -12,10 +12,12 @@ import (
 	"github.com/cloudinary/cloudinary-go/v2/api/uploader"
 	"github.com/google/uuid"
 	"github.com/louai60/e-commerce_project/backend/product-service/cache"
+	"github.com/louai60/e-commerce_project/backend/product-service/clients"
 	"github.com/louai60/e-commerce_project/backend/product-service/models"
 	pb "github.com/louai60/e-commerce_project/backend/product-service/proto"
 	"github.com/louai60/e-commerce_project/backend/product-service/repository"
 	"github.com/louai60/e-commerce_project/backend/product-service/storage"
+	"github.com/louai60/e-commerce_project/backend/product-service/utils"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -25,12 +27,13 @@ import (
 
 // ProductService handles business logic for products, brands, and categories
 type ProductService struct {
-	productRepo  repository.ProductRepository
-	brandRepo    repository.BrandRepository
-	categoryRepo repository.CategoryRepository
-	cacheManager cache.CacheInterface
-	logger       *zap.Logger
-	cld          *cloudinary.Cloudinary
+	productRepo     repository.ProductRepository
+	brandRepo       repository.BrandRepository
+	categoryRepo    repository.CategoryRepository
+	cacheManager    cache.CacheInterface
+	logger          *zap.Logger
+	cld             *cloudinary.Cloudinary
+	inventoryClient *clients.InventoryClient
 }
 
 // NewProductService creates a new product service
@@ -40,6 +43,7 @@ func NewProductService(
 	categoryRepo repository.CategoryRepository,
 	cacheManager cache.CacheInterface,
 	logger *zap.Logger,
+	inventoryClient *clients.InventoryClient,
 ) *ProductService {
 	// Initialize Cloudinary
 	var cld *cloudinary.Cloudinary
@@ -56,12 +60,13 @@ func NewProductService(
 	}
 
 	return &ProductService{
-		productRepo:  productRepo,
-		brandRepo:    brandRepo,
-		categoryRepo: categoryRepo,
-		cacheManager: cacheManager,
-		logger:       logger,
-		cld:          cld,
+		productRepo:     productRepo,
+		brandRepo:       brandRepo,
+		categoryRepo:    categoryRepo,
+		cacheManager:    cacheManager,
+		logger:          logger,
+		cld:             cld,
+		inventoryClient: inventoryClient,
 	}
 }
 
@@ -89,8 +94,6 @@ func (s *ProductService) CreateProduct(ctx context.Context, req *pb.CreateProduc
 		ShortDescription: req.Product.ShortDescription,
 		Price:            models.Price{Amount: req.Product.Price, Currency: "USD"}, // Default to USD
 		SKU:              req.Product.Sku,
-		InventoryQty:     int(req.Product.InventoryQty),
-		InventoryStatus:  "in_stock", // Default to in_stock if inventory_qty > 0
 		IsPublished:      req.Product.IsPublished,
 		CreatedAt:        time.Now().UTC(), // Use UTC
 		UpdatedAt:        time.Now().UTC(), // Use UTC
@@ -123,15 +126,6 @@ func (s *ProductService) CreateProduct(ctx context.Context, req *pb.CreateProduc
 		}
 	}
 
-	// Set inventory status based on quantity if not already set
-	if product.InventoryStatus == "" {
-		if product.InventoryQty > 0 {
-			product.InventoryStatus = "IN_STOCK"
-		} else {
-			product.InventoryStatus = "OUT_OF_STOCK"
-		}
-	}
-
 	// Create the product
 	if err := s.productRepo.CreateProduct(ctx, product); err != nil {
 		s.logger.Error("Failed to create product", zap.Error(err))
@@ -141,6 +135,12 @@ func (s *ProductService) CreateProduct(ctx context.Context, req *pb.CreateProduc
 		return nil, status.Errorf(codes.Internal, "failed to create product: %v", err)
 	}
 
+	// NOTE: We're no longer creating inventory items directly from the product service
+	// This is now handled by the API gateway to avoid conflicts with inventory quantities
+	// The API gateway will create inventory items with the correct initial quantity
+	// If this product is being created directly through the product service (not via API gateway),
+	// you'll need to create the inventory item separately through the inventory service
+
 	// Create default variant if no variants are provided
 	if len(req.Product.Variants) == 0 {
 		defaultVariant := createDefaultVariant(product)
@@ -148,10 +148,42 @@ func (s *ProductService) CreateProduct(ctx context.Context, req *pb.CreateProduc
 
 		// Ensure SKU is set for the default variant
 		if defaultVariant.SKU == "" {
-			// Generate a SKU if none provided
-			defaultVariant.SKU = fmt.Sprintf("SKU-%s", product.ID[:8])
+			// Generate a proper SKU if none provided
+			// First try to get brand and category information
+			var brandName string
+			if product.BrandID != nil {
+				brand, err := s.brandRepo.GetBrandByID(ctx, *product.BrandID)
+				if err == nil && brand != nil {
+					brandName = brand.Name
+				}
+			}
+
+			// For categories, we can't get them yet since the product was just created
+			// and categories are associated after creation
+			var categoryName string
+			// Try to extract category from request if available
+			if len(req.Product.Categories) > 0 {
+				categoryName = req.Product.Categories[0].Name
+			}
+
+			// Generate a unique SKU using our utility
+			uniqueSKU, err := utils.GenerateUniqueSKU(ctx, s.productRepo, brandName, categoryName, "", "", 5)
+			if err != nil {
+				s.logger.Warn("Failed to generate unique SKU, falling back to basic SKU generation",
+					zap.Error(err),
+					zap.String("product_id", product.ID))
+				// Fallback to basic SKU generation
+				uniqueSKU = utils.GenerateSKU(brandName, categoryName, "", "")
+			}
+
+			defaultVariant.SKU = uniqueSKU
+
 			// Also update the product's SKU
 			product.SKU = defaultVariant.SKU
+
+			s.logger.Info("Generated unique SKU for product",
+				zap.String("product_id", product.ID),
+				zap.String("sku", product.SKU))
 		}
 
 		if err := s.productRepo.CreateVariant(ctx, nil, product.ID, &defaultVariant); err != nil {
@@ -164,10 +196,9 @@ func (s *ProductService) CreateProduct(ctx context.Context, req *pb.CreateProduc
 	if len(req.Product.Variants) > 0 {
 		for _, variantProto := range req.Product.Variants {
 			variant := &models.ProductVariant{
-				ProductID:    product.ID,
-				SKU:          variantProto.Sku,
-				Price:        variantProto.Price,
-				InventoryQty: int(variantProto.InventoryQty),
+				ProductID: product.ID,
+				SKU:       variantProto.Sku,
+				Price:     variantProto.Price,
 			}
 
 			if variantProto.Title != "" {
@@ -279,24 +310,6 @@ func (s *ProductService) CreateProduct(ctx context.Context, req *pb.CreateProduc
 			if err := s.productRepo.AddProductTag(ctx, tag); err != nil {
 				s.logger.Error("Failed to add product tag", zap.Error(err))
 				// Continue with other tags even if one fails
-			}
-		}
-	}
-
-	// Process inventory locations if provided
-	if len(req.Product.InventoryLocations) > 0 {
-		for _, locProto := range req.Product.InventoryLocations {
-			location := &models.InventoryLocation{
-				ProductID:    product.ID,
-				WarehouseID:  locProto.WarehouseId,
-				AvailableQty: int(locProto.AvailableQty),
-				CreatedAt:    time.Now().UTC(),
-				UpdatedAt:    time.Now().UTC(),
-			}
-
-			if err := s.productRepo.UpsertInventoryLocation(ctx, location); err != nil {
-				s.logger.Error("Failed to add inventory location", zap.Error(err))
-				// Continue with other locations even if one fails
 			}
 		}
 	}
@@ -482,29 +495,26 @@ func convertModelToProto(model *models.Product) *pb.Product {
 		return nil
 	}
 	protoProduct := &pb.Product{
-		Id:                 model.ID,
-		Title:              model.Title,
-		Slug:               model.Slug,
-		Description:        model.Description,
-		ShortDescription:   model.ShortDescription,
-		Price:              model.Price.Amount,
-		Sku:                model.SKU,
-		InventoryQty:       int32(model.InventoryQty),
-		InventoryStatus:    model.InventoryStatus,
-		IsPublished:        model.IsPublished,
-		CreatedAt:          timestamppb.New(model.CreatedAt),
-		UpdatedAt:          timestamppb.New(model.UpdatedAt),
-		Brand:              convertBrandModelToProto(model.Brand),                            // Convert Brand
-		Images:             convertImageModelsToProtos(model.Images),                         // Convert Images
-		Categories:         convertCategorySliceToProtos(model.Categories),                   // Convert Categories
-		Variants:           convertVariantModelsToProtos(model.Variants),                     // Convert Variants
-		Tags:               convertTagModelsToProtos(model.Tags),                             // Convert Tags
-		Attributes:         convertProductAttributeModelsToProtos(model.Attributes),          // Convert Attributes
-		Specifications:     convertSpecificationModelsToProtos(model.Specifications),         // Convert Specifications
-		Seo:                convertSEOModelToProto(model.SEO),                                // Convert SEO
-		Shipping:           convertShippingModelToProto(model.Shipping),                      // Convert Shipping
-		Discount:           convertDiscountModelToProto(model.Discount),                      // Convert Discount
-		InventoryLocations: convertInventoryLocationModelsToProtos(model.InventoryLocations), // Convert Inventory Locations
+		Id:               model.ID,
+		Title:            model.Title,
+		Slug:             model.Slug,
+		Description:      model.Description,
+		ShortDescription: model.ShortDescription,
+		Price:            model.Price.Amount,
+		Sku:              model.SKU,
+		IsPublished:      model.IsPublished,
+		CreatedAt:        timestamppb.New(model.CreatedAt),
+		UpdatedAt:        timestamppb.New(model.UpdatedAt),
+		Brand:            convertBrandModelToProto(model.Brand),                    // Convert Brand
+		Images:           convertImageModelsToProtos(model.Images),                 // Convert Images
+		Categories:       convertCategorySliceToProtos(model.Categories),           // Convert Categories
+		Variants:         convertVariantModelsToProtos(model.Variants),             // Convert Variants
+		Tags:             convertTagModelsToProtos(model.Tags),                     // Convert Tags
+		Attributes:       convertProductAttributeModelsToProtos(model.Attributes),  // Convert Attributes
+		Specifications:   convertSpecificationModelsToProtos(model.Specifications), // Convert Specifications
+		Seo:              convertSEOModelToProto(model.SEO),                        // Convert SEO
+		Shipping:         convertShippingModelToProto(model.Shipping),              // Convert Shipping
+		Discount:         convertDiscountModelToProto(model.Discount),              // Convert Discount
 	}
 
 	// Handle nullable fields
@@ -600,13 +610,12 @@ func convertProductModelsToProtos(models []*models.Product) []*pb.Product {
 
 func convertVariantModelToProto(model models.ProductVariant) *pb.ProductVariant {
 	protoVariant := &pb.ProductVariant{
-		Id:           model.ID,
-		ProductId:    model.ProductID,
-		Sku:          model.SKU,
-		Price:        model.Price,
-		InventoryQty: int32(model.InventoryQty),
-		CreatedAt:    timestamppb.New(model.CreatedAt),
-		UpdatedAt:    timestamppb.New(model.UpdatedAt),
+		Id:        model.ID,
+		ProductId: model.ProductID,
+		Sku:       model.SKU,
+		Price:     model.Price,
+		CreatedAt: timestamppb.New(model.CreatedAt),
+		UpdatedAt: timestamppb.New(model.UpdatedAt),
 	}
 
 	// Handle nullable fields
@@ -796,6 +805,49 @@ func (s *ProductService) DeleteImage(ctx context.Context, req *pb.DeleteImageReq
 	}, nil
 }
 
+// GenerateSKUPreview generates a preview of a SKU based on the provided parameters
+// This is used by the admin UI to show a preview of the SKU that would be generated
+func (s *ProductService) GenerateSKUPreview(ctx context.Context, req *pb.GenerateSKUPreviewRequest) (*pb.GenerateSKUPreviewResponse, error) {
+	s.logger.Info("Generating SKU preview",
+		zap.String("brand", req.BrandName),
+		zap.String("category", req.CategoryName),
+		zap.String("color", req.Color),
+		zap.String("size", req.Size))
+
+	// Generate a SKU using the provided parameters
+	sku := utils.GenerateSKU(req.BrandName, req.CategoryName, req.Color, req.Size)
+
+	// Check if the SKU already exists
+	exists, err := s.productRepo.IsSKUExists(ctx, sku)
+	if err != nil {
+		s.logger.Error("Failed to check if SKU exists", zap.Error(err))
+		// Continue with the generated SKU even if the check fails
+	}
+
+	// If the SKU exists, add a note to the response
+	if exists {
+		// Generate a new unique SKU
+		uniqueSKU, err := utils.GenerateUniqueSKU(ctx, s.productRepo, req.BrandName, req.CategoryName, req.Color, req.Size, 5)
+		if err != nil {
+			s.logger.Warn("Failed to generate unique SKU, using original SKU", zap.Error(err))
+			// Return the original SKU with a note that it's not unique
+			return &pb.GenerateSKUPreviewResponse{
+				Sku: sku + " (not unique)",
+			}, nil
+		}
+
+		// Return the unique SKU
+		return &pb.GenerateSKUPreviewResponse{
+			Sku: uniqueSKU,
+		}, nil
+	}
+
+	// Return the generated SKU
+	return &pb.GenerateSKUPreviewResponse{
+		Sku: sku,
+	}, nil
+}
+
 // Convert ProductTag models to protos
 func convertTagModelsToProtos(models []models.ProductTag) []*pb.ProductTag {
 	if len(models) == 0 {
@@ -907,25 +959,6 @@ func convertDiscountModelToProto(model *models.ProductDiscount) *pb.ProductDisco
 	return proto
 }
 
-// Convert InventoryLocation models to protos
-func convertInventoryLocationModelsToProtos(models []models.InventoryLocation) []*pb.InventoryLocation {
-	if len(models) == 0 {
-		return nil
-	}
-	protos := make([]*pb.InventoryLocation, len(models))
-	for i, model := range models {
-		protos[i] = &pb.InventoryLocation{
-			Id:           model.ID,
-			ProductId:    model.ProductID,
-			WarehouseId:  model.WarehouseID,
-			AvailableQty: int32(model.AvailableQty),
-			CreatedAt:    timestamppb.New(model.CreatedAt),
-			UpdatedAt:    timestamppb.New(model.UpdatedAt),
-		}
-	}
-	return protos
-}
-
 // --- Service Methods (Stubs for missing ones) ---
 
 // UpdateProduct updates an existing product
@@ -946,15 +979,6 @@ func (s *ProductService) UpdateProduct(ctx context.Context, req *pb.UpdateProduc
 	// 2. Update base product
 	updatedProduct := convertProtoToModelForUpdate(req.Product, existingProduct)
 	updatedProduct.UpdatedAt = time.Now().UTC()
-
-	// Set inventory status based on quantity if not already set
-	if updatedProduct.InventoryStatus == "" {
-		if updatedProduct.InventoryQty > 0 {
-			updatedProduct.InventoryStatus = "IN_STOCK"
-		} else {
-			updatedProduct.InventoryStatus = "OUT_OF_STOCK"
-		}
-	}
 
 	if err := s.productRepo.UpdateProduct(ctx, updatedProduct); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to update product: %v", err)
@@ -1036,11 +1060,10 @@ func convertProtoToVariantModel(proto *pb.ProductVariant) *models.ProductVariant
 	}
 
 	variant := &models.ProductVariant{
-		ID:           proto.Id,
-		ProductID:    proto.ProductId,
-		SKU:          proto.Sku,
-		Price:        proto.Price,
-		InventoryQty: int(proto.InventoryQty),
+		ID:        proto.Id,
+		ProductID: proto.ProductId,
+		SKU:       proto.Sku,
+		Price:     proto.Price,
 	}
 
 	// Handle nullable fields
@@ -1478,7 +1501,6 @@ func (s *ProductService) populateProductRelations(ctx context.Context, product *
 			product.DiscountPrice = nil
 		}
 		product.SKU = defaultVariant.SKU
-		product.InventoryQty = defaultVariant.InventoryQty
 	}
 
 	// Get tags
@@ -1542,15 +1564,6 @@ func (s *ProductService) populateProductRelations(ctx context.Context, product *
 		}
 	}
 
-	// Get inventory locations
-	locations, err := s.productRepo.GetInventoryLocations(ctx, product.ID)
-	if err != nil {
-		s.logger.Error("Failed to get inventory locations", zap.Error(err), zap.String("product_id", product.ID))
-		// Continue even if inventory locations fail to load
-	} else {
-		product.InventoryLocations = locations
-	}
-
 	// Get product images
 	images, err := s.productRepo.GetProductImages(ctx, product.ID)
 	if err != nil {
@@ -1588,20 +1601,6 @@ func convertProtoToModelForUpdate(proto *pb.Product, model *models.Product) *mod
 
 	if proto.Sku != "" {
 		model.SKU = proto.Sku // Corrected field name
-	}
-	// InventoryQty is not nullable in proto
-	model.InventoryQty = int(proto.InventoryQty)
-
-	// Update inventory status if provided
-	if proto.InventoryStatus != "" {
-		model.InventoryStatus = proto.InventoryStatus
-	} else {
-		// Set inventory status based on quantity if not provided
-		if model.InventoryQty > 0 {
-			model.InventoryStatus = "IN_STOCK"
-		} else {
-			model.InventoryStatus = "OUT_OF_STOCK"
-		}
 	}
 
 	// IsPublished is not nullable in proto
@@ -1650,17 +1649,15 @@ func createDefaultVariant(product *models.Product) models.ProductVariant {
 	// Ensure we have a valid SKU
 	sku := product.SKU
 	if sku == "" {
-		sku = fmt.Sprintf("SKU-%s", uuid.New().String()[:8])
-	}
-
-	// Ensure inventory status is set based on quantity
-	inventoryQty := product.InventoryQty
-	if product.InventoryStatus == "" {
-		if inventoryQty > 0 {
-			product.InventoryStatus = "IN_STOCK"
-		} else {
-			product.InventoryStatus = "OUT_OF_STOCK"
-		}
+		// Just use a simple SKU format here
+		// The main unique SKU generation happens in the CreateProduct method
+		// where we have more context and can check for uniqueness
+		sku = utils.GenerateSKU(
+			"", // No brand info in this context
+			"", // No category info in this context
+			"", // No color info
+			"", // No size info
+		)
 	}
 
 	return models.ProductVariant{
@@ -1668,7 +1665,6 @@ func createDefaultVariant(product *models.Product) models.ProductVariant {
 		SKU:           sku,
 		Price:         price,
 		DiscountPrice: discountPrice,
-		InventoryQty:  inventoryQty,
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}

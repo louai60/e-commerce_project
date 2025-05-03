@@ -15,6 +15,7 @@ type Config struct {
 	Server     ServerConfig   `yaml:"server"`
 	Database   DatabaseConfig `yaml:"database"`
 	Redis      RedisConfig    `yaml:"redis"`
+	Services   ServicesConfig `yaml:"services"`
 	Secrets    SecretsConfig  `yaml:"secrets"`
 	Cloudinary struct {
 		CloudName string
@@ -96,6 +97,17 @@ type RedisConfig struct {
 	Port     string `yaml:"port"`
 	Password string `yaml:"password"`
 	DB       int    `yaml:"db"`
+}
+
+// ServiceConfig holds configuration for a service connection
+type ServiceConfig struct {
+	Host string `yaml:"host"`
+	Port string `yaml:"port"`
+}
+
+// ServicesConfig holds configuration for all service connections
+type ServicesConfig struct {
+	Inventory ServiceConfig `yaml:"inventory"`
 }
 
 // LoadConfig reads configuration from files and environment variables

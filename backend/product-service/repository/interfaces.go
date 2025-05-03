@@ -69,6 +69,9 @@ type ProductRepository interface {
 	GetInventoryLocations(ctx context.Context, productID string) ([]models.InventoryLocation, error)
 	UpsertInventoryLocation(ctx context.Context, location *models.InventoryLocation) error
 	RemoveInventoryLocation(ctx context.Context, productID, warehouseID string) error
+
+	// SKU-related methods
+	IsSKUExists(ctx context.Context, sku string) (bool, error)
 }
 
 type BrandRepository interface {

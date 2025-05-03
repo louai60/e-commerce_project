@@ -120,3 +120,12 @@ func (c *Client) CreateCategory(ctx context.Context, category *pb.Category) (*pb
 		Category: category,
 	})
 }
+
+func (c *Client) GenerateSKUPreview(ctx context.Context, brandName, categoryName, color, size string) (*pb.GenerateSKUPreviewResponse, error) {
+	return c.client.GenerateSKUPreview(ctx, &pb.GenerateSKUPreviewRequest{
+		BrandName:    brandName,
+		CategoryName: categoryName,
+		Color:        color,
+		Size:         size,
+	})
+}

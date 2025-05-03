@@ -6,16 +6,26 @@ import (
 	"github.com/louai60/e-commerce_project/backend/api-gateway/middleware"
 )
 
-func SetupRoutes(r *gin.Engine, productHandler *handlers.ProductHandler, userHandler *handlers.UserHandler, adminHandler *handlers.AdminHandler) {
+func SetupRoutes(r *gin.Engine, productHandler *handlers.ProductHandler, userHandler *handlers.UserHandler, adminHandler *handlers.AdminHandler, inventoryHandler *handlers.InventoryHandler) {
 	// API routes
 	v1 := r.Group("/api/v1")
 	{
+		// Create middleware to add inventory client to context
+		inventoryClientMiddleware := func(c *gin.Context) {
+			c.Set("inventory_client", inventoryHandler.GetClient())
+			c.Next()
+		}
+
 		// Product routes
-		products := v1.Group("/products")
+		products := v1.Group("/products", inventoryClientMiddleware)
 		{
 			products.GET("", productHandler.ListProducts)
 			products.GET("/:id", productHandler.GetProduct)
-			products.POST("", middleware.AuthRequired(), middleware.AdminRequired(), productHandler.CreateProduct)
+			// Add inventory client to the context for product creation
+			products.POST("", middleware.AuthRequired(), middleware.AdminRequired(), func(c *gin.Context) {
+				// Use the product_inventory_handler to create product with inventory
+				handlers.CreateProductWithInventory(c, productHandler.GetClient(), inventoryHandler.GetClient(), productHandler.GetLogger())
+			})
 			products.PUT("/:id", middleware.AuthRequired(), middleware.AdminRequired(), productHandler.UpdateProduct)
 			products.DELETE("/:id", middleware.AuthRequired(), middleware.AdminRequired(), productHandler.DeleteProduct)
 		}
@@ -78,6 +88,22 @@ func SetupRoutes(r *gin.Engine, productHandler *handlers.ProductHandler, userHan
 		adminDashboard := v1.Group("/admin/dashboard", middleware.AuthRequired(), middleware.AdminRequired())
 		{
 			adminDashboard.GET("/stats", adminHandler.GetDashboardStats)
+		}
+
+		// Inventory routes (most require admin access)
+		inventory := v1.Group("/inventory")
+		{
+			// Public routes
+			inventory.GET("/check", inventoryHandler.CheckInventoryAvailability)
+
+			// Protected routes
+			protected := inventory.Group("/", middleware.AuthRequired(), middleware.AdminRequired())
+			{
+				protected.GET("/items", inventoryHandler.ListInventoryItems)
+				protected.GET("/items/:product_id", inventoryHandler.GetInventoryItem)
+				protected.GET("/warehouses", inventoryHandler.ListWarehouses)
+				protected.GET("/transactions", inventoryHandler.ListInventoryTransactions)
+			}
 		}
 	}
 }
