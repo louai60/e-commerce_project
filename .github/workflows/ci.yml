@@ -116,24 +116,28 @@ jobs:
       with:
         version: v2.1.5
         working-directory: backend/product-service
+        args: --format github-actions
 
     - name: Run linter on user-service
       uses: golangci/golangci-lint-action@v4
       with:
         version: v2.1.5
         working-directory: backend/user-service
+        args: --format github-actions
 
     - name: Run linter on api-gateway
       uses: golangci/golangci-lint-action@v4
       with:
         version: v2.1.5
         working-directory: backend/api-gateway
+        args: --format github-actions
 
     - name: Run linter on inventory-service
       uses: golangci/golangci-lint-action@v4
       with:
         version: v2.1.5
         working-directory: backend/inventory-service
+        args: --format github-actions
 
   build:
     needs: test
