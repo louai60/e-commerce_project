@@ -29,6 +29,6 @@ jobs:
             cp backend/api-gateway/.env.example backend/api-gateway/.env
           fi
       - name: Validate docker-compose.yml
-        run: docker-compose config
+        run: docker compose config
       - name: Build all services
         run: docker-compose build
