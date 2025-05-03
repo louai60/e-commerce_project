@@ -5,7 +5,7 @@
 -- Drop product table composite indexes
 DROP INDEX IF EXISTS idx_products_deleted_at_created_at;
 DROP INDEX IF EXISTS idx_products_deleted_at_updated_at;
-DROP INDEX IF EXISTS idx_products_category_id_deleted_at;
+DROP INDEX IF EXISTS idx_product_categories_category_id_product_id;
 DROP INDEX IF EXISTS idx_products_brand_id_deleted_at;
 DROP INDEX IF EXISTS idx_products_is_published_deleted_at;
 
