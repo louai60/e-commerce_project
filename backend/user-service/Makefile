@@ -44,10 +44,10 @@ mocks:
 
 # Run database migrations
 migrate-up:
-    migrate -path migrations -database "postgres://user:password@localhost:5432/nexcart_user?sslmode=disable" up
+    migrate -path migrations -database "postgres://postgres:root@localhost:5432/nexcart_user?sslmode=disable" up
 
 migrate-down:
-    migrate -path migrations -database "postgres://user:password@localhost:5432/nexcart_user?sslmode=disable" down
+    migrate -path migrations -database "postgres://postgres:root@localhost:5432/nexcart_user?sslmode=disable" down
 
 # Add this new target
 check-user:

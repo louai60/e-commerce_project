@@ -6,7 +6,7 @@ set PGHOST=localhost
 set PGPORT=5432
 set PGDATABASE=product_service
 set PGUSER=postgres
-set PGPASSWORD=postgres
+set PGPASSWORD=root
 
 REM Run the SQL script
 psql -h %PGHOST% -p %PGPORT% -d %PGDATABASE% -U %PGUSER% -f scripts/fix_product_data.sql

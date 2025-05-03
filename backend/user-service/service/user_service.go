@@ -273,7 +273,7 @@ func (s *UserService) CreateUser(ctx context.Context, req *models.RegisterReques
 		// Check for specific errors like duplicate email/username
 		if strings.Contains(err.Error(), "already exists") {
 			// Use the specific error message from the repository if available
-			return nil, status.Errorf(codes.AlreadyExists, err.Error())
+			return nil, status.Errorf(codes.AlreadyExists, "%v", err)
 		}
 		return nil, status.Errorf(codes.Internal, "failed to create user: %v", err)
 	}
