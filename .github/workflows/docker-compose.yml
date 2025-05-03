@@ -133,7 +133,8 @@ jobs:
       with:
         version: v1.59.0
         working-directory: backend/api-gateway
-        args: --out-format=github-actions
+        args: --out-format=colored-line-number --timeout=5m
+        skip-build-cache: true
 
     - name: Run linter on inventory-service
       uses: golangci/golangci-lint-action@v4
