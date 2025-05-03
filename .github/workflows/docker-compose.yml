@@ -1,162 +1,34 @@
-name: Backend CI
+name: Docker Compose CI
 
 on:
   push:
     branches: [ main ]
     paths:
-      - 'backend/**'
-      - '@docs/**'
-      - 'docs/**'
-      - '**.md'
-      - '.github/workflows/ci.yml'
+      - 'docker-compose.yml'
   pull_request:
     branches: [ main ]
     paths:
-      - 'backend/**'
-      - '@docs/**'
-      - 'docs/**'
-      - '**.md'
-      - '.github/workflows/ci.yml'
+      - 'docker-compose.yml'
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:latest
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: root
-          POSTGRES_DB: test_db
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-          --health-start-period 10s
-      redis:
-        image: redis:alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    steps:
-    - uses: actions/checkout@v4
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.24.0'
-        cache: false # Disable the default Go module cache
-    
-    # Test product-service
-    - name: Test product-service
-      run: |
-        cd backend/product-service
-        cp .env.example .env
-        go mod download
-        go test ./...
-      env:
-        POSTGRES_HOST: localhost
-        POSTGRES_PORT: 5432
-        POSTGRES_USER: postgres
-        POSTGRES_PASSWORD: root
-        POSTGRES_DB: test_db
-        REDIS_HOST: localhost
-        REDIS_PORT: 6379
-
-    # Test user-service
-    - name: Test user-service
-      run: |
-        cd backend/user-service
-        cp .env.example .env
-        go mod download
-        go test ./...
-      env:
-        POSTGRES_HOST: localhost
-        POSTGRES_PORT: 5432
-        POSTGRES_USER: postgres
-        POSTGRES_PASSWORD: root
-        POSTGRES_DB: test_db
-        REDIS_HOST: localhost
-        REDIS_PORT: 6379
-
-    # Test inventory-service
-    - name: Test inventory-service
-      run: |
-        cd backend/inventory-service
-        cp .env.example .env || touch .env
-        go mod download
-        go test ./...
-      env:
-        POSTGRES_HOST: localhost
-        POSTGRES_PORT: 5432
-        POSTGRES_USER: postgres
-        POSTGRES_PASSWORD: root
-        POSTGRES_DB: test_db
-        REDIS_HOST: localhost
-        REDIS_PORT: 6379
-
-    # Test api-gateway
-    - name: Test api-gateway
-      run: |
-        cd backend/api-gateway
-        cp .env.example .env
-        go mod download
-        go test ./...
-      env:
-        PRODUCT_SERVICE_ADDR: localhost:50051
-        USER_SERVICE_ADDR: localhost:50052
-        INVENTORY_SERVICE_ADDR: localhost:50055
-    
-    # Linting steps with updated golangci-lint version
-    - name: Run linter on product-service
-      uses: golangci/golangci-lint-action@v4
-      with:
-        version: v1.59.0  # Latest stable version as of May 2024
-        working-directory: backend/product-service
-        args: --out-format=github-actions
-
-    - name: Run linter on user-service
-      uses: golangci/golangci-lint-action@v4
-      with:
-        version: v1.59.0
-        working-directory: backend/user-service
-        args: --out-format=github-actions
-
-    - name: Run linter on api-gateway
-      uses: golangci/golangci-lint-action@v4
-      with:
-        version: v1.59.0
-        working-directory: backend/api-gateway
-        args: --out-format=colored-line-number --timeout=5m
-        skip-build-cache: true
-
-    - name: Run linter on inventory-service
-      uses: golangci/golangci-lint-action@v4
-      with:
-        version: v1.59.0
-        working-directory: backend/inventory-service
-        args: --out-format=github-actions
-
   build:
-    needs: test
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - name: Setup environment files
-      run: |
-        cp backend/product-service/.env.example backend/product-service/.env
-        cp backend/user-service/.env.example backend/user-service/.env
-        cp backend/api-gateway/.env.example backend/api-gateway/.env
-        cp backend/inventory-service/.env.example backend/inventory-service/.env 2>/dev/null || touch backend/inventory-service/.env
-    - name: Build Backend Docker images
-      run: |
-        docker-compose build api-gateway
-        docker-compose build product-service
-        docker-compose build user-service
-        docker-compose build inventory-service
+      - uses: actions/checkout@v4
+      - name: Setup environment files
+        run: |
+          mkdir -p backend/product-service backend/user-service backend/api-gateway
+          touch backend/product-service/.env backend/user-service/.env backend/api-gateway/.env
+          if [ -f backend/product-service/.env.example ]; then
+            cp backend/product-service/.env.example backend/product-service/.env
+          fi
+          if [ -f backend/user-service/.env.example ]; then
+            cp backend/user-service/.env.example backend/user-service/.env
+          fi
+          if [ -f backend/api-gateway/.env.example ]; then
+            cp backend/api-gateway/.env.example backend/api-gateway/.env
+          fi
+      - name: Validate docker-compose.yml
+        run: docker-compose config
+      - name: Build all services
+        run: docker-compose build
