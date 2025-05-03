@@ -72,7 +72,7 @@ const Signin = () => {
   const [state, dispatchState] = useReducer(reducer, initialState);
   const [showPassword, setShowPassword] = useState(false);
 
-  const validateField = (name: string, value: string) => {
+  const validateField = useCallback((name: string, value: string) => {
     let isValid = true;
     switch (name) {
       case 'email':
@@ -86,7 +86,7 @@ const Signin = () => {
     }
     dispatchState({ type: 'SET_VALIDATIONS', name, isValid });
     return isValid;
-  };
+  }, [dispatchState]);
 
   const handleBlur = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
