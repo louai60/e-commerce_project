@@ -19,7 +19,7 @@ import { PlusIcon, ArrowRightIcon } from "@/icons";
 import Link from "next/link";
 import LoadingSpinner from "@/components/ui/loading/LoadingSpinner";
 import Pagination from "@/components/ui/pagination";
-import { useModal } from "@/hooks/useModal";
+// import { useModal } from "@/hooks/useModal"; // Removed unused import
 import { Card, CardContent } from "@/components/ui/card/Card";
 
 export default function InventoryItemsPage() {

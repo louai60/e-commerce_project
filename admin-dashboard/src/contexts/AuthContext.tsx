@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { AuthService } from '@/services/auth.service';
 
@@ -42,13 +42,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
+  // Define handleLogout function with useCallback to prevent dependency issues
+  const handleLogout = useCallback(() => {
+    AuthService.logout();
+    setAccessToken(null);
+    setUser(null);
+    setIsAuthenticated(false);
+    setIsAdmin(false);
+    router.push('/signin');
+  }, [router]);
+
   // Initialize auth state from localStorage
   useEffect(() => {
     const initAuth = () => {
       try {
         const token = localStorage.getItem('access_token');
         const userStr = localStorage.getItem('user');
-        
+
         if (token && userStr) {
           const userData = JSON.parse(userStr);
           setAccessToken(token);
@@ -117,11 +127,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // JWT tokens are in three parts: header.payload.signature
         const payload = accessToken.split('.')[1];
         if (!payload) return;
-        
+
         // Decode the base64 payload
         const decodedPayload = JSON.parse(atob(payload));
         const expirationTime = decodedPayload.exp * 1000; // Convert to milliseconds
-        
+
         if (Date.now() >= expirationTime) {
           console.log('Token expired, logging out');
           handleLogout();
@@ -134,7 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Check immediately and then every minute
     checkTokenExpiration();
     const interval = setInterval(checkTokenExpiration, 60000);
-    
+
     return () => clearInterval(interval);
   }, [accessToken, handleLogout]);
 
@@ -148,18 +158,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(userData);
     setIsAuthenticated(true);
     setIsAdmin(userData.role === 'admin');
-    
+
     localStorage.setItem('access_token', token);
     localStorage.setItem('user', JSON.stringify(userData));
-  };
-
-  const handleLogout = () => {
-    AuthService.logout();
-    setAccessToken(null);
-    setUser(null);
-    setIsAuthenticated(false);
-    setIsAdmin(false);
-    router.push('/signin');
   };
 
   const value = {

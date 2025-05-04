@@ -2,7 +2,7 @@
 import React from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { useProduct } from "@/hooks/useProducts";
-import { useRouter, useParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import Button from "@/components/ui/button/Button";
 import { PencilIcon, TrashBinIcon, ChevronLeftIcon } from "@/icons";
 import LoadingSpinner from "@/components/ui/loading/LoadingSpinner";
@@ -14,7 +14,6 @@ import Link from "next/link";
 export default function ProductDetailPage() {
   const params = useParams();
   const id = params.id as string;
-  const router = useRouter();
   const { product, isLoading, isError } = useProduct(id);
 
   if (isLoading) {
@@ -219,7 +218,7 @@ export default function ProductDetailPage() {
                     </h2>
                     <div className="flex flex-wrap gap-2">
                       {product.categories.map(category => (
-                        <Badge key={category.id} variant="secondary">
+                        <Badge key={category.id} variant="light" color="primary">
                           {category.name}
                         </Badge>
                       ))}
@@ -277,10 +276,10 @@ export default function ProductDetailPage() {
                             ))}
                           </td>
                           <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900 dark:text-white">
-                            {variant.price?.current?.USD ? formatPrice(variant.price.current.USD) : "N/A"}
+                            {typeof variant.price === 'number' ? formatPrice(variant.price) : "N/A"}
                           </td>
                           <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900 dark:text-white">
-                            {variant.inventory?.quantity || 0}
+                            {variant.inventory_qty || 0}
                           </td>
                         </tr>
                       ))}

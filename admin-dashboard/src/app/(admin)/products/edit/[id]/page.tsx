@@ -2,6 +2,7 @@
 import React, { useState, useEffect, ChangeEvent } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { useRouter, useParams } from "next/navigation";
+import Image from "next/image"; // Import Next.js Image component
 import { ProductService } from "@/services/product.service";
 import { useBrands, useCategories, useProduct } from "@/hooks/useProducts";
 import Input from "@/components/form/input/InputField";
@@ -19,7 +20,8 @@ export default function EditProductPage() {
   const router = useRouter();
   const { product, isLoading, isError, mutate } = useProduct(id);
   const { brands, isLoading: brandsLoading } = useBrands();
-  const { categories, isLoading: categoriesLoading } = useCategories();
+  // Commented out unused variables but keeping the hook call for future use
+  const { /* categories, isLoading: categoriesLoading */ } = useCategories();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
@@ -77,11 +79,7 @@ export default function EditProductPage() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleImageChange = (index: number, field: string, value: string) => {
-    const updatedImages = [...formData.images];
-    updatedImages[index] = { ...updatedImages[index], [field]: value };
-    setFormData(prev => ({ ...prev, images: updatedImages }));
-  };
+  // Removed unused handleImageChange function
 
   const addImageField = () => {
     setFormData(prev => ({
@@ -406,11 +404,15 @@ export default function EditProductPage() {
               <div key={index} className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
                 {image.url && (
                   <div className="mb-4">
-                    <img
-                      src={image.url}
-                      alt={image.alt_text}
-                      className="h-48 w-full rounded-lg object-cover"
-                    />
+                    <div className="relative h-48 w-full rounded-lg overflow-hidden">
+                      <Image
+                        src={image.url}
+                        alt={image.alt_text || "Product image"}
+                        fill
+                        style={{ objectFit: 'cover' }}
+                        sizes="(max-width: 768px) 100vw, 50vw"
+                      />
+                    </div>
                   </div>
                 )}
                 <ImageUpload

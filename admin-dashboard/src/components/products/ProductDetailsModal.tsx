@@ -172,7 +172,7 @@ const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
               </h3>
               <div className="flex flex-wrap gap-2">
                 {product.categories.map((category) => (
-                  <Badge key={category.id} variant="default">
+                  <Badge key={category.id} variant="light" color="primary">
                     {category.name}
                   </Badge>
                 ))}
@@ -249,3 +249,4 @@ const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
 };
 
 export default ProductDetailsModal;
+

@@ -75,9 +75,9 @@ export default function SignInForm() {
       // Success! Redirect to dashboard or callback URL
       router.push(callbackUrl);
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Login error in component:', err);
-      setError(err.message || "An unexpected error occurred");
+      setError(err instanceof Error ? err.message : "An unexpected error occurred");
     } finally {
       setLoading(false);
     }

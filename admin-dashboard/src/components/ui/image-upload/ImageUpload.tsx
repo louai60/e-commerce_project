@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { toast } from 'react-hot-toast';
+import Image from 'next/image';
 import { CloseIcon } from '@/icons';
 import { api } from '@/lib/api';
 
@@ -153,15 +154,19 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
       </div>
 
       {preview ? (
-        <div className="relative">
-          <img
-            src={preview}
-            alt={altText}
-            className="w-full h-48 object-cover rounded-lg"
-          />
+        <div className="relative w-full h-48">
+          <div className="relative w-full h-full rounded-lg overflow-hidden">
+            <Image
+              src={preview}
+              alt={altText || "Uploaded image"}
+              fill
+              style={{ objectFit: 'cover' }}
+              sizes="(max-width: 768px) 100vw, 50vw"
+            />
+          </div>
           <button
             onClick={handleRemove}
-            className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+            className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 z-10"
           >
             <CloseIcon className="w-4 h-4" />
           </button>

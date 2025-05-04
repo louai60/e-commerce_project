@@ -8,7 +8,7 @@ import React from "react"; // Removed unused useEffect import
 import { ProductProvider } from "@/contexts/ProductContext";
 import { InventoryProvider } from "@/contexts/InventoryContext";
 import { useAuth } from "@/hooks/useAuth";
-import { useRouter } from "next/navigation";
+// import { useRouter } from "next/navigation"; // Removed unused import
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 
 export default function AdminLayout({

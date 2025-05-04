@@ -1,7 +1,7 @@
 "use client";
 import React, { createContext, useContext, ReactNode, useState, useCallback } from 'react';
-import { api } from '@/lib/api';
-import { toast } from 'react-hot-toast';
+// import { api } from '@/lib/api'; // Removed unused import
+// import { toast } from 'react-hot-toast'; // Removed unused import
 
 interface InventoryContextType {
   refreshInventory: () => void;
@@ -13,7 +13,8 @@ const InventoryContext = createContext<InventoryContextType | undefined>(undefin
 
 export function InventoryProvider({ children }: { children: ReactNode }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+  // Using isDeleting state but not the setter
+  const [isDeleting] = useState(false);
 
   const refreshInventory = useCallback(() => {
     setIsRefreshing(true);

@@ -1,13 +1,17 @@
 "use client";
-import { 
-  InventoryItemsResponse, 
-  WarehousesResponse, 
-  TransactionsResponse, 
-  InventoryService 
+import {
+  InventoryItemsResponse,
+  WarehousesResponse,
+  TransactionsResponse,
+  InventoryService
 } from '@/services/inventory.service';
 import useSWR from 'swr';
 
-const fetcher = async (url: string, page: number, limit: number, filters: any) => {
+interface FilterParams {
+  [key: string]: string | number | boolean | undefined;
+}
+
+const fetcher = async (url: string, page: number, limit: number, filters: FilterParams) => {
   // Extract the base endpoint from the URL
   const endpoint = url.split('?')[0];
 
@@ -40,10 +44,13 @@ const fetcher = async (url: string, page: number, limit: number, filters: any) =
   }
 };
 
-export function useInventoryItems(page = 1, limit = 10, filters = {}) {
+export function useInventoryItems(page = 1, limit = 10, filters: FilterParams = {}) {
   const { data, error, isLoading, mutate } = useSWR<InventoryItemsResponse>(
     ['/inventory/items', page, limit, filters],
-    ([url, page, limit, filters]: [string, number, number, any]) => fetcher(url, page, limit, filters),
+    async (args) => {
+      const [url, p, l, f] = args;
+      return fetcher(url as string, p as number, l as number, f as FilterParams) as Promise<InventoryItemsResponse>;
+    },
     {
       revalidateOnFocus: false,
       dedupingInterval: 2000,
@@ -93,10 +100,13 @@ export function useInventoryItem(id: string | null) {
   };
 }
 
-export function useWarehouses(page = 1, limit = 10, filters = {}) {
+export function useWarehouses(page = 1, limit = 10, filters: FilterParams = {}) {
   const { data, error, isLoading, mutate } = useSWR<WarehousesResponse>(
     ['/inventory/warehouses', page, limit, filters],
-    ([url, page, limit, filters]: [string, number, number, any]) => fetcher(url, page, limit, filters),
+    async (args) => {
+      const [url, p, l, f] = args;
+      return fetcher(url as string, p as number, l as number, f as FilterParams) as Promise<WarehousesResponse>;
+    },
     {
       revalidateOnFocus: false,
       dedupingInterval: 2000,
@@ -143,10 +153,13 @@ export function useWarehouse(id: string | null) {
   };
 }
 
-export function useInventoryTransactions(page = 1, limit = 10, filters = {}) {
+export function useInventoryTransactions(page = 1, limit = 10, filters: FilterParams = {}) {
   const { data, error, isLoading, mutate } = useSWR<TransactionsResponse>(
     ['/inventory/transactions', page, limit, filters],
-    ([url, page, limit, filters]: [string, number, number, any]) => fetcher(url, page, limit, filters),
+    async (args) => {
+      const [url, p, l, f] = args;
+      return fetcher(url as string, p as number, l as number, f as FilterParams) as Promise<TransactionsResponse>;
+    },
     {
       revalidateOnFocus: false,
       dedupingInterval: 2000,

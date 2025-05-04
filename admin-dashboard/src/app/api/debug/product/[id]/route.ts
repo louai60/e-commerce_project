@@ -3,9 +3,9 @@ import { NextRequest, NextResponse } from 'next/server';
 // Use the standard Next.js pattern for API routes
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const id = params.id;
+  const { id } = await params;
 
   try {
     // Get the API URL from environment variables

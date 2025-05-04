@@ -83,9 +83,9 @@ const CreateCategoryModal: React.FC<CreateCategoryModalProps> = ({
       // Close modal and refresh categories
       onSuccess();
       onClose();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error creating category:", error);
-      toast.error(error.message || "Failed to create category");
+      toast.error(error instanceof Error ? error.message : "Failed to create category");
     } finally {
       setIsSubmitting(false);
     }
