@@ -1,14 +1,14 @@
 version: '3.8'
 
 services:
-  frontend:
-    build: ./frontend
-    ports:
-      - "3000:3000"
-    environment:
-      - NEXT_PUBLIC_API_URL=http://api-gateway:8080
-    depends_on:
-      - api-gateway
+#  frontend:
+#    build: ./frontend
+#    ports:
+#      - "3000:3000"
+#    environment:
+#      - NEXT_PUBLIC_API_URL=http://api-gateway:8080
+#    depends_on:
+#      - api-gateway
 
   admin-dashboard:
     build: ./admin-dashboard

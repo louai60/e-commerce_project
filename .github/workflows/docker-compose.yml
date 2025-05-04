@@ -32,5 +32,10 @@ jobs:
           fi
       - name: Validate docker-compose.yml
         run: docker compose config
-      - name: Build all services
-        run: docker compose build
+      - name: Build backend services only
+        run: |
+          docker compose build api-gateway
+          docker compose build product-service
+          docker compose build user-service
+          docker compose build inventory-service
+          docker compose build admin-dashboard

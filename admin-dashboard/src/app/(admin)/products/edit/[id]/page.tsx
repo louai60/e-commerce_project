@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, ChangeEvent } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { ProductService } from "@/services/product.service";
 import { useBrands, useCategories, useProduct } from "@/hooks/useProducts";
 import Input from "@/components/form/input/InputField";
@@ -13,9 +13,11 @@ import LoadingSpinner from "@/components/ui/loading/LoadingSpinner";
 import { ImageUpload } from "@/components/ui/image-upload/ImageUpload";
 import { Brand } from "@/services/product.service";
 
-export default function EditProductPage({ params }: { params: { id: string } }) {
+export default function EditProductPage() {
+  const params = useParams();
+  const id = params.id as string;
   const router = useRouter();
-  const { product, isLoading, isError, mutate } = useProduct(params.id);
+  const { product, isLoading, isError, mutate } = useProduct(id);
   const { brands, isLoading: brandsLoading } = useBrands();
   const { categories, isLoading: categoriesLoading } = useCategories();
 
@@ -121,7 +123,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
         brand_id: formData.brand_id || undefined
       };
 
-      await ProductService.updateProduct(params.id, productData);
+      await ProductService.updateProduct(id, productData);
       toast.success("Product updated successfully");
       mutate(); // Refresh product data
     } catch (error: unknown) {
