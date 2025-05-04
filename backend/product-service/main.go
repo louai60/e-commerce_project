@@ -14,6 +14,7 @@ import (
 
 	"github.com/louai60/e-commerce_project/backend/common/logger"
 	"github.com/louai60/e-commerce_project/backend/product-service/cache"
+	"github.com/louai60/e-commerce_project/backend/product-service/clients"
 	"github.com/louai60/e-commerce_project/backend/product-service/config"
 	"github.com/louai60/e-commerce_project/backend/product-service/db"
 	"github.com/louai60/e-commerce_project/backend/product-service/handlers"
@@ -43,12 +44,35 @@ func main() {
 		log.Fatal("Failed to load configuration", zap.Error(err))
 	}
 
-	// Initialize database configuration with master and replicas
-	dbConfig, err := db.NewDBConfig(cfg, log)
+	// Initialize database, create if not exists, and run migrations
+	log.Info("Initializing database and running migrations...")
+
+	// Fix dirty migration if needed
+	// Uncomment the following lines if you need to fix a dirty migration
+	// tempDB, err := db.GetTempDBConnection(cfg, log)
+	// if err != nil {
+	//     log.Fatal("Failed to get temporary database connection", zap.Error(err))
+	// }
+	// err = db.ForceFixMigration(tempDB, "000008", log)
+	// if err != nil {
+	//     log.Fatal("Failed to fix dirty migration", zap.Error(err))
+	// }
+	// tempDB.Close()
+
+	dbConfig, err := db.InitDatabase(cfg, log)
 	if err != nil {
-		log.Fatal("Failed to initialize database configuration", zap.Error(err))
+		log.Fatal("Failed to initialize database", zap.Error(err))
 	}
 	defer dbConfig.Close() // Ensure all db connections are closed when main exits
+
+	// Initialize inventory service client
+	inventoryClient, err := clients.NewInventoryClient(cfg, log)
+	if err != nil {
+		log.Warn("Failed to connect to inventory service, some inventory features may not work", zap.Error(err))
+	} else {
+		defer inventoryClient.Close()
+		log.Info("Successfully connected to inventory service")
+	}
 
 	// Create context with timeout for initialization
 	// Commented out since we're not using it for migrations anymore
@@ -116,6 +140,7 @@ func main() {
 		categoryRepo,
 		cacheManager,
 		log,
+		inventoryClient,
 	)
 	if productService == nil {
 		log.Fatal("Failed to create product service")

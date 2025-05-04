@@ -10,7 +10,7 @@ interface Product {
   price: number;
   category_id: string;
   image: string;
-  variants: number | any[] | Record<string, any>;
+  variants: number | Array<unknown> | Record<string, unknown>;
   status: "Active" | "Inactive";
   created_at: string;
 }

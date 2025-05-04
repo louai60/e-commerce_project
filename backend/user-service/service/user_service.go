@@ -41,7 +41,7 @@ type TokenManager interface {
 
 type UserServiceI interface {
 	GetUser(ctx context.Context, id uuid.UUID) (*models.User, error)
-	ListUsers(ctx context.Context, page, limit int32, filters map[string]interface{}) ([]*models.User, int64, error)
+	ListUsers(ctx context.Context, page, limit int32, filters map[string]any) ([]*models.User, int64, error)
 	CreateUser(ctx context.Context, req *models.RegisterRequest) (*models.User, error)
 	UpdateUser(ctx context.Context, user *models.User) (*models.User, error)
 	UpdatePassword(ctx context.Context, email string, newPassword string) error
@@ -184,7 +184,7 @@ func (s *UserService) GetUser(ctx context.Context, id uuid.UUID) (*models.User, 
 	return user, nil
 }
 
-func (s *UserService) ListUsers(ctx context.Context, page, limit int32, filters map[string]interface{}) ([]*models.User, int64, error) {
+func (s *UserService) ListUsers(ctx context.Context, page, limit int32, filters map[string]any) ([]*models.User, int64, error) {
 	// Validate pagination
 	if page < 1 {
 		page = 1
@@ -195,7 +195,7 @@ func (s *UserService) ListUsers(ctx context.Context, page, limit int32, filters 
 
 	// Build query conditions
 	var conditions []string
-	var args []interface{}
+	var args []any
 
 	if userType, ok := filters["user_type"]; ok {
 		conditions = append(conditions, "user_type = ?")
@@ -273,9 +273,9 @@ func (s *UserService) CreateUser(ctx context.Context, req *models.RegisterReques
 		// Check for specific errors like duplicate email/username
 		if strings.Contains(err.Error(), "already exists") {
 			// Use the specific error message from the repository if available
-			return nil, status.Errorf(codes.AlreadyExists, err.Error())
+			return nil, status.Errorf(codes.AlreadyExists, "user already exists: %s", err.Error())
 		}
-		return nil, status.Errorf(codes.Internal, "failed to create user: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to create user: %s", err.Error())
 	}
 
 	return user, nil
@@ -365,7 +365,7 @@ func (s *UserService) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Logi
 			zap.String("userID", user.UserID.String()),
 			zap.Error(err))
 		// If storing the token state is critical, return an error.
-		return nil, status.Errorf(codes.Internal, "failed to update user state after login: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to update user state after login: %s", err.Error())
 	}
 
 	// Prepare CookieInfo for gRPC response
@@ -450,14 +450,14 @@ func (s *UserService) RefreshToken(ctx context.Context, refreshToken string) (*p
 	user, err := s.tokenManager.ValidateToken(refreshToken)
 	if err != nil {
 		s.logger.Error("Invalid refresh token provided", zap.Error(err))
-		return nil, status.Errorf(codes.Unauthenticated, "invalid or expired refresh token: %v", err)
+		return nil, status.Errorf(codes.Unauthenticated, "invalid or expired refresh token: %s", err.Error())
 	}
 
 	// Generate NEW token pair (this includes a new JTI)
 	accessToken, newRefreshTokenString, newRefreshTokenID, newRefreshTokenCookie, err := s.tokenManager.GenerateTokenPair(user)
 	if err != nil {
 		s.logger.Error("Failed to generate new token pair during refresh", zap.String("userID", user.UserID.String()), zap.Error(err))
-		return nil, status.Errorf(codes.Internal, "failed to generate tokens: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to generate tokens: %s", err.Error())
 	}
 
 	// *** Store the NEW refresh token ID, rotating the old one ***

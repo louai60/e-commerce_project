@@ -51,7 +51,7 @@ func (h *UserHandler) GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.
 }
 
 func (h *UserHandler) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (*pb.ListUsersResponse, error) {
-	users, total, err := h.service.ListUsers(ctx, req.Page, req.Limit, map[string]interface{}{})
+	users, total, err := h.service.ListUsers(ctx, req.Page, req.Limit, map[string]any{})
 
 	if err != nil {
 		h.logger.Error("Failed to list users",
@@ -107,7 +107,7 @@ func (h *UserHandler) CreateUser(ctx context.Context, req *pb.CreateUserRequest)
 			return nil, status.Errorf(codes.AlreadyExists, "email or username already exists")
 		}
 		// Handle other potential errors (e.g., validation errors if added later)
-		return nil, status.Errorf(codes.Internal, "failed to create user: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to create user: %s", err.Error())
 	}
 
 	return &pb.UserResponse{
@@ -131,8 +131,8 @@ func (h *UserHandler) UpdateUser(ctx context.Context, req *pb.UpdateUserRequest)
 
 	updatedUser, err := h.service.UpdateUser(ctx, user)
 	if err != nil {
-		h.logger.Error("Failed to update user", 
-			zap.String("userID", userID.String()), 
+		h.logger.Error("Failed to update user",
+			zap.String("userID", userID.String()),
 			zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to update user")
 	}
@@ -213,9 +213,9 @@ func (h *UserHandler) RefreshToken(ctx context.Context, req *pb.RefreshTokenRequ
 		return nil, status.Error(codes.Internal, "token validation setup error")
 	}
 
-	token, err := jwt.ParseWithClaims(req.RefreshToken, &claims, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(req.RefreshToken, &claims, func(token *jwt.Token) (any, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			return nil, fmt.Errorf("unexpected signing method: %s", token.Header["alg"])
 		}
 		return publicKey, nil
 	})
@@ -316,7 +316,8 @@ func (h *UserHandler) HealthCheck(ctx context.Context, req *pb.HealthCheckReques
 func (h *UserHandler) GetUserByEmail(ctx context.Context, req *pb.GetUserByEmailRequest) (*pb.UserResponse, error) {
 	user, err := h.service.GetUserByEmail(ctx, req.Email)
 	if err != nil {
-		return nil, status.Error(codes.NotFound, fmt.Sprintf("user not found: %v", err))
+		h.logger.Error("User not found by email", zap.String("email", req.Email), zap.Error(err))
+		return nil, status.Errorf(codes.NotFound, "user not found: %v", err)
 	}
 	return &pb.UserResponse{
 		User: convertUserToProto(user),

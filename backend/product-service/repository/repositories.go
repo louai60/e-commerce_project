@@ -59,10 +59,10 @@ func (r *PostgresProductRepository) CreateProduct(ctx context.Context, product *
 	// Insert product
 	query := `
         INSERT INTO products (
-            id, title, slug, description, short_description, inventory_status,
+            id, title, slug, description, short_description,
             weight, is_published, brand_id, created_at, updated_at,
-            price, discount_price, inventory_qty, sku
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+            price, discount_price, sku
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         RETURNING id`
 
 	var discountPrice *float64 = nil
@@ -72,10 +72,10 @@ func (r *PostgresProductRepository) CreateProduct(ctx context.Context, product *
 
 	err = tx.QueryRowContext(ctx, query,
 		product.ID, product.Title, product.Slug, product.Description,
-		product.ShortDescription, product.InventoryStatus, product.Weight,
+		product.ShortDescription, product.Weight,
 		product.IsPublished, product.BrandID,
 		product.CreatedAt, product.UpdatedAt, product.Price.Amount, discountPrice,
-		product.InventoryQty, product.SKU,
+		product.SKU,
 	).Scan(&product.ID)
 
 	if err != nil {
@@ -129,7 +129,7 @@ func (r *PostgresProductRepository) CreateProduct(ctx context.Context, product *
 			err = tx.QueryRowContext(
 				ctx, variantQuery,
 				variant.ProductID, variant.SKU, variant.Title, variant.Price, variant.DiscountPrice,
-				variant.InventoryQty, now, now,
+				now, now,
 			).Scan(&variant.ID)
 
 			if err != nil {
@@ -272,12 +272,12 @@ func (r *PostgresProductRepository) GetByID(ctx context.Context, id string) (*mo
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&product.ID, &product.Title, &product.Slug, &product.Description,
 		&product.ShortDescription, &priceAmount, &discountPriceAmount, &product.SKU,
-		&product.InventoryQty, &product.InventoryStatus, &product.Weight,
+		&product.Weight,
 		&product.IsPublished, &product.BrandID, &product.CreatedAt, &product.UpdatedAt,
 		&brand.ID, &brand.Name, &brand.Slug,
 		&brand.Description, &brand.CreatedAt, &brand.UpdatedAt,
 		&variant.ID, &variant.ProductID, &variant.Title, &variant.SKU, &variant.Price,
-		&variant.DiscountPrice, &variant.InventoryQty, &variant.CreatedAt, &variant.UpdatedAt,
+		&variant.DiscountPrice, &variant.CreatedAt, &variant.UpdatedAt,
 	)
 
 	if err != nil {
@@ -322,7 +322,7 @@ func (r *PostgresProductRepository) GetBySlug(ctx context.Context, slug string) 
 
 	err := r.db.QueryRowContext(ctx, query, slug).Scan(
 		&product.ID, &product.Title, &product.Slug, &product.Description,
-		&product.ShortDescription, &product.InventoryStatus, &product.Weight,
+		&product.ShortDescription, &product.Weight,
 		&product.IsPublished, &product.BrandID,
 		&product.CreatedAt, &product.UpdatedAt,
 	)
@@ -393,7 +393,6 @@ func (r *PostgresProductRepository) GetBySlug(ctx context.Context, slug string) 
 			product.DiscountPrice = &discountPrice
 		}
 		product.SKU = defaultVariant.SKU
-		product.InventoryQty = defaultVariant.InventoryQty
 	}
 
 	return product, nil
@@ -428,7 +427,7 @@ func (r *PostgresProductRepository) List(ctx context.Context, offset, limit int)
 		product := &models.Product{}
 		err := rows.Scan(
 			&product.ID, &product.Title, &product.Slug, &product.Description,
-			&product.ShortDescription, &product.InventoryStatus, &product.Weight,
+			&product.ShortDescription, &product.Weight,
 			&product.IsPublished, &product.BrandID,
 			&product.CreatedAt, &product.UpdatedAt,
 		)
@@ -497,16 +496,6 @@ func (r *PostgresProductRepository) List(ctx context.Context, offset, limit int)
 				product.DiscountPrice = &discountPrice
 			}
 			product.SKU = defaultVariant.SKU
-			product.InventoryQty = defaultVariant.InventoryQty
-
-			// Update inventory status based on quantity if not already set
-			if product.InventoryStatus == "" {
-				if product.InventoryQty > 0 {
-					product.InventoryStatus = "IN_STOCK"
-				} else {
-					product.InventoryStatus = "OUT_OF_STOCK"
-				}
-			}
 		}
 
 		products = append(products, product)
@@ -576,7 +565,7 @@ func (r *PostgresProductRepository) UpdateProduct(ctx context.Context, product *
 				result, err = tx.ExecContext(
 					ctx, variantQuery,
 					variant.SKU, variant.Title, variant.Price, variant.DiscountPrice,
-					variant.InventoryQty, now, variant.ID, product.ID,
+					now, variant.ID, product.ID,
 				)
 				if err != nil {
 					r.logger.Error("failed to update product variant", zap.Error(err))
@@ -613,7 +602,7 @@ func (r *PostgresProductRepository) UpdateProduct(ctx context.Context, product *
 				err = tx.QueryRowContext(
 					ctx, variantQuery,
 					variant.ProductID, variant.SKU, variant.Title, variant.Price, variant.DiscountPrice,
-					variant.InventoryQty, now, now,
+					now, now,
 				).Scan(&variant.ID)
 
 				if err != nil {
@@ -763,8 +752,8 @@ func (r *PostgresProductRepository) GetProductFixed(ctx context.Context, id stri
 		&product.ID, &product.Title, &product.Slug, &product.Description,
 		&product.ShortDescription, &weight, &product.IsPublished,
 		&product.CreatedAt, &product.UpdatedAt, &product.DeletedAt,
-		&product.BrandID, &product.InventoryStatus, &price, &discountPrice,
-		&product.SKU, &product.InventoryQty,
+		&product.BrandID, &price, &discountPrice,
+		&product.SKU,
 		&brand.ID, &brand.Name, &brand.Slug, &brand.Description,
 		&brandCreatedAt, &brandUpdatedAt, &brandDeletedAt,
 	)
@@ -885,15 +874,6 @@ func (r *PostgresProductRepository) GetProductFixed(ctx context.Context, id stri
 		}
 	}
 
-	// Get product inventory locations
-	locations, err := r.GetInventoryLocations(ctx, product.ID)
-	if err != nil {
-		r.logger.Error("failed to get product inventory locations", zap.Error(err), zap.String("product_id", id))
-		errs = append(errs, fmt.Errorf("failed to get product inventory locations: %w", err))
-	} else {
-		product.InventoryLocations = locations
-	}
-
 	// Log any errors but continue with the product data we have
 	if len(errs) > 0 {
 		r.logger.Warn("some product associations failed to load", zap.Int("error_count", len(errs)), zap.String("product_id", id))
@@ -965,23 +945,6 @@ func (r *PostgresProductRepository) FixProductData(ctx context.Context, id strin
 
 		if err != nil {
 			return fmt.Errorf("failed to update product discount price: %w", err)
-		}
-	}
-
-	// Update the product inventory quantity if needed
-	if product.InventoryQty == 0 {
-		// Set the correct inventory quantity
-		product.InventoryQty = 200
-
-		// Update the product
-		_, err = tx.ExecContext(ctx, `
-			UPDATE products
-			SET inventory_qty = $1, updated_at = $2
-			WHERE id = $3
-		`, product.InventoryQty, time.Now(), product.ID)
-
-		if err != nil {
-			return fmt.Errorf("failed to update product inventory quantity: %w", err)
 		}
 	}
 
@@ -1481,6 +1444,30 @@ func (r *PostgresCategoryRepository) ListCategories(ctx context.Context, offset,
 	return categories, total, rows.Err()
 }
 
+// IsSKUExists checks if a SKU already exists in the database
+func (r *PostgresProductRepository) IsSKUExists(ctx context.Context, sku string) (bool, error) {
+	if sku == "" {
+		return false, nil // Empty SKU can't exist
+	}
+
+	query := `
+		SELECT EXISTS(
+			SELECT 1 FROM products WHERE sku = $1 AND deleted_at IS NULL
+			UNION
+			SELECT 1 FROM product_variants WHERE sku = $1 AND deleted_at IS NULL
+		)
+	`
+
+	var exists bool
+	err := r.db.QueryRowContext(ctx, query, sku).Scan(&exists)
+	if err != nil {
+		r.logger.Error("failed to check if SKU exists", zap.Error(err), zap.String("sku", sku))
+		return false, fmt.Errorf("failed to check if SKU exists: %w", err)
+	}
+
+	return exists, nil
+}
+
 func NewProductRepository(db *sql.DB, logger *zap.Logger) ProductRepository {
 	if db == nil {
 		logger.Fatal("database connection cannot be nil")
@@ -1519,7 +1506,7 @@ func (r *PostgresProductRepository) GetProductVariants(ctx context.Context, prod
 	const query = `
 		SELECT
 			pv.id, pv.product_id, pv.sku, pv.title, pv.price, pv.discount_price,
-			pv.inventory_qty, pv.created_at, pv.updated_at, pv.deleted_at
+			pv.created_at, pv.updated_at, pv.deleted_at
 		FROM product_variants pv
 		WHERE pv.product_id = $1 AND pv.deleted_at IS NULL
 		ORDER BY pv.created_at
@@ -1537,7 +1524,7 @@ func (r *PostgresProductRepository) GetProductVariants(ctx context.Context, prod
 		var variant models.ProductVariant
 		if err := rows.Scan(
 			&variant.ID, &variant.ProductID, &variant.SKU, &variant.Title, &variant.Price, &variant.DiscountPrice,
-			&variant.InventoryQty, &variant.CreatedAt, &variant.UpdatedAt, &variant.DeletedAt,
+			&variant.CreatedAt, &variant.UpdatedAt, &variant.DeletedAt,
 		); err != nil {
 			r.logger.Error("failed to scan product variant", zap.Error(err))
 			return nil, fmt.Errorf("failed to scan product variant: %w", err)
@@ -1623,15 +1610,15 @@ func (r *PostgresProductRepository) CreateVariant(ctx context.Context, tx *sql.T
 	// Insert variant
 	query := `
 		INSERT INTO product_variants (
-			product_id, sku, title, price, discount_price, inventory_qty,
+			product_id, sku, title, price, discount_price,
 			created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id`
 
 	err := tx.QueryRowContext(
 		ctx, query,
 		variant.ProductID, variant.SKU, variant.Title, variant.Price,
-		variant.DiscountPrice, variant.InventoryQty, variant.CreatedAt, variant.UpdatedAt,
+		variant.DiscountPrice, variant.CreatedAt, variant.UpdatedAt,
 	).Scan(&variant.ID)
 
 	if err != nil {
@@ -1749,13 +1736,13 @@ func (r *PostgresProductRepository) UpdateVariant(ctx context.Context, tx *sql.T
 	const variantQuery = `
 		UPDATE product_variants SET
 			sku = $1, title = $2, price = $3, discount_price = $4,
-			inventory_qty = $5, updated_at = $6
-		WHERE id = $7 AND deleted_at IS NULL
+			updated_at = $5
+		WHERE id = $6 AND deleted_at IS NULL
 	`
 
 	result, err := tx.ExecContext(ctx, variantQuery,
 		variant.SKU, variant.Title, variant.Price, variant.DiscountPrice,
-		variant.InventoryQty, now, variant.ID,
+		now, variant.ID,
 	)
 
 	if err != nil {

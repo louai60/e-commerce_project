@@ -1,0 +1,164 @@
+type Query {
+  # Inventory queries
+  inventoryItems(page: Int!, limit: Int!, lowStockOnly: Boolean): InventoryItemsResponse!
+  inventoryItem(id: ID!): InventoryItem
+  warehouses(page: Int!, limit: Int!): WarehousesResponse!
+  warehouse(id: ID!): Warehouse
+  inventoryTransactions(page: Int!, limit: Int!, transactionType: String, warehouseId: String, dateFrom: String, dateTo: String): InventoryTransactionsResponse!
+
+  # Product queries that can be used by inventory service
+  product(id: ID!): Product
+  products(page: Int!, limit: Int!): ProductsResponse!
+}
+
+# Inventory types
+type InventoryItem {
+  id: ID!
+  product_id: String!
+  variant_id: String
+  sku: String!
+  total_quantity: Int!
+  available_quantity: Int!
+  reserved_quantity: Int!
+  reorder_point: Int!
+  reorder_quantity: Int!
+  status: String!
+  last_updated: String!
+  created_at: String!
+  updated_at: String!
+  locations: [InventoryLocation]
+  product: Product
+}
+
+type InventoryLocation {
+  id: ID!
+  inventory_item_id: String!
+  warehouse_id: String!
+  quantity: Int!
+  available_quantity: Int!
+  reserved_quantity: Int!
+  created_at: String!
+  updated_at: String!
+  warehouse: Warehouse
+}
+
+type Warehouse {
+  id: ID!
+  name: String!
+  code: String!
+  address: String
+  city: String
+  state: String
+  country: String
+  postal_code: String
+  is_active: Boolean!
+  priority: Int!
+  item_count: Int
+  total_quantity: Int
+  created_at: String!
+  updated_at: String!
+}
+
+type InventoryItemsResponse {
+  items: [InventoryItem!]!
+  pagination: Pagination!
+}
+
+type WarehousesResponse {
+  warehouses: [Warehouse!]!
+  pagination: Pagination!
+}
+
+type InventoryTransaction {
+  id: ID!
+  inventory_item_id: String!
+  transaction_type: String!
+  quantity: Int!
+  warehouse_id: String
+  reference_id: String
+  reference_type: String
+  notes: String
+  created_by: String
+  created_at: String!
+  inventory_item: InventoryItem
+  warehouse: Warehouse
+}
+
+type InventoryTransactionsResponse {
+  transactions: [InventoryTransaction!]!
+  pagination: Pagination!
+}
+
+# Product types
+type Product {
+  id: ID!
+  title: String!
+  slug: String!
+  description: String
+  price: Float
+  discount_price: Float
+  status: String!
+  images: [Image]
+  brand: Brand
+  categories: [Category]
+  variants: [ProductVariant]
+  specifications: [Specification]
+  created_at: String!
+  updated_at: String!
+}
+
+type Image {
+  id: ID!
+  url: String!
+  alt_text: String
+  position: Int
+}
+
+type Brand {
+  id: ID!
+  name: String!
+  slug: String!
+  logo_url: String
+}
+
+type Category {
+  id: ID!
+  name: String!
+  slug: String!
+  parent_id: String
+  level: Int!
+}
+
+type ProductVariant {
+  id: ID!
+  product_id: String!
+  sku: String!
+  title: String!
+  price: Float!
+  discount_price: Float
+  attributes: [Attribute]
+}
+
+type Attribute {
+  name: String!
+  value: String!
+}
+
+type Specification {
+  name: String!
+  value: String!
+  unit: String
+}
+
+type ProductsResponse {
+  products: [Product!]!
+  pagination: Pagination!
+}
+
+# Common types
+type Pagination {
+  current_page: Int!
+  total_pages: Int!
+  per_page: Int!
+  total_items: Int!
+}

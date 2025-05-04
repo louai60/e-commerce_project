@@ -84,11 +84,10 @@ type VariantAttributeValue struct {
 type ProductVariant struct {
 	ID            string     `json:"id" db:"id"`
 	ProductID     string     `json:"product_id" db:"product_id"`
-	SKU           string     `json:"sku" db:"sku"`
+	SKU           string     `json:"sku" db:"sku"`               // Kept as reference key to inventory service
 	Title         *string    `json:"title,omitempty" db:"title"` // Optional: "Red - Large"
 	Price         float64    `json:"price" db:"price"`
 	DiscountPrice *float64   `json:"discount_price,omitempty" db:"discount_price"`
-	InventoryQty  int        `json:"inventory_qty" db:"inventory_qty"`
 	CreatedAt     time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at" db:"updated_at"`
 	DeletedAt     *time.Time `json:"deleted_at,omitempty" db:"deleted_at"`
@@ -139,8 +138,7 @@ type Product struct {
 	Slug             string     `json:"slug" db:"slug"`
 	Description      string     `json:"description" db:"description"`
 	ShortDescription string     `json:"short_description" db:"short_description"`
-	InventoryStatus  string     `json:"inventory_status" db:"inventory_status"` // 'in_stock', 'out_of_stock', etc.
-	Weight           *float64   `json:"weight" db:"weight"`                     // Weight might stay at product level if consistent across variants
+	Weight           *float64   `json:"weight" db:"weight"` // Weight might stay at product level if consistent across variants
 	IsPublished      bool       `json:"is_published" db:"is_published"`
 	TenantID         *string    `json:"tenant_id,omitempty" db:"tenant_id"` // Added for sharding
 	CreatedAt        time.Time  `json:"created_at" db:"created_at"`
@@ -153,21 +151,20 @@ type Product struct {
 	DiscountPrice *Price `json:"discount_price,omitempty" db:"-"`
 
 	// Transient fields populated from default variant
-	SKU          string `json:"sku" db:"-"`
-	InventoryQty int    `json:"inventory_qty" db:"-"`
+	SKU string `json:"sku" db:"-"` // Kept as reference key to inventory service
 
 	// Related entities (populated separately)
-	Brand              *Brand                 `json:"brand,omitempty" db:"-"`
-	Categories         []Category             `json:"categories,omitempty" db:"-"`
-	Images             []ProductImage         `json:"images,omitempty" db:"-"`   // Base product images
-	Variants           []ProductVariant       `json:"variants,omitempty" db:"-"` // Product variants
-	Tags               []ProductTag           `json:"tags,omitempty" db:"-"`
-	Attributes         []ProductAttribute     `json:"attributes,omitempty" db:"-"`
-	Specifications     []ProductSpecification `json:"specifications,omitempty" db:"-"`
-	SEO                *ProductSEO            `json:"seo,omitempty" db:"-"`
-	Shipping           *ProductShipping       `json:"shipping,omitempty" db:"-"`
-	Discount           *ProductDiscount       `json:"discount,omitempty" db:"-"`
-	InventoryLocations []InventoryLocation    `json:"inventory_locations,omitempty" db:"-"`
+	Brand          *Brand                 `json:"brand,omitempty" db:"-"`
+	Categories     []Category             `json:"categories,omitempty" db:"-"`
+	Images         []ProductImage         `json:"images,omitempty" db:"-"`   // Base product images
+	Variants       []ProductVariant       `json:"variants,omitempty" db:"-"` // Product variants
+	Tags           []ProductTag           `json:"tags,omitempty" db:"-"`
+	Attributes     []ProductAttribute     `json:"attributes,omitempty" db:"-"`
+	Specifications []ProductSpecification `json:"specifications,omitempty" db:"-"`
+	SEO            *ProductSEO            `json:"seo,omitempty" db:"-"`
+	Shipping       *ProductShipping       `json:"shipping,omitempty" db:"-"`
+	Discount       *ProductDiscount       `json:"discount,omitempty" db:"-"`
+	// InventoryLocations removed - now managed by inventory service
 }
 
 // ProductTag represents a tag associated with a product
@@ -235,6 +232,7 @@ type ProductDiscount struct {
 }
 
 // InventoryLocation represents a warehouse location for a product's inventory
+// This is now managed by the inventory service
 type InventoryLocation struct {
 	ID           string    `json:"id" db:"id"`
 	ProductID    string    `json:"product_id" db:"product_id"`

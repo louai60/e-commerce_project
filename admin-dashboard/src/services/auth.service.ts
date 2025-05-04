@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
 
@@ -25,6 +25,12 @@ interface RegisterData {
   lastName: string;
   email: string;
   password: string;
+}
+
+interface ApiError {
+  message?: string;
+  error?: string;
+  status?: number;
 }
 
 export class AuthService {
@@ -75,23 +81,24 @@ export class AuthService {
       document.cookie = `access_token=${response.data.access_token}; path=/; ${secure} SameSite=Lax; max-age=86400`;
 
       return response.data;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as AxiosError<ApiError>;
       // Enhanced error logging
       console.error('Login error details:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-        config: error.config
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+        config: err.config
       });
 
-      if (error.response?.status === 401) {
+      if (err.response?.status === 401) {
         throw new Error('Invalid email or password');
-      } else if (error.response?.status === 403) {
+      } else if (err.response?.status === 403) {
         throw new Error('Access denied: Admin privileges required');
-      } else if (error.response?.data?.message) {
-        throw new Error(error.response.data.message);
-      } else if (error.message) {
-        throw new Error(`Login failed: ${error.message}`);
+      } else if (err.response?.data?.message) {
+        throw new Error(err.response.data.message);
+      } else if (err.message) {
+        throw new Error(`Login failed: ${err.message}`);
       }
       
       throw new Error('Unable to connect to the server. Please try again later.');
@@ -107,7 +114,10 @@ export class AuthService {
 
     // Call logout endpoint to invalidate refresh token
     axios.post(`${API_URL}/users/logout`, {}, { withCredentials: true })
-      .catch(error => console.error('Logout error:', error));
+      .catch((error: unknown) => {
+        const err = error as AxiosError;
+        console.error('Logout error:', err.message);
+      });
   }
 
   static getCurrentUser(): User | null {
@@ -142,16 +152,17 @@ export class AuthService {
       });
 
       if (!response.ok) {
-        const error = await response.json();
+        const error = await response.json() as ApiError;
         throw new Error(error.error || 'Registration failed');
       }
 
       return response.json();
-    } catch (error: any) {
-      if (error.response?.data?.message) {
-        throw new Error(error.response.data.message);
+    } catch (error: unknown) {
+      const err = error as AxiosError<ApiError>;
+      if (err.response?.data?.message) {
+        throw new Error(err.response.data.message);
       }
-      if (error.response?.status === 409) {
+      if (err.response?.status === 409) {
         throw new Error('Email or username already exists');
       }
       throw new Error('Registration failed. Please try again later.');

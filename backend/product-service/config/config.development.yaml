@@ -69,3 +69,8 @@ database:
 redis:
   host: "localhost"  # Changed from "redis" to "localhost"
   port: "6379"
+
+services:
+  inventory:
+    host: "localhost"
+    port: "50055"

@@ -11,7 +11,7 @@ import { toast } from "react-hot-toast";
 import { ImageUpload } from "@/components/ui/image-upload/ImageUpload";
 import { api } from '@/lib/api';
 import { useProductContext } from "@/contexts/ProductContext";
-import { Product } from "@/services/product.service";
+import { Product, ProductService, Brand, Category } from "@/services/product.service"; // Import Brand and Category
 import CreateCategoryModal from "@/components/modals/CreateCategoryModal";
 import CreateBrandModal from "@/components/modals/CreateBrandModal";
 
@@ -22,7 +22,6 @@ interface ProductFormData {
   price: number;
   sku: string;
   inventory_quantity: number;
-  inventory_status: string;
   brand_id?: string;
   categories?: string[];
   is_published: boolean;
@@ -49,7 +48,6 @@ export default function CreateProductPage() {
     price: 0,
     sku: "",
     inventory_quantity: 0,
-    inventory_status: "in_stock",
     is_published: true,
     categories: [],
     images: [{ url: "", alt_text: "", position: 1 }],
@@ -174,10 +172,9 @@ export default function CreateProductPage() {
         slug: formData.slug,
         description: formData.description,
         short_description: formData.description?.substring(0, 150) || '',
-        price: price, // Use the parsed float value
+        price: price,
         sku: formData.sku,
-        inventory_qty: inventoryQty, // Use the parsed integer value
-        inventory_status: formData.inventory_status,
+        inventory_quantity: inventoryQty,
         is_published: formData.is_published,
         brand_id: formData.brand_id ? formData.brand_id : undefined,
         categories: formData.categories?.length ? formData.categories : undefined,
@@ -186,11 +183,7 @@ export default function CreateProductPage() {
 
       console.log('Submitting product data:', JSON.stringify(productData, null, 2));
 
-      // Use the existing API instance from lib/api.ts
-      // This ensures all the authentication middleware is properly applied
-
-      console.log('Sending API request...');
-      // Make sure we're sending the correct structure
+      // Create a product request without inventory_qty field
       const requestData = {
         product: {
           title: productData.title,
@@ -199,21 +192,16 @@ export default function CreateProductPage() {
           short_description: productData.short_description,
           price: Number(productData.price),
           sku: productData.sku,
-          inventory_qty: Number(productData.inventory_qty),
-          inventory_status: productData.inventory_status,
           is_published: productData.is_published,
-          // Send brand_id as a string, not an object with a value property
           brand_id: productData.brand_id || undefined,
-          // Use category_ids instead of categories - send as array of strings
           category_ids: productData.categories || undefined,
-          images: productData.images
+          images: productData.images,
+          inventory: {
+            initial_quantity: Number(productData.inventory_quantity)
+          }
         }
       };
       console.log('Request data:', JSON.stringify(requestData, null, 2));
-
-      // Check if we have a token
-      const token = localStorage.getItem('access_token');
-      console.log('Auth token available:', !!token);
 
       const response = await api.post('/products', requestData);
       console.log('API response:', response.data);
@@ -234,8 +222,8 @@ export default function CreateProductPage() {
             currency: 'USD'
           },
           inventory: {
-            status: formData.inventory_status,
-            available: formData.inventory_status === 'in_stock',
+            status: "in_stock",
+            available: true,
             quantity: Number(formData.inventory_quantity)
           },
           images: processedImages.filter(img => img.url).map(img => ({
@@ -251,39 +239,22 @@ export default function CreateProductPage() {
           updated_at: new Date().toISOString()
         };
 
-        // Add the new product to the list optimistically
+        // Add the optimistic product to the list
         addOptimisticProduct(optimisticProduct);
 
+        // Refresh the product list
+        await refreshProducts();
+
+        // Show success message
         toast.success("Product created successfully");
 
-        // Refresh the product list to get the actual data from the server
-        // Use a small timeout to ensure the UI has time to update with the optimistic data first
-        setTimeout(() => {
-          refreshProducts();
-          // Navigate to the products page after a short delay
-          setTimeout(() => {
-            router.push("/products");
-          }, 100);
-        }, 300);
+        // Redirect to the product list page
+        router.push('/products');
       }
-    } catch (error: any) {
-      console.error('Error creating product:', error);
-      console.error('Error details:', error.response?.data || error.message);
-
-      // Handle specific error cases
-      if (error.response?.status === 401) {
-        toast.error("Authentication error. Please log in again.");
-        // Redirect to login page
-        router.push("/login");
-      } else if (error.response?.status === 403) {
-        toast.error("You don't have permission to create products. Admin access required.");
-      } else if (error.response?.data?.error?.includes('wrapperspb.StringValue')) {
-        // This is a type conversion error
-        console.error('Type conversion error detected. The server expects a different format for string values.');
-        toast.error("There was an issue with the data format. Please try again.");
-      } else {
-        toast.error(error.response?.data?.error || error.message || "Failed to create product");
-      }
+    } catch (error: unknown) {
+      const err = error as { error?: string; message?: string };
+      console.error("Error creating product:", error);
+      toast.error(err.error || err.message || "Failed to create product");
     } finally {
       setIsSubmitting(false);
     }
@@ -363,7 +334,7 @@ export default function CreateProductPage() {
           <div className="space-y-4 pt-4">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Pricing & Inventory</h2>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
                 <Label htmlFor="price">Price*</Label>
                 <Input
@@ -387,18 +358,63 @@ export default function CreateProductPage() {
 
               <div>
                 <Label htmlFor="sku">SKU*</Label>
-                <Input
-                  id="sku"
-                  name="sku"
-                  type="text"
-                  placeholder="PROD-001"
-                  value={formData.sku}
-                  onChange={handleInputChange}
-                />
-              </div>
+                <div className="flex gap-2">
+                  <Input
+                    id="sku"
+                    name="sku"
+                    type="text"
+                    placeholder="PROD-001"
+                    value={formData.sku}
+                    onChange={handleInputChange}
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      if (!formData.brand_id || !formData.categories || formData.categories.length === 0) {
+                        toast.error("Brand and category are required to generate SKU");
+                        return;
+                      }
 
+                      try {
+                        // Find the brand name from the selected brand_id
+                        const selectedBrand = brands?.find(brand => brand.id === formData.brand_id);
+                        if (!selectedBrand) {
+                          toast.error("Selected brand not found");
+                          return;
+                        }
+
+                        // Find the category name from the selected category_id
+                        const selectedCategory = categories?.find(category => category.id === formData.categories?.[0]);
+                        if (!selectedCategory) {
+                          toast.error("Selected category not found");
+                          return;
+                        }
+
+                        // Call the API to generate a SKU preview
+                        const result = await ProductService.generateSKUPreview(
+                          selectedBrand.name,
+                          selectedCategory.name
+                        );
+
+                        // Update the SKU field with the generated SKU
+                        setFormData(prev => ({ ...prev, sku: result.sku }));
+                        toast.success("SKU generated successfully");
+                      } catch (error) {
+                        console.error("Failed to generate SKU:", error);
+                        toast.error("Failed to generate SKU");
+                      }
+                    }}
+                    disabled={!formData.brand_id || !formData.categories || formData.categories.length === 0}
+                  >
+                    Generate
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
-                <Label htmlFor="inventory_quantity">Inventory Quantity*</Label>
+                <Label htmlFor="inventory_quantity">Initial Inventory Quantity*</Label>
                 <Input
                   id="inventory_quantity"
                   name="inventory_quantity"
@@ -416,28 +432,17 @@ export default function CreateProductPage() {
                   }}
                 />
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div>
-                <Label htmlFor="inventory_status">Inventory Status*</Label>
-                <div className="relative">
-                  <select
-                    id="inventory_status"
-                    name="inventory_status"
-                    value={formData.inventory_status}
-                    onChange={(e: ChangeEvent<HTMLSelectElement>) => handleInputChange(e)}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  >
-                    <option value="in_stock">In Stock</option>
-                    <option value="out_of_stock">Out of Stock</option>
-                    <option value="backorder">Backorder</option>
-                    <option value="preorder">Preorder</option>
-                  </select>
-                  <span className="absolute text-gray-500 -translate-y-1/2 pointer-events-none right-3 top-1/2 dark:text-gray-400">
-                    <ChevronDownIcon/>
-                  </span>
+              <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                <div className="flex items-center mb-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-500 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                  <span className="font-medium text-blue-800 dark:text-blue-200">Inventory Management</span>
                 </div>
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  Set the initial inventory quantity for this product. After creation, you can manage detailed inventory settings in the inventory management section.
+                </p>
               </div>
 
               <div>
@@ -464,7 +469,7 @@ export default function CreateProductPage() {
                     disabled={brandsLoading}
                   >
                     <option value="">Select a brand</option>
-                    {brands?.map((brand: any) => (
+                    {brands?.map((brand: Brand) => ( // Use Brand type
                       <option key={brand.id} value={brand.id}>
                         {brand.name}
                       </option>
@@ -502,11 +507,16 @@ export default function CreateProductPage() {
                   multiple
                   size={4}
                 >
-                  {categories?.map((category: any) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name} {category.parent_name ? `(${category.parent_name})` : ''}
-                    </option>
-                  ))}
+                  {categories?.map((category: Category) => {
+                    const parentCategory = category.parent_id 
+                      ? categories.find(cat => cat.id === category.parent_id)
+                      : null;
+                    return (
+                      <option key={category.id} value={category.id}>
+                        {category.name} {parentCategory ? `(${parentCategory.name})` : ''}
+                      </option>
+                    );
+                  })}
                 </select>
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Hold Ctrl (or Cmd) to select multiple categories</p>
               </div>

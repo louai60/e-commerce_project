@@ -3,8 +3,8 @@ package repository
 import (
 	"context"
 
-	"github.com/louai60/e-commerce_project/backend/user-service/models"
 	"github.com/google/uuid"
+	"github.com/louai60/e-commerce_project/backend/user-service/models"
 )
 
 type Repository interface {

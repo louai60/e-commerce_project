@@ -29,7 +29,6 @@ message ProductVariant {
     string title = 4;
     double price = 5;
     google.protobuf.DoubleValue discount_price = 6;
-    int32 inventory_qty = 7;
     repeated VariantAttributeValue attributes = 8;
     repeated VariantImage images = 9;
     google.protobuf.Timestamp created_at = 10;
@@ -105,14 +104,6 @@ message ProductDiscount {
     google.protobuf.Timestamp updated_at = 7;
 }
 
-message InventoryLocation {
-    string id = 1;
-    string product_id = 2;
-    string warehouse_id = 3;
-    int32 available_qty = 4;
-    google.protobuf.Timestamp created_at = 5;
-    google.protobuf.Timestamp updated_at = 6;
-}
 
 message Product {
     string id = 1;
@@ -123,8 +114,6 @@ message Product {
     double price = 6;                                // Populated from default variant
     google.protobuf.DoubleValue discount_price = 7; // Populated from default variant
     string sku = 8;                                 // Populated from default variant
-    int32 inventory_qty = 9;                        // Populated from default variant
-    string inventory_status = 10; // 'in_stock', 'out_of_stock', etc.
     google.protobuf.DoubleValue weight = 11;
     bool is_published = 12;
     google.protobuf.Timestamp created_at = 13;
@@ -143,7 +132,6 @@ message Product {
     ProductSEO seo = 24;
     ProductShipping shipping = 25;
     ProductDiscount discount = 26;
-    repeated InventoryLocation inventory_locations = 27;
 }
 
 message ProductImage {
@@ -281,6 +269,18 @@ message DeleteImageResponse {
     bool success = 1;
 }
 
+// SKU generation related messages
+message GenerateSKUPreviewRequest {
+    string brand_name = 1;
+    string category_name = 2;
+    string color = 3;
+    string size = 4;
+}
+
+message GenerateSKUPreviewResponse {
+    string sku = 1;
+}
+
 // Service definition
 service ProductService {
     rpc CreateProduct (CreateProductRequest) returns (Product);
@@ -300,4 +300,7 @@ service ProductService {
     // Image upload methods
     rpc UploadImage (UploadImageRequest) returns (UploadImageResponse);
     rpc DeleteImage (DeleteImageRequest) returns (DeleteImageResponse);
+
+    // SKU generation methods
+    rpc GenerateSKUPreview (GenerateSKUPreviewRequest) returns (GenerateSKUPreviewResponse);
 }

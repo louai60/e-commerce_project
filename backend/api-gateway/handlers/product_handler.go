@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/louai60/e-commerce_project/backend/api-gateway/clients"
 	"github.com/louai60/e-commerce_project/backend/api-gateway/formatters"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -31,6 +32,16 @@ func NewProductHandler(client pb.ProductServiceClient, logger *zap.Logger) *Prod
 		client: client,
 		logger: logger,
 	}
+}
+
+// GetClient returns the product service client
+func (h *ProductHandler) GetClient() pb.ProductServiceClient {
+	return h.client
+}
+
+// GetLogger returns the logger
+func (h *ProductHandler) GetLogger() *zap.Logger {
+	return h.logger
 }
 
 // ImageUploadRequest represents the request body for image upload
@@ -181,7 +192,60 @@ func (h *ProductHandler) GetProduct(c *gin.Context) {
 		return
 	}
 
+	// Format the product
 	formattedProduct := formatters.FormatProduct(resp)
+
+	// Try to fetch inventory data for the product
+	inventoryClient, exists := c.Get("inventory_client")
+	if exists && inventoryClient != nil {
+		invClient, ok := inventoryClient.(*clients.InventoryClient)
+		if ok {
+			// Add a delay to ensure inventory data is available
+			// This helps with eventual consistency between services
+			time.Sleep(500 * time.Millisecond)
+
+			// Fetch inventory data
+			inventoryItem, err := invClient.GetInventoryItem(c.Request.Context(), resp.Id)
+			if err == nil && inventoryItem != nil {
+				h.logger.Info("Successfully fetched inventory data",
+					zap.String("product_id", resp.Id),
+					zap.Int("total_quantity", int(inventoryItem.TotalQuantity)),
+					zap.Int("available_quantity", int(inventoryItem.AvailableQuantity)),
+					zap.Int("reserved_quantity", int(inventoryItem.ReservedQuantity)),
+					zap.String("status", inventoryItem.Status))
+
+				// Update the inventory data in the response with comprehensive information
+				formattedProduct.Inventory = &formatters.EnhancedInventoryInfo{
+					Status:            inventoryItem.Status,
+					Available:         inventoryItem.AvailableQuantity > 0,
+					Quantity:          int(inventoryItem.AvailableQuantity), // For backward compatibility
+					TotalQuantity:     int(inventoryItem.TotalQuantity),
+					AvailableQuantity: int(inventoryItem.AvailableQuantity),
+					ReservedQuantity:  int(inventoryItem.ReservedQuantity),
+					ReorderPoint:      int(inventoryItem.ReorderPoint),
+					ReorderQuantity:   int(inventoryItem.ReorderQuantity),
+					LastUpdated:       formatTimestamp(inventoryItem.LastUpdated),
+				}
+
+				// Add location data if available
+				if len(inventoryItem.Locations) > 0 {
+					locations := make([]formatters.EnhancedLocationInfo, len(inventoryItem.Locations))
+					for i, loc := range inventoryItem.Locations {
+						locations[i] = formatters.EnhancedLocationInfo{
+							WarehouseID: loc.WarehouseId,
+							Quantity:    int(loc.Quantity),
+						}
+					}
+					formattedProduct.Inventory.Locations = locations
+				}
+			} else {
+				h.logger.Warn("Failed to fetch inventory data for product",
+					zap.Error(err),
+					zap.String("product_id", resp.Id))
+			}
+		}
+	}
+
 	// Wrap in a products array for consistent response format
 	response := formatters.ProductListResponse{
 		Products: []formatters.ProductResponse{formattedProduct},
@@ -241,6 +305,59 @@ func (h *ProductHandler) ListProducts(c *gin.Context) {
 	// Format the response
 	formattedResponse := formatters.FormatProductList(resp.Products, page, limit, int(resp.Total))
 
+	// Try to fetch inventory data for each product
+	inventoryClient, exists := c.Get("inventory_client")
+	if exists && inventoryClient != nil {
+		invClient, ok := inventoryClient.(*clients.InventoryClient)
+		if ok {
+			// Add a delay to ensure inventory data is available
+			// This helps with eventual consistency between services
+			time.Sleep(500 * time.Millisecond)
+
+			for i, product := range formattedResponse.Products {
+				// Fetch inventory data
+				inventoryItem, err := invClient.GetInventoryItem(c.Request.Context(), product.ID)
+				if err == nil && inventoryItem != nil {
+					h.logger.Info("Successfully fetched inventory data for product in list",
+						zap.String("product_id", product.ID),
+						zap.Int("total_quantity", int(inventoryItem.TotalQuantity)),
+						zap.Int("available_quantity", int(inventoryItem.AvailableQuantity)),
+						zap.Int("reserved_quantity", int(inventoryItem.ReservedQuantity)),
+						zap.String("status", inventoryItem.Status))
+
+					// Update the inventory data in the response with comprehensive information
+					formattedResponse.Products[i].Inventory = &formatters.EnhancedInventoryInfo{
+						Status:            inventoryItem.Status,
+						Available:         inventoryItem.AvailableQuantity > 0,
+						Quantity:          int(inventoryItem.AvailableQuantity), // For backward compatibility
+						TotalQuantity:     int(inventoryItem.TotalQuantity),
+						AvailableQuantity: int(inventoryItem.AvailableQuantity),
+						ReservedQuantity:  int(inventoryItem.ReservedQuantity),
+						ReorderPoint:      int(inventoryItem.ReorderPoint),
+						ReorderQuantity:   int(inventoryItem.ReorderQuantity),
+						LastUpdated:       formatTimestamp(inventoryItem.LastUpdated),
+					}
+
+					// Add location data if available
+					if len(inventoryItem.Locations) > 0 {
+						locations := make([]formatters.EnhancedLocationInfo, len(inventoryItem.Locations))
+						for j, loc := range inventoryItem.Locations {
+							locations[j] = formatters.EnhancedLocationInfo{
+								WarehouseID: loc.WarehouseId,
+								Quantity:    int(loc.Quantity),
+							}
+						}
+						formattedResponse.Products[i].Inventory.Locations = locations
+					}
+				} else {
+					h.logger.Warn("Failed to fetch inventory data for product in list",
+						zap.Error(err),
+						zap.String("product_id", product.ID))
+				}
+			}
+		}
+	}
+
 	// Log the number of formatted products
 	h.logger.Info("Formatted products", zap.Int("count", len(formattedResponse.Products)))
 
@@ -265,8 +382,7 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 			Price            float64                          `json:"price" binding:"required"`
 			DiscountPrice    *float64                         `json:"discount_price,omitempty"`
 			SKU              string                           `json:"sku" binding:"required"`
-			InventoryQty     int                              `json:"inventory_qty" binding:"required"`
-			InventoryStatus  string                           `json:"inventory_status" binding:"required"`
+			InventoryQty     int                              `json:"inventory_qty,omitempty"`
 			Weight           *float64                         `json:"weight,omitempty"`
 			IsPublished      bool                             `json:"is_published"`
 			BrandID          *string                          `json:"brand_id,omitempty"`
@@ -279,6 +395,9 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 			SEO              *formatters.EnhancedSEOInfo      `json:"seo,omitempty"`
 			Shipping         *formatters.EnhancedShippingInfo `json:"shipping,omitempty"`
 			Discount         *formatters.DiscountInfo         `json:"discount,omitempty"`
+			Inventory        *struct {
+				InitialQuantity int `json:"initial_quantity"`
+			} `json:"inventory,omitempty"`
 		} `json:"product" binding:"required"`
 	}
 
@@ -295,8 +414,6 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 		ShortDescription: req.Product.ShortDescription,
 		Price:            req.Product.Price,
 		Sku:              req.Product.SKU,
-		InventoryQty:     int32(req.Product.InventoryQty),
-		InventoryStatus:  req.Product.InventoryStatus,
 		IsPublished:      req.Product.IsPublished,
 	}
 
@@ -319,7 +436,6 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 				Sku:              variant.SKU,
 				Title:            variant.Title,
 				Price:            variant.Price,
-				InventoryQty:     int32(variant.InventoryQty),
 				Description:      variant.Description,
 				ShortDescription: variant.ShortDescription,
 			}
@@ -447,7 +563,80 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 		return
 	}
 
+	// Note: Inventory creation is now handled by product_inventory_handler.go
+	// to avoid duplicate requests
+
+	// Format the product
 	formattedProduct := formatters.FormatProduct(resp)
+
+	// Try to fetch inventory data for the product
+	inventoryClient, exists := c.Get("inventory_client")
+	if exists && inventoryClient != nil {
+		invClient, ok := inventoryClient.(*clients.InventoryClient)
+		if ok {
+			// Add a delay to ensure inventory data is available
+			// This helps with eventual consistency between services
+			time.Sleep(500 * time.Millisecond)
+
+			// Fetch inventory data
+			inventoryItem, err := invClient.GetInventoryItem(c.Request.Context(), resp.Id)
+			if err == nil && inventoryItem != nil {
+				h.logger.Info("Successfully fetched inventory data",
+					zap.String("product_id", resp.Id),
+					zap.Int("total_quantity", int(inventoryItem.TotalQuantity)),
+					zap.Int("available_quantity", int(inventoryItem.AvailableQuantity)),
+					zap.Int("reserved_quantity", int(inventoryItem.ReservedQuantity)),
+					zap.String("status", inventoryItem.Status))
+
+				// Update the inventory data in the response with comprehensive information
+				formattedProduct.Inventory = &formatters.EnhancedInventoryInfo{
+					Status:            inventoryItem.Status,
+					Available:         inventoryItem.AvailableQuantity > 0,
+					Quantity:          int(inventoryItem.AvailableQuantity), // For backward compatibility
+					TotalQuantity:     int(inventoryItem.TotalQuantity),
+					AvailableQuantity: int(inventoryItem.AvailableQuantity),
+					ReservedQuantity:  int(inventoryItem.ReservedQuantity),
+					ReorderPoint:      int(inventoryItem.ReorderPoint),
+					ReorderQuantity:   int(inventoryItem.ReorderQuantity),
+					LastUpdated:       formatTimestamp(inventoryItem.LastUpdated),
+				}
+
+				// Add location data if available
+				if len(inventoryItem.Locations) > 0 {
+					locations := make([]formatters.EnhancedLocationInfo, len(inventoryItem.Locations))
+					for i, loc := range inventoryItem.Locations {
+						locations[i] = formatters.EnhancedLocationInfo{
+							WarehouseID: loc.WarehouseId,
+							Quantity:    int(loc.Quantity),
+						}
+					}
+					formattedProduct.Inventory.Locations = locations
+				}
+			} else {
+				h.logger.Warn("Failed to fetch inventory data for product",
+					zap.Error(err),
+					zap.String("product_id", resp.Id))
+
+				// If we can't fetch the inventory data but we know inventory was requested,
+				// provide a default inventory object with the initial quantity
+				if req.Product.Inventory != nil {
+					initialQty := req.Product.Inventory.InitialQuantity
+					formattedProduct.Inventory = &formatters.EnhancedInventoryInfo{
+						Status:            "IN_STOCK",
+						Available:         initialQty > 0,
+						Quantity:          initialQty, // For backward compatibility
+						TotalQuantity:     initialQty,
+						AvailableQuantity: initialQty,
+						ReservedQuantity:  0,
+						ReorderPoint:      5,  // Default reorder point
+						ReorderQuantity:   20, // Default reorder quantity
+						LastUpdated:       time.Now().Format(time.RFC3339),
+					}
+				}
+			}
+		}
+	}
+
 	c.JSON(http.StatusCreated, formattedProduct)
 }
 
@@ -475,8 +664,6 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 			Price            float64                          `json:"price,omitempty"`
 			DiscountPrice    *float64                         `json:"discount_price,omitempty"`
 			SKU              string                           `json:"sku,omitempty"`
-			InventoryQty     int                              `json:"inventory_qty,omitempty"`
-			InventoryStatus  string                           `json:"inventory_status,omitempty"`
 			Weight           *float64                         `json:"weight,omitempty"`
 			IsPublished      bool                             `json:"is_published,omitempty"`
 			BrandID          *string                          `json:"brand_id,omitempty"`
@@ -521,12 +708,6 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 	if req.Product.SKU != "" {
 		product.Sku = req.Product.SKU
 	}
-	if req.Product.InventoryQty != 0 {
-		product.InventoryQty = int32(req.Product.InventoryQty)
-	}
-	if req.Product.InventoryStatus != "" {
-		product.InventoryStatus = req.Product.InventoryStatus
-	}
 	if req.Product.IsPublished {
 		product.IsPublished = req.Product.IsPublished
 	}
@@ -550,7 +731,6 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 				Sku:              variant.SKU,
 				Title:            variant.Title,
 				Price:            variant.Price,
-				InventoryQty:     int32(variant.InventoryQty),
 				Description:      variant.Description,
 				ShortDescription: variant.ShortDescription,
 			}

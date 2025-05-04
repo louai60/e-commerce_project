@@ -15,12 +15,14 @@ const RecentlyViewdItems = () => {
 
   const handlePrev = useCallback(() => {
     if (!sliderRef.current) return;
-    sliderRef.current.swiper.slidePrev();
+    // Use type assertion to tell TypeScript about the structure
+    (sliderRef.current as any).swiper.slidePrev();
   }, []);
 
   const handleNext = useCallback(() => {
     if (!sliderRef.current) return;
-    sliderRef.current.swiper.slideNext();
+    // Use type assertion to tell TypeScript about the structure
+    (sliderRef.current as any).swiper.slideNext();
   }, []);
 
   return (

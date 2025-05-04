@@ -1,14 +1,15 @@
 package service
 
 import (
+	"context"
 	"crypto/rsa"
 	"fmt"
-	"io/ioutil"
 	"net/http"
+	"os"
 	"time"
-	"context" 
-	"github.com/google/uuid" 
+
 	"github.com/golang-jwt/jwt"
+	"github.com/google/uuid"
 	"github.com/louai60/e-commerce_project/backend/user-service/models"
 	"github.com/louai60/e-commerce_project/backend/user-service/repository"
 	"go.uber.org/zap"
@@ -17,12 +18,12 @@ import (
 // JWTManager handles all JWT token operations including generation, validation,
 // and token pair management for secure authentication.
 type JWTManager struct {
-	privateKey           *rsa.PrivateKey  // RSA private key for signing tokens
-	publicKey            *rsa.PublicKey   // RSA public key for verifying tokens
-	accessTokenDuration  time.Duration    // Lifetime of access tokens
-	refreshTokenDuration time.Duration    // Lifetime of refresh tokens
-	repo                 repository.Repository  // User data repository
-	logger               *zap.Logger      // Structured logger for operational insights
+	privateKey           *rsa.PrivateKey       // RSA private key for signing tokens
+	publicKey            *rsa.PublicKey        // RSA public key for verifying tokens
+	accessTokenDuration  time.Duration         // Lifetime of access tokens
+	refreshTokenDuration time.Duration         // Lifetime of refresh tokens
+	repo                 repository.Repository // User data repository
+	logger               *zap.Logger           // Structured logger for operational insights
 }
 
 // NewJWTManager initializes a new JWT token manager with cryptographic keys and configuration.
@@ -33,7 +34,7 @@ func NewJWTManager(
 	logger *zap.Logger,
 ) (*JWTManager, error) {
 	// Load and parse the RSA private key for token signing
-	privateKeyBytes, err := ioutil.ReadFile(privateKeyPath)
+	privateKeyBytes, err := os.ReadFile(privateKeyPath)
 	if err != nil {
 		return nil, fmt.Errorf("could not read private key file: %w", err)
 	}
@@ -44,7 +45,7 @@ func NewJWTManager(
 
 	// Load and parse the RSA public key (optional for some implementations)
 	var publicKey *rsa.PublicKey
-	if publicKeyBytes, err := ioutil.ReadFile(publicKeyPath); err == nil {
+	if publicKeyBytes, err := os.ReadFile(publicKeyPath); err == nil {
 		if publicKey, err = jwt.ParseRSAPublicKeyFromPEM(publicKeyBytes); err != nil {
 			return nil, fmt.Errorf("could not parse public key: %w", err)
 		}
@@ -85,7 +86,7 @@ func (m *JWTManager) GenerateTokenPair(user *models.User) (string, string, strin
 		"username":  user.Username,
 		"role":      user.Role,
 		"user_type": user.UserType,
-		"iat":       time.Now().Unix(),  // Issued at timestamp
+		"iat":       time.Now().Unix(), // Issued at timestamp
 	}
 
 	// Generate access token with shorter lifespan
@@ -105,8 +106,8 @@ func (m *JWTManager) GenerateTokenPair(user *models.User) (string, string, strin
 		Name:     "refresh_token",
 		Value:    refreshTokenString,
 		Path:     "/api/v1/users/refresh",
-		HttpOnly: true,       // Prevent JavaScript access
-		Secure:   true,       // Require HTTPS in production
+		HttpOnly: true, // Prevent JavaScript access
+		Secure:   true, // Require HTTPS in production
 		SameSite: http.SameSiteStrictMode,
 		MaxAge:   int(m.refreshTokenDuration.Seconds()),
 	}

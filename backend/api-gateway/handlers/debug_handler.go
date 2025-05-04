@@ -76,8 +76,6 @@ func (h *DebugHandler) GetProductRaw(c *gin.Context) {
 			"short_description":  resp.ShortDescription,
 			"sku":                resp.Sku,
 			"price":              resp.Price,
-			"inventory_qty":      resp.InventoryQty,
-			"inventory_status":   resp.InventoryStatus,
 			"images_count":       len(resp.Images),
 			"specifications_count": len(resp.Specifications),
 			"tags_count":         len(resp.Tags),

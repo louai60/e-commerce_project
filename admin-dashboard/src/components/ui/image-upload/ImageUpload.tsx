@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { toast } from 'react-hot-toast';
+import Image from 'next/image';
 import { CloseIcon } from '@/icons';
 import { api } from '@/lib/api';
 
@@ -15,7 +16,6 @@ interface ImageUploadProps {
   onUploadError?: (error: string) => void;
   folder?: string;
   maxFiles?: number;
-  accept?: string;
   defaultAltText?: string;
   defaultPosition?: number;
 }
@@ -25,7 +25,6 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
   onUploadError,
   folder = 'products',
   maxFiles = 1,
-  accept = 'image/*',
   defaultAltText = '',
   defaultPosition = 1,
 }) => {
@@ -62,7 +61,6 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
         const data = response.data;
         console.log('Image upload response:', data);
 
-        // If the server returns an empty URL, use a placeholder
         let imageUrl = data.url;
 
         if (!imageUrl || imageUrl === '') {
@@ -70,7 +68,6 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
           imageUrl = `https://placehold.co/600x400?text=${encodeURIComponent(file.name)}`;
         }
 
-        // Create a local preview for the image
         const localPreview = URL.createObjectURL(file);
         setPreview(localPreview);
 
@@ -81,14 +78,12 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
         });
 
         toast.success('Image uploaded successfully');
-      } catch (uploadError) {
+      } catch (uploadError: unknown) {
         console.error('Error during image upload:', uploadError);
 
-        // Create a local preview for the image even if upload fails
         const localPreview = URL.createObjectURL(file);
         setPreview(localPreview);
 
-        // Use a placeholder URL
         const placeholderUrl = `https://placehold.co/600x400?text=${encodeURIComponent(file.name)}`;
 
         onUploadSuccess({
@@ -97,7 +92,6 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
           position: position,
         });
 
-        // Show a warning but don't fail completely
         toast('Image uploaded locally only. Server storage failed.', {
           icon: '⚠️',
           style: {
@@ -107,8 +101,9 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
           }
         });
       }
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.error || error.message || 'Upload failed';
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } }; message?: string };
+      const errorMessage = err.response?.data?.error || err.message || 'Upload failed';
       onUploadError?.(errorMessage);
       toast.error(errorMessage);
     } finally {
@@ -159,15 +154,19 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
       </div>
 
       {preview ? (
-        <div className="relative">
-          <img
-            src={preview}
-            alt={altText}
-            className="w-full h-48 object-cover rounded-lg"
-          />
+        <div className="relative w-full h-48">
+          <div className="relative w-full h-full rounded-lg overflow-hidden">
+            <Image
+              src={preview}
+              alt={altText || "Uploaded image"}
+              fill
+              style={{ objectFit: 'cover' }}
+              sizes="(max-width: 768px) 100vw, 50vw"
+            />
+          </div>
           <button
             onClick={handleRemove}
-            className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+            className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 z-10"
           >
             <CloseIcon className="w-4 h-4" />
           </button>

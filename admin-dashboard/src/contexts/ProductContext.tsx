@@ -1,7 +1,7 @@
 "use client";
 import React, { createContext, useContext, ReactNode, useState, useCallback } from 'react';
 import { useProducts } from '@/hooks/useProducts';
-import { Product, ProductService } from '@/services/product.service';
+import { Product } from '@/services/product.service';
 import { api } from '@/lib/api';
 
 interface ProductContextType {
@@ -18,28 +18,22 @@ const ProductContext = createContext<ProductContextType | undefined>(undefined);
 export function ProductProvider({ children }: { children: ReactNode }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  // Use default parameters to avoid unnecessary re-renders
   const { mutate } = useProducts(1, 10, {});
 
-  // Function to refresh the product list with improved error handling
   const refreshProducts = useCallback(() => {
     setIsRefreshing(true);
 
-    // Only log in development mode
     if (process.env.NODE_ENV === 'development') {
       console.log('Refreshing products...');
     }
 
-    // Use the mutate function from SWR to revalidate the data
-    // The revalidate: true parameter forces a revalidation even if the cache is fresh
     mutate(undefined, { revalidate: true })
       .then((data) => {
-        // Only log in development mode
         if (process.env.NODE_ENV === 'development') {
           console.log('Products refreshed successfully:', data?.products?.length || 0, 'products loaded');
         }
       })
-      .catch((error) => {
+      .catch((error: unknown) => {
         console.error('Error refreshing products:', error);
       })
       .finally(() => {
@@ -47,9 +41,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
       });
   }, [mutate]);
 
-  // Function to optimistically add a product to the list with improved handling
   const addOptimisticProduct = useCallback((newProduct: Product) => {
-    // Only log in development mode
     if (process.env.NODE_ENV === 'development') {
       console.log('Adding optimistic product:', newProduct.title);
     }
@@ -57,7 +49,6 @@ export function ProductProvider({ children }: { children: ReactNode }) {
     mutate(
       (currentData) => {
         if (!currentData) {
-          // Only log in development mode
           if (process.env.NODE_ENV === 'development') {
             console.log('No current data available for optimistic update');
           }
@@ -73,10 +64,8 @@ export function ProductProvider({ children }: { children: ReactNode }) {
           };
         }
 
-        // Check if product already exists to avoid duplicates
         const productExists = currentData.products.some(p => p.id === newProduct.id);
         if (productExists) {
-          // Only log in development mode
           if (process.env.NODE_ENV === 'development') {
             console.log('Product already exists in the list, updating it');
           }
@@ -88,7 +77,6 @@ export function ProductProvider({ children }: { children: ReactNode }) {
           };
         }
 
-        // Only log in development mode
         if (process.env.NODE_ENV === 'development') {
           console.log('Adding new product to the list');
         }
@@ -103,13 +91,11 @@ export function ProductProvider({ children }: { children: ReactNode }) {
           }
         };
       },
-      { revalidate: false } // Don't revalidate immediately
+      { revalidate: false }
     );
   }, [mutate]);
 
-  // Function to remove a product from the list (for optimistic UI updates)
   const removeOptimisticProduct = useCallback((productId: string) => {
-    // Only log in development mode
     if (process.env.NODE_ENV === 'development') {
       console.log('Removing product with ID:', productId);
     }
@@ -117,24 +103,20 @@ export function ProductProvider({ children }: { children: ReactNode }) {
     mutate(
       (currentData) => {
         if (!currentData) {
-          // Only log in development mode
           if (process.env.NODE_ENV === 'development') {
             console.log('No current data available for removal');
           }
           return currentData;
         }
 
-        // Check if product exists before removal
         const productExists = currentData.products.some(p => p.id === productId);
         if (!productExists) {
-          // Only log in development mode
           if (process.env.NODE_ENV === 'development') {
             console.log('Product not found in the list, nothing to remove');
           }
           return currentData;
         }
 
-        // Only log in development mode
         if (process.env.NODE_ENV === 'development') {
           console.log('Removing product from the list');
         }
@@ -151,15 +133,13 @@ export function ProductProvider({ children }: { children: ReactNode }) {
           }
         };
       },
-      { revalidate: false } // Don't revalidate immediately
+      { revalidate: false }
     );
   }, [mutate]);
 
-  // Function to delete a product with proper error handling
   const deleteProduct = useCallback(async (productId: string): Promise<boolean> => {
     if (!productId) return false;
 
-    // Check if we're already deleting - prevent duplicate calls
     if (isDeleting) {
       console.warn('Delete operation already in progress');
       return false;
@@ -168,12 +148,10 @@ export function ProductProvider({ children }: { children: ReactNode }) {
     setIsDeleting(true);
 
     try {
-      // Only log in development mode
       if (process.env.NODE_ENV === 'development') {
         console.log('Deleting product with ID:', productId);
       }
 
-      // Get the latest token from localStorage
       const token = localStorage.getItem('access_token');
       if (!token) {
         console.error('No authentication token found');
@@ -181,7 +159,6 @@ export function ProductProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        // Call the API to delete the product with explicit auth header
         await api.delete(`/products/${productId}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -189,40 +166,36 @@ export function ProductProvider({ children }: { children: ReactNode }) {
           }
         });
 
-        // Remove the product from the list optimistically
         removeOptimisticProduct(productId);
 
-        // Only log in development mode
         if (process.env.NODE_ENV === 'development') {
           console.log('Product deleted successfully');
         }
 
         return true;
-      } catch (error: any) {
-        // Handle specific error cases
-        if (error.response) {
-          // If the product is not found (404), still consider it a success
-          // as the end result is the same - the product is not in the system
-          if (error.response.status === 404) {
+      } catch (error: unknown) {
+        const err = error as { response?: { status?: number; data?: { error?: string } } };
+        
+        if (err.response) {
+          if (err.response.status === 404) {
             console.log('Product not found (404), considering delete successful');
             removeOptimisticProduct(productId);
             return true;
           }
 
-          // If we get a 500 with "product not found" message, it's also a success case
-          // This happens when the product was already deleted
-          if (error.response.status === 500 &&
-              error.response.data?.error?.includes('product not found')) {
+          if (err.response.status === 500 &&
+              err.response.data?.error?.includes('product not found')) {
             console.log('Product already deleted, considering operation successful');
             removeOptimisticProduct(productId);
             return true;
           }
         }
 
-        throw error; // Re-throw for the outer catch block
+        throw error;
       }
-    } catch (error: any) {
-      console.error('Error deleting product:', error.response?.data || error.message || error);
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: unknown }; message?: string };
+      console.error('Error deleting product:', err.response?.data || err.message || error);
       return false;
     } finally {
       setIsDeleting(false);

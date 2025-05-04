@@ -80,9 +80,9 @@ const CreateBrandModal: React.FC<CreateBrandModalProps> = ({
       // Close modal and refresh brands
       onSuccess();
       onClose();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error creating brand:", error);
-      toast.error(error.message || "Failed to create brand");
+      toast.error(error instanceof Error ? error.message : "Failed to create brand");
     } finally {
       setIsSubmitting(false);
     }

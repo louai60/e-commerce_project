@@ -1,14 +1,14 @@
 version: '3.8'
 
 services:
-  frontend:
-    build: ./frontend
-    ports:
-      - "3000:3000"
-    environment:
-      - NEXT_PUBLIC_API_URL=http://api-gateway:8080
-    depends_on:
-      - api-gateway
+#  frontend:
+#    build: ./frontend
+#    ports:
+#      - "3000:3000"
+#    environment:
+#      - NEXT_PUBLIC_API_URL=http://api-gateway:8080
+#    depends_on:
+#      - api-gateway
 
   admin-dashboard:
     build: ./admin-dashboard
@@ -20,29 +20,89 @@ services:
       - api-gateway
 
   api-gateway:
-    build: ./backend/api-gateway
+    build:
+      context: ./backend
+      dockerfile: api-gateway/Dockerfile
     ports:
       - "8080:8080"
+    environment:
+      - PRODUCT_SERVICE_ADDR=product-service:50051
+      - USER_SERVICE_ADDR=user-service:50052
+      - INVENTORY_SERVICE_ADDR=inventory-service:50055
+      - ADMIN_SERVICE_ADDR=admin-service:50053
+      - ENV=production
     depends_on:
       - product-service
       - user-service
+      - inventory-service
 
   product-service:
-    build: ./backend/product-service
+    build:
+      context: ./backend
+      dockerfile: product-service/Dockerfile
     ports:
       - "50051:50051"
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=root
+      - POSTGRES_DB=nexcart_product
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - INVENTORY_SERVICE_ADDR=inventory-service:50055
+    depends_on:
+      - postgres
+      - redis
+      - inventory-service
 
   user-service:
-    build: ./backend/user-service
+    build:
+      context: ./backend
+      dockerfile: user-service/Dockerfile
     ports:
       - "50052:50052"
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=root
+      - POSTGRES_DB=nexcart_user
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - postgres
+      - redis
+
+  inventory-service:
+    build:
+      context: ./backend
+      dockerfile: inventory-service/Dockerfile
+    ports:
+      - "50055:50055"
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=root
+      - POSTGRES_DB=nexcart_inventory
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - postgres
+      - redis
 
   postgres:
     image: postgres:latest
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: root
-      POSTGRES_DB: nexcart
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
 
   redis:
     image: redis:alpine
@@ -54,4 +114,4 @@ services:
 
 volumes:
   redis_data:
-
+  postgres_data:

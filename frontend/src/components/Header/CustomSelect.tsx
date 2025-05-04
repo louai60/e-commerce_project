@@ -1,34 +1,31 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 
 const CustomSelect = ({ options }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedOption, setSelectedOption] = useState(options[0]);
 
-  const toggleDropdown = () => {
-    setIsOpen(!isOpen);
-  };
+  const toggleDropdown = useCallback(() => {
+    setIsOpen(prevState => !prevState);
+  }, []);
 
-  const handleOptionClick = (option) => {
+  const handleOptionClick = useCallback((option) => {
     setSelectedOption(option);
     toggleDropdown();
-  };
+  }, [toggleDropdown]);
 
   useEffect(() => {
-    // closing modal while clicking outside
     function handleClickOutside(event) {
-      if (!event.target.closest(".dropdown-content")) {
+      if (isOpen && !event.target.closest(".custom-select")) {
         toggleDropdown();
       }
     }
 
-    if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
+    document.addEventListener("mousedown", handleClickOutside);
 
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, []);
+  }, [isOpen, toggleDropdown]);
 
   return (
     <div className="dropdown-content custom-select relative" style={{ width: "200px" }}>

@@ -2,7 +2,7 @@
 import React from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { useProduct } from "@/hooks/useProducts";
-import { useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Button from "@/components/ui/button/Button";
 import { PencilIcon, TrashBinIcon, ChevronLeftIcon } from "@/icons";
 import LoadingSpinner from "@/components/ui/loading/LoadingSpinner";
@@ -11,9 +11,10 @@ import { formatPrice } from "@/lib/utils";
 import Badge from "@/components/ui/badge/Badge";
 import Link from "next/link";
 
-export default function ProductDetailPage({ params }: { params: { id: string } }) {
-  const router = useRouter();
-  const { product, isLoading, isError } = useProduct(params.id);
+export default function ProductDetailPage() {
+  const params = useParams();
+  const id = params.id as string;
+  const { product, isLoading, isError } = useProduct(id);
 
   if (isLoading) {
     return (
@@ -48,8 +49,8 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
               Edit
             </Button>
           </Link>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             className="text-danger-500 hover:border-danger-500 hover:bg-danger-500/10"
             startIcon={<TrashBinIcon />}
           >
@@ -77,12 +78,12 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
                 </div>
               )}
             </div>
-            
+
             {product.images && product.images.length > 1 && (
               <div className="grid grid-cols-4 gap-2">
                 {product.images.slice(0, 4).map((image, index) => (
-                  <div 
-                    key={image.id || index} 
+                  <div
+                    key={image.id || index}
                     className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700"
                   >
                     <Image
@@ -98,7 +99,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
             )}
           </div>
         </div>
-        
+
         {/* Product Details */}
         <div className="lg:col-span-2">
           <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
@@ -109,7 +110,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
               <p className="mb-4 text-gray-500 dark:text-gray-400">
                 {product.short_description}
               </p>
-              
+
               <div className="flex flex-wrap items-center gap-4">
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-500 dark:text-gray-400">Price:</span>
@@ -117,14 +118,14 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
                     {product.price?.current?.USD ? formatPrice(product.price.current.USD) : "N/A"}
                   </span>
                 </div>
-                
+
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-500 dark:text-gray-400">SKU:</span>
                   <span className="font-medium text-gray-900 dark:text-white">
                     {product.sku || "N/A"}
                   </span>
                 </div>
-                
+
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-500 dark:text-gray-400">Status:</span>
                   <Badge
@@ -139,7 +140,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
                 </div>
               </div>
             </div>
-            
+
             <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
               <div>
                 <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-white">
@@ -184,7 +185,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
                   </div>
                 </div>
               </div>
-              
+
               <div>
                 <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-white">
                   Inventory
@@ -209,7 +210,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
                     </span>
                   </div>
                 </div>
-                
+
                 {product.categories && product.categories.length > 0 && (
                   <>
                     <h2 className="mb-3 mt-6 text-lg font-semibold text-gray-900 dark:text-white">
@@ -217,7 +218,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
                     </h2>
                     <div className="flex flex-wrap gap-2">
                       {product.categories.map(category => (
-                        <Badge key={category.id} variant="secondary">
+                        <Badge key={category.id} variant="light" color="primary">
                           {category.name}
                         </Badge>
                       ))}
@@ -226,7 +227,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
                 )}
               </div>
             </div>
-            
+
             <div className="mb-6">
               <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-white">
                 Description
@@ -237,7 +238,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
                 </p>
               </div>
             </div>
-            
+
             {product.variants && product.variants.length > 0 && (
               <div>
                 <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-white">
@@ -275,10 +276,10 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
                             ))}
                           </td>
                           <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900 dark:text-white">
-                            {variant.price?.current?.USD ? formatPrice(variant.price.current.USD) : "N/A"}
+                            {typeof variant.price === 'number' ? formatPrice(variant.price) : "N/A"}
                           </td>
                           <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900 dark:text-white">
-                            {variant.inventory?.quantity || 0}
+                            {variant.inventory_qty || 0}
                           </td>
                         </tr>
                       ))}

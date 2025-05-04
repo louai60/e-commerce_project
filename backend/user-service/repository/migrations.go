@@ -1,10 +1,10 @@
 package repository
 
 import (
-    "context"
-    "database/sql"
-    "fmt"
-    "time"
+	"context"
+	"database/sql"
+	"fmt"
+	"time"
 )
 
 const createUsersTableSQL = `
@@ -28,13 +28,13 @@ CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 `
 
 func RunMigrations(db *sql.DB) error {
-    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-    defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-    _, err := db.ExecContext(ctx, createUsersTableSQL)
-    if err != nil {
-        return fmt.Errorf("failed to create users table: %w", err)
-    }
+	_, err := db.ExecContext(ctx, createUsersTableSQL)
+	if err != nil {
+		return fmt.Errorf("failed to create users table: %w", err)
+	}
 
-    return nil
+	return nil
 }

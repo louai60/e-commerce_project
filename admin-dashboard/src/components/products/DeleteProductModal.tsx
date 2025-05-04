@@ -4,15 +4,13 @@ import { Modal } from '@/components/ui/modal';
 import Button from '@/components/ui/button/Button';
 import { TrashBinIcon } from '@/icons';
 import { toast } from 'react-hot-toast';
-import { ProductService } from '@/services/product.service';
-import { api } from '@/lib/api';
 
 interface DeleteProductModalProps {
   isOpen: boolean;
   onClose: () => void;
   productId: string;
   productTitle: string;
-  onDelete: (productId: string) => void;
+  onDelete: (productId: string) => Promise<boolean>;
 }
 
 const DeleteProductModal: React.FC<DeleteProductModalProps> = ({
@@ -24,13 +22,11 @@ const DeleteProductModal: React.FC<DeleteProductModalProps> = ({
 }) => {
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleDelete = async () => {
+  const handleDelete = async (): Promise<void> => {
     if (!productId) return;
 
     setIsDeleting(true);
     try {
-      // Call the onDelete function which will handle the actual deletion
-      // This avoids making duplicate API calls
       const success = await onDelete(productId);
 
       if (success) {
@@ -39,7 +35,7 @@ const DeleteProductModal: React.FC<DeleteProductModalProps> = ({
       } else {
         toast.error('Failed to delete product. Please try again.');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error deleting product:', error);
       toast.error('An error occurred while deleting the product');
     } finally {

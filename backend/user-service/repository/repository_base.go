@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"strings"
-	"sync"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/louai60/e-commerce_project/backend/user-service/db"
@@ -13,18 +12,16 @@ import (
 
 // RepositoryBase provides common functionality for all repositories
 type RepositoryBase struct {
-	dbConfig      *db.DBConfig
-	logger        *zap.Logger
+	dbConfig        *db.DBConfig
+	logger          *zap.Logger
 	replicaSelector db.ReplicaSelector
-	mu            sync.Mutex
-	currentReplica int
 }
 
 // NewRepositoryBase creates a new repository base
 func NewRepositoryBase(dbConfig *db.DBConfig, logger *zap.Logger) *RepositoryBase {
 	return &RepositoryBase{
-		dbConfig:      dbConfig,
-		logger:        logger,
+		dbConfig:        dbConfig,
+		logger:          logger,
 		replicaSelector: db.RandomSelector(),
 	}
 }
@@ -51,11 +48,11 @@ func (r *RepositoryBase) ExecuteQuery(ctx context.Context, query string, args ..
 	// Simple heuristic to determine if this is a read-only query
 	// In a real-world scenario, you might want to use a SQL parser
 	isReadOnly := isReadOnlyQuery(query)
-	
+
 	if isReadOnly {
 		return r.GetReplica().QueryContext(ctx, query, args...)
 	}
-	
+
 	return r.GetMaster().QueryContext(ctx, query, args...)
 }
 
@@ -63,11 +60,11 @@ func (r *RepositoryBase) ExecuteQuery(ctx context.Context, query string, args ..
 // otherwise executes it on the master
 func (r *RepositoryBase) ExecuteQueryRow(ctx context.Context, query string, args ...interface{}) *sql.Row {
 	isReadOnly := isReadOnlyQuery(query)
-	
+
 	if isReadOnly {
 		return r.GetReplica().QueryRowContext(ctx, query, args...)
 	}
-	
+
 	return r.GetMaster().QueryRowContext(ctx, query, args...)
 }
 
@@ -80,11 +77,11 @@ func (r *RepositoryBase) ExecuteExec(ctx context.Context, query string, args ...
 // otherwise executes it on the master
 func (r *RepositoryBase) ExecuteNamedQuery(ctx context.Context, query string, arg interface{}) (*sqlx.Rows, error) {
 	isReadOnly := isReadOnlyQuery(query)
-	
+
 	if isReadOnly {
 		return r.GetReplica().NamedQueryContext(ctx, query, arg)
 	}
-	
+
 	return r.GetMaster().NamedQueryContext(ctx, query, arg)
 }
 
@@ -104,11 +101,11 @@ func isReadOnlyQuery(query string) bool {
 			break
 		}
 	}
-	
+
 	// Check if the query starts with SELECT
 	if len(queryStart) >= 6 && (strings.HasPrefix(strings.ToUpper(queryStart), "SELECT")) {
 		return true
 	}
-	
+
 	return false
 }

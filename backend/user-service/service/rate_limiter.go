@@ -2,25 +2,25 @@ package service
 
 import (
 	"context"
-	"sync"
-	"time"
 	"errors"
 	"fmt"
 	"github.com/go-redis/redis/v8"
+	"sync"
+	"time"
 )
 
 type SimpleRateLimiter struct {
-	attempts map[string][]time.Time
-	mu       sync.RWMutex
+	attempts    map[string][]time.Time
+	mu          sync.RWMutex
 	maxAttempts int
-	window     time.Duration
+	window      time.Duration
 }
 
 func NewSimpleRateLimiter(maxAttempts int, window time.Duration) *SimpleRateLimiter {
 	return &SimpleRateLimiter{
 		attempts:    make(map[string][]time.Time),
 		maxAttempts: maxAttempts,
-		window:     window,
+		window:      window,
 	}
 }
 
@@ -70,7 +70,7 @@ func NewRedisRateLimiter(redis *redis.Client) *RedisRateLimiter {
 func (r *RedisRateLimiter) Allow(ip string) error {
 	ctx := context.Background()
 	key := fmt.Sprintf("rate_limit:%s", ip)
-	
+
 	pipe := r.redis.Pipeline()
 	incr := pipe.Incr(ctx, key)
 	pipe.Expire(ctx, key, r.window)
@@ -86,4 +86,3 @@ func (r *RedisRateLimiter) Allow(ip string) error {
 
 	return nil
 }
-

@@ -2,7 +2,6 @@ package formatters
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	pb "github.com/louai60/e-commerce_project/backend/product-service/proto"
@@ -59,10 +58,16 @@ type EnhancedPriceInfo struct {
 
 // EnhancedInventoryInfo represents enhanced inventory information
 type EnhancedInventoryInfo struct {
-	Status    string                 `json:"status"`
-	Available bool                   `json:"available"`
-	Quantity  int                    `json:"quantity"`
-	Locations []EnhancedLocationInfo `json:"locations,omitempty"`
+	Status            string                 `json:"status"`
+	Available         bool                   `json:"available"`
+	Quantity          int                    `json:"quantity"`
+	TotalQuantity     int                    `json:"total_quantity"`
+	AvailableQuantity int                    `json:"available_quantity"`
+	ReservedQuantity  int                    `json:"reserved_quantity"`
+	ReorderPoint      int                    `json:"reorder_point"`
+	ReorderQuantity   int                    `json:"reorder_quantity"`
+	LastUpdated       string                 `json:"last_updated,omitempty"`
+	Locations         []EnhancedLocationInfo `json:"locations,omitempty"`
 }
 
 // EnhancedLocationInfo represents enhanced warehouse location information
@@ -221,6 +226,12 @@ func FormatProduct(product *pb.Product) ProductResponse {
 		Description:      product.Description,
 		SKU:              product.Sku,
 		Tags:             []string{}, // Initialize with empty array
+		// Initialize inventory with default values
+		Inventory: &EnhancedInventoryInfo{
+			Status:    "in_stock",
+			Available: true,
+			Quantity:  0,
+		},
 	}
 
 	// Format default variant ID
@@ -329,50 +340,6 @@ func FormatProduct(product *pb.Product) ProductResponse {
 			// Generate a SKU as last resort
 			formatted.SKU = fmt.Sprintf("SKU-%s", product.Id[:8])
 		}
-	}
-
-	// Format inventory
-	totalQty := int(product.InventoryQty)
-	status := "OUT_OF_STOCK"
-	available := false
-
-	// Use inventory status from product if available, otherwise determine from quantity
-	if product.InventoryStatus != "" {
-		status = product.InventoryStatus
-		available = (strings.ToUpper(status) == "IN_STOCK")
-	} else if totalQty > 0 {
-		status = "IN_STOCK"
-		available = true
-	}
-
-	// Create inventory locations from product.InventoryLocations if available
-	locations := []EnhancedLocationInfo{}
-	if len(product.InventoryLocations) > 0 {
-		for _, loc := range product.InventoryLocations {
-			locations = append(locations, EnhancedLocationInfo{
-				WarehouseID: loc.WarehouseId,
-				Quantity:    int(loc.AvailableQty),
-			})
-		}
-	} else {
-		// Default locations if none provided
-		locations = []EnhancedLocationInfo{
-			{
-				WarehouseID: "A1",
-				Quantity:    totalQty / 2,
-			},
-			{
-				WarehouseID: "B2",
-				Quantity:    totalQty - (totalQty / 2),
-			},
-		}
-	}
-
-	formatted.Inventory = &EnhancedInventoryInfo{
-		Status:    status,
-		Available: available,
-		Quantity:  totalQty,
-		Locations: locations,
 	}
 
 	// Format categories if available
@@ -567,14 +534,13 @@ func formatTimestamp(ts *timestamppb.Timestamp) string {
 // FormatVariant formats a variant proto message into the desired response format
 func FormatVariant(variant *pb.ProductVariant) EnhancedVariantInfo {
 	formattedVariant := EnhancedVariantInfo{
-		ID:           variant.Id,
-		ProductID:    variant.ProductId,
-		SKU:          variant.Sku,
-		Title:        variant.Title,
-		Price:        variant.Price,
-		InventoryQty: int(variant.InventoryQty),
-		CreatedAt:    formatTimestamp(variant.CreatedAt),
-		UpdatedAt:    formatTimestamp(variant.UpdatedAt),
+		ID:        variant.Id,
+		ProductID: variant.ProductId,
+		SKU:       variant.Sku,
+		Title:     variant.Title,
+		Price:     variant.Price,
+		CreatedAt: formatTimestamp(variant.CreatedAt),
+		UpdatedAt: formatTimestamp(variant.UpdatedAt),
 	}
 
 	// Set inherited fields

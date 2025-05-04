@@ -24,9 +24,48 @@ export function middleware(request: NextRequest) {
 
   if (!isPublicPath && !token) {
     // If user is not authenticated and tries to access protected path,
-    // redirect to signin
+    // redirect to signin with callback URL
     console.log('Redirecting unauthenticated user to signin');
-    return NextResponse.redirect(new URL('/signin', request.url));
+    const callbackUrl = encodeURIComponent(request.nextUrl.pathname);
+    return NextResponse.redirect(new URL(`/signin?callbackUrl=${callbackUrl}`, request.url));
+  }
+
+  // Check token validity if present
+  if (token) {
+    try {
+      // JWT tokens are in three parts: header.payload.signature
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        throw new Error('Invalid token format');
+      }
+
+      // Decode the base64 payload
+      const payload = JSON.parse(
+        Buffer.from(parts[1], 'base64').toString()
+      );
+
+      // Check if token is expired
+      const expirationTime = payload.exp * 1000; // Convert to milliseconds
+      if (Date.now() >= expirationTime) {
+        console.log('Token expired, redirecting to signin');
+        // Clear the invalid token cookie
+        const response = NextResponse.redirect(new URL('/signin', request.url));
+        response.cookies.delete('access_token');
+        return response;
+      }
+
+      // Check if user has admin role
+      if (!isPublicPath && payload.role !== 'admin') {
+        console.log('Access denied: Admin privileges required');
+        return NextResponse.redirect(new URL('/signin', request.url));
+      }
+    } catch (error) {
+      console.error('Error validating token:', error);
+      // If token is invalid, redirect to signin
+      const response = NextResponse.redirect(new URL('/signin', request.url));
+      response.cookies.delete('access_token');
+      return response;
+    }
   }
 
   // For all other cases, continue with the request
@@ -36,8 +75,6 @@ export function middleware(request: NextRequest) {
 // Configure the paths that should be handled by this middleware
 export const config = {
   matcher: [
-    '/dashboard/:path*',
-    '/signin',
-    '/signup',
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
   ],
 };

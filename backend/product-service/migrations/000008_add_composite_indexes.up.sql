@@ -12,9 +12,9 @@ CREATE INDEX IF NOT EXISTS idx_products_deleted_at_created_at ON products(delete
 -- This will optimize queries that filter for non-deleted products and sort by update date
 CREATE INDEX IF NOT EXISTS idx_products_deleted_at_updated_at ON products(deleted_at, updated_at);
 
--- Composite index for products table: (category_id, deleted_at)
--- This will optimize queries that filter products by category and deletion status
-CREATE INDEX IF NOT EXISTS idx_products_category_id_deleted_at ON products(category_id, deleted_at);
+-- Composite index for product_categories junction table: (category_id, product_id)
+-- This will optimize queries that filter products by category
+CREATE INDEX IF NOT EXISTS idx_product_categories_category_id_product_id ON product_categories(category_id, product_id);
 
 -- Composite index for products table: (brand_id, deleted_at)
 -- This will optimize queries that filter products by brand and deletion status

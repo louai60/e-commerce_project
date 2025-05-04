@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -11,6 +12,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	adminpb "github.com/louai60/e-commerce_project/backend/admin-service/proto"
+	"github.com/louai60/e-commerce_project/backend/api-gateway/clients"
+	"github.com/louai60/e-commerce_project/backend/api-gateway/config"
 	"github.com/louai60/e-commerce_project/backend/api-gateway/handlers"
 	"github.com/louai60/e-commerce_project/backend/api-gateway/internal/routes"
 	"github.com/louai60/e-commerce_project/backend/api-gateway/middleware"
@@ -86,12 +89,63 @@ func main() {
 		logger.Fatal("Failed to initialize user handler", zap.Error(err))
 	}
 
+	// Connect to Inventory Service
+	inventoryServiceAddr := os.Getenv("INVENTORY_SERVICE_ADDR")
+	if inventoryServiceAddr == "" {
+		inventoryServiceAddr = "localhost:50055" // fallback to default
+	}
+
+	// Create a config object for the inventory client
+	inventoryConfig := &config.Config{
+		Services: config.ServicesConfig{
+			Inventory: config.ServiceConfig{
+				Host: "localhost",
+				Port: "50055",
+			},
+		},
+	}
+
+	// Parse host and port from the address
+	if inventoryServiceAddr != "" {
+		parts := strings.Split(inventoryServiceAddr, ":")
+		if len(parts) == 2 {
+			inventoryConfig.Services.Inventory.Host = parts[0]
+			inventoryConfig.Services.Inventory.Port = parts[1]
+		}
+	}
+
+	// Initialize inventory client
+	var inventoryClient *clients.InventoryClient
+	inventoryClient, err = clients.NewInventoryClient(inventoryConfig, logger)
+	if err != nil {
+		logger.Error("Failed to connect to inventory service - some functionality will be unavailable",
+			zap.String("address", inventoryServiceAddr),
+			zap.Error(err))
+		// Set to nil to ensure proper error handling in the handler
+		inventoryClient = nil
+	}
+
+	// Initialize inventory handler with potential nil client
+	inventoryHandler := handlers.NewInventoryHandler(inventoryClient, logger)
+
+	// Initialize GraphQL handler
+	graphqlHandler, err := handlers.NewGraphQLHandler(logger, inventoryClient, productClient)
+	if err != nil {
+		logger.Error("Failed to initialize GraphQL handler", zap.Error(err))
+	}
+
 	// Initialize Gin router
 	r := gin.New() // Use New() instead of Default() to avoid using the default logger and recovery
 	r.Use(middleware.Logger(logger), middleware.CORSMiddleware(), middleware.Recovery(logger))
 
 	// Setup all routes
-	routes.SetupRoutes(r, productHandler, userHandler, adminHandler)
+	routes.SetupRoutes(r, productHandler, userHandler, adminHandler, inventoryHandler)
+
+	// Setup GraphQL routes if handler was initialized successfully
+	if graphqlHandler != nil {
+		routes.SetupGraphQLRoutes(r, graphqlHandler)
+		logger.Info("GraphQL endpoint configured at /api/v1/graphql")
+	}
 
 	// Setup static file server for uploaded images
 	// Create uploads directory if it doesn't exist

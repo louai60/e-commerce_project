@@ -29,6 +29,7 @@ func (h *Handler) RegisterRoutes(router *gin.Engine) {
 		products.POST("", h.CreateProduct)
 		products.PUT("/:id", h.UpdateProduct)
 		products.DELETE("/:id", h.DeleteProduct)
+		products.GET("/sku/preview", h.GenerateSKUPreview)
 	}
 
 	brands := router.Group("/api/v1/brands")
@@ -333,4 +334,38 @@ func (h *Handler) CreateCategory(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, createdCategory)
+}
+
+// GenerateSKUPreview generates a preview of a SKU based on the provided parameters
+func (h *Handler) GenerateSKUPreview(c *gin.Context) {
+	// Get query parameters
+	brandName := c.Query("brand")
+	categoryName := c.Query("category")
+	color := c.Query("color")
+	size := c.Query("size")
+
+	// Validate required parameters
+	if brandName == "" || categoryName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "brand and category are required"})
+		return
+	}
+
+	// Call the product service to generate a SKU preview
+	resp, err := h.client.GenerateSKUPreview(c.Request.Context(), brandName, categoryName, color, size)
+	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			switch st.Code() {
+			case codes.InvalidArgument:
+				c.JSON(http.StatusBadRequest, gin.H{"error": st.Message()})
+			default:
+				c.JSON(http.StatusInternalServerError, gin.H{"error": st.Message()})
+			}
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+		return
+	}
+
+	// Return the generated SKU
+	c.JSON(http.StatusOK, gin.H{"sku": resp.Sku})
 }

@@ -1,7 +1,8 @@
 "use client";
 import React, { useState, useEffect, ChangeEvent } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
+import Image from "next/image"; // Import Next.js Image component
 import { ProductService } from "@/services/product.service";
 import { useBrands, useCategories, useProduct } from "@/hooks/useProducts";
 import Input from "@/components/form/input/InputField";
@@ -11,12 +12,16 @@ import { ChevronDownIcon } from "@/icons";
 import { toast } from "react-hot-toast";
 import LoadingSpinner from "@/components/ui/loading/LoadingSpinner";
 import { ImageUpload } from "@/components/ui/image-upload/ImageUpload";
+import { Brand } from "@/services/product.service";
 
-export default function EditProductPage({ params }: { params: { id: string } }) {
+export default function EditProductPage() {
+  const params = useParams();
+  const id = params.id as string;
   const router = useRouter();
-  const { product, isLoading, isError, mutate } = useProduct(params.id);
+  const { product, isLoading, isError, mutate } = useProduct(id);
   const { brands, isLoading: brandsLoading } = useBrands();
-  const { categories, isLoading: categoriesLoading } = useCategories();
+  // Commented out unused variables but keeping the hook call for future use
+  const { /* categories, isLoading: categoriesLoading */ } = useCategories();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
@@ -74,11 +79,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleImageChange = (index: number, field: string, value: string) => {
-    const updatedImages = [...formData.images];
-    updatedImages[index] = { ...updatedImages[index], [field]: value };
-    setFormData(prev => ({ ...prev, images: updatedImages }));
-  };
+  // Removed unused handleImageChange function
 
   const addImageField = () => {
     setFormData(prev => ({
@@ -101,6 +102,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    await submitForm();
   };
 
   const submitForm = async () => {
@@ -119,12 +121,13 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
         brand_id: formData.brand_id || undefined
       };
 
-      await ProductService.updateProduct(params.id, productData);
+      await ProductService.updateProduct(id, productData);
       toast.success("Product updated successfully");
       mutate(); // Refresh product data
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { error?: string };
       console.error("Error updating product:", error);
-      toast.error(error.error || "Failed to update product");
+      toast.error(err.error || "Failed to update product");
     } finally {
       setIsSubmitting(false);
     }
@@ -251,14 +254,60 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
 
               <div>
                 <Label htmlFor="sku">SKU*</Label>
-                <Input
-                  id="sku"
-                  name="sku"
-                  type="text"
-                  placeholder="PROD-001"
-                  defaultValue={formData.sku}
-                  onChange={handleInputChange}
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="sku"
+                    name="sku"
+                    type="text"
+                    placeholder="PROD-001"
+                    defaultValue={formData.sku}
+                    onChange={handleInputChange}
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      if (!formData.brand_id) {
+                        toast.error("Brand is required to generate SKU");
+                        return;
+                      }
+
+                      try {
+                        // Find the brand name from the selected brand_id
+                        const selectedBrand = brands?.find(brand => brand.id === formData.brand_id);
+                        if (!selectedBrand) {
+                          toast.error("Selected brand not found");
+                          return;
+                        }
+
+                        // Use the product's category if available
+                        const categoryName = product.categories && product.categories.length > 0
+                          ? product.categories[0].name
+                          : "";
+
+                        if (!categoryName) {
+                          toast.error("Product must have a category to generate SKU");
+                          return;
+                        }
+
+                        // Call the API to generate a SKU preview
+                        const result = await ProductService.generateSKUPreview(
+                          selectedBrand.name,
+                          categoryName
+                        );
+
+                        // Update the SKU field with the generated SKU
+                        setFormData(prev => ({ ...prev, sku: result.sku }));
+                        toast.success("SKU generated successfully");
+                      } catch (error) {
+                        console.error("Failed to generate SKU:", error);
+                        toast.error("Failed to generate SKU");
+                      }
+                    }}
+                    disabled={!formData.brand_id || !product.categories || product.categories.length === 0}
+                  >
+                    Generate
+                  </Button>
+                </div>
               </div>
 
               <div>
@@ -310,7 +359,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
                     disabled={brandsLoading}
                   >
                     <option value="">Select a brand</option>
-                    {brands?.map((brand: any) => (
+                    {brands?.map((brand: Brand) => (
                       <option key={brand.id} value={brand.id}>
                         {brand.name}
                       </option>
@@ -355,11 +404,15 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
               <div key={index} className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
                 {image.url && (
                   <div className="mb-4">
-                    <img
-                      src={image.url}
-                      alt={image.alt_text}
-                      className="h-48 w-full rounded-lg object-cover"
-                    />
+                    <div className="relative h-48 w-full rounded-lg overflow-hidden">
+                      <Image
+                        src={image.url}
+                        alt={image.alt_text || "Product image"}
+                        fill
+                        style={{ objectFit: 'cover' }}
+                        sizes="(max-width: 768px) 100vw, 50vw"
+                      />
+                    </div>
                   </div>
                 )}
                 <ImageUpload

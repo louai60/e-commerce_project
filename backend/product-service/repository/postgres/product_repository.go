@@ -33,7 +33,7 @@ func (r *ProductRepository) GetProduct(ctx context.Context, id string) (*models.
 		SELECT
 			p.id, p.title, p.slug, p.description, p.short_description,
 			p.weight, p.is_published, p.created_at, p.updated_at, p.deleted_at,
-			p.brand_id, p.inventory_status, p.price, p.discount_price, p.sku, p.inventory_qty,
+			p.brand_id, p.price, p.discount_price, p.sku,
 			b.id, b.name, b.slug, b.description, b.created_at, b.updated_at, b.deleted_at
 		FROM products p
 		LEFT JOIN brands b ON p.brand_id = b.id AND b.deleted_at IS NULL
@@ -47,12 +47,10 @@ func (r *ProductRepository) GetProduct(ctx context.Context, id string) (*models.
 	var brandIDStr, brandNameStr, brandSlugStr, brandDescStr sql.NullString
 	var price float64
 	var discountPrice sql.NullFloat64
-	var inventoryQty int
-
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&product.ID, &product.Title, &product.Slug, &product.Description, &product.ShortDescription,
 		&product.Weight, &product.IsPublished, &product.CreatedAt, &product.UpdatedAt, &product.DeletedAt,
-		&brandID, &product.InventoryStatus, &price, &discountPrice, &product.SKU, &inventoryQty,
+		&brandID, &price, &discountPrice, &product.SKU,
 		&brandIDStr, &brandNameStr, &brandSlugStr, &brandDescStr, &brandCreatedAt, &brandUpdatedAt, &brand.DeletedAt,
 	)
 
@@ -76,9 +74,6 @@ func (r *ProductRepository) GetProduct(ctx context.Context, id string) (*models.
 			Currency: "USD", // Default currency
 		}
 	}
-
-	// Set inventory quantity
-	product.InventoryQty = inventoryQty
 
 	// Assign scanned nullable fields
 	if brandID.Valid {
@@ -115,7 +110,6 @@ func (r *ProductRepository) GetProduct(ctx context.Context, id string) (*models.
 	errs = append(errs, r.getProductTags(ctx, product))
 	errs = append(errs, r.getProductSEO(ctx, product))
 	errs = append(errs, r.getProductShipping(ctx, product))
-	errs = append(errs, r.getProductInventoryLocations(ctx, product))
 
 	for _, e := range errs {
 		if e != nil {
@@ -132,7 +126,7 @@ func (r *ProductRepository) getProductVariantsAndAttributes(ctx context.Context,
 	const query = `
 		SELECT
 			pv.id, pv.product_id, pv.sku, pv.title, pv.price, pv.discount_price,
-			pv.inventory_qty, pv.created_at, pv.updated_at, pv.deleted_at,
+			pv.created_at, pv.updated_at, pv.deleted_at,
 			a.id, a.name, pva.value
 		FROM product_variants pv
 		LEFT JOIN product_variant_attributes pva ON pv.id = pva.product_variant_id
@@ -158,7 +152,7 @@ func (r *ProductRepository) getProductVariantsAndAttributes(ctx context.Context,
 		// Scan variant's DeletedAt as well
 		if err := rows.Scan(
 			&variant.ID, &variant.ProductID, &variant.SKU, &variant.Title, &variant.Price, &variant.DiscountPrice,
-			&variant.InventoryQty, &variant.CreatedAt, &variant.UpdatedAt, &variant.DeletedAt,
+			&variant.CreatedAt, &variant.UpdatedAt, &variant.DeletedAt,
 			&attributeID, &attributeName, &attributeValue,
 		); err != nil {
 			r.logger.Error("failed to scan product variant row", zap.Error(err))
@@ -309,7 +303,7 @@ func (r *ProductRepository) ListProducts(ctx context.Context, filters models.Pro
 		SELECT
 			p.id, p.title, p.slug, p.description, p.short_description,
 			p.weight, p.is_published, p.created_at, p.updated_at, p.deleted_at,
-			p.brand_id, p.inventory_status,
+			p.brand_id,
 			b.id, b.name, b.slug, b.description, b.created_at, b.updated_at, b.deleted_at
 		FROM products p
 		LEFT JOIN brands b ON p.brand_id = b.id AND b.deleted_at IS NULL
@@ -396,7 +390,7 @@ func (r *ProductRepository) ListProducts(ctx context.Context, filters models.Pro
 		if err := rows.Scan(
 			&product.ID, &product.Title, &product.Slug, &product.Description, &product.ShortDescription,
 			&product.Weight, &product.IsPublished, &product.CreatedAt, &product.UpdatedAt, &product.DeletedAt,
-			&brandID, &product.InventoryStatus,
+			&brandID,
 			&brandIDStr, &brandNameStr, &brandSlugStr, &brandDescStr, &brandCreatedAt, &brandUpdatedAt, &brand.DeletedAt,
 		); err != nil {
 			r.logger.Error("failed to scan product row in ListProducts", zap.Error(err))
@@ -466,8 +460,8 @@ func (r *ProductRepository) CreateProduct(ctx context.Context, product *models.P
 	const productQuery = `
 		INSERT INTO products (
 			title, slug, description, short_description, price, discount_price,
-			sku, inventory_qty, inventory_status, weight, is_published, brand_id, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			sku, weight, is_published, brand_id, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING id
 	`
 
@@ -480,8 +474,7 @@ func (r *ProductRepository) CreateProduct(ctx context.Context, product *models.P
 
 	err = tx.QueryRowContext(ctx, productQuery,
 		product.Title, product.Slug, product.Description, product.ShortDescription,
-		price, discountPrice, product.SKU, product.InventoryQty,
-		product.InventoryStatus, product.Weight, product.IsPublished, product.BrandID, now, now,
+		price, discountPrice, product.SKU, product.Weight, product.IsPublished, product.BrandID, now, now,
 	).Scan(&product.ID)
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok {
@@ -598,25 +591,6 @@ func (r *ProductRepository) CreateProduct(ctx context.Context, product *models.P
 		}
 	}
 
-	// Handle inventory locations if any
-	if len(product.InventoryLocations) > 0 {
-		const locationQuery = `
-			INSERT INTO product_inventory_locations (
-				product_id, warehouse_id, available_qty, created_at, updated_at
-			) VALUES ($1, $2, $3, $4, $5)
-		`
-
-		for i := range product.InventoryLocations {
-			loc := &product.InventoryLocations[i]
-			_, err = tx.ExecContext(ctx, locationQuery,
-				product.ID, loc.WarehouseID, loc.AvailableQty, now, now)
-			if err != nil {
-				r.logger.Error("failed to create inventory location", zap.Error(err))
-				return fmt.Errorf("failed to create inventory location: %w", err)
-			}
-		}
-	}
-
 	if err = tx.Commit(); err != nil {
 		r.logger.Error("failed to commit transaction", zap.Error(err))
 		return fmt.Errorf("failed to commit transaction: %w", err)
@@ -644,9 +618,9 @@ func (r *ProductRepository) UpdateProduct(ctx context.Context, product *models.P
 	query := `
 		UPDATE products SET
 			title = $1, slug = $2, description = $3, short_description = $4,
-			price = $5, discount_price = $6, sku = $7, inventory_qty = $8,
-			weight = $9, is_published = $10, brand_id = $11, updated_at = $12
-		WHERE id = $13 AND deleted_at IS NULL`
+			price = $5, discount_price = $6, sku = $7,
+			weight = $8, is_published = $9, brand_id = $10, updated_at = $11
+		WHERE id = $12 AND deleted_at IS NULL`
 
 	// Extract price amount from Price struct
 	price := product.Price.Amount
@@ -657,7 +631,7 @@ func (r *ProductRepository) UpdateProduct(ctx context.Context, product *models.P
 
 	result, err := tx.ExecContext(ctx, query,
 		product.Title, product.Slug, product.Description, product.ShortDescription,
-		price, discountPrice, product.SKU, product.InventoryQty,
+		price, discountPrice, product.SKU,
 		product.Weight, product.IsPublished, product.BrandID, now, product.ID,
 	)
 	if err != nil {
@@ -763,7 +737,7 @@ func (r *ProductRepository) GetProductVariants(ctx context.Context, productID st
 	const query = `
 		SELECT
 			pv.id, pv.product_id, pv.sku, pv.title, pv.price, pv.discount_price,
-			pv.inventory_qty, pv.created_at, pv.updated_at, pv.deleted_at
+			pv.created_at, pv.updated_at, pv.deleted_at
 		FROM product_variants pv
 		WHERE pv.product_id = $1 AND pv.deleted_at IS NULL
 		ORDER BY pv.created_at
@@ -781,7 +755,7 @@ func (r *ProductRepository) GetProductVariants(ctx context.Context, productID st
 		var variant models.ProductVariant
 		if err := rows.Scan(
 			&variant.ID, &variant.ProductID, &variant.SKU, &variant.Title, &variant.Price, &variant.DiscountPrice,
-			&variant.InventoryQty, &variant.CreatedAt, &variant.UpdatedAt, &variant.DeletedAt,
+			&variant.CreatedAt, &variant.UpdatedAt, &variant.DeletedAt,
 		); err != nil {
 			r.logger.Error("failed to scan product variant", zap.Error(err))
 			return nil, fmt.Errorf("failed to scan product variant: %w", err)
@@ -860,14 +834,14 @@ func (r *ProductRepository) CreateVariant(ctx context.Context, tx *sql.Tx, produ
 	// Insert the variant
 	const variantQuery = `
 		INSERT INTO product_variants (
-			product_id, sku, title, price, discount_price, inventory_qty, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			product_id, sku, title, price, discount_price, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id
 	`
 
 	err = tx.QueryRowContext(ctx, variantQuery,
 		variant.ProductID, variant.SKU, variant.Title, variant.Price, variant.DiscountPrice,
-		variant.InventoryQty, now, now,
+		now, now,
 	).Scan(&variant.ID)
 
 	if err != nil {
@@ -998,13 +972,13 @@ func (r *ProductRepository) UpdateVariant(ctx context.Context, tx *sql.Tx, varia
 	const variantQuery = `
 		UPDATE product_variants SET
 			sku = $1, title = $2, price = $3, discount_price = $4,
-			inventory_qty = $5, updated_at = $6
-		WHERE id = $7 AND deleted_at IS NULL
+			updated_at = $5
+		WHERE id = $6 AND deleted_at IS NULL
 	`
 
 	result, err := tx.ExecContext(ctx, variantQuery,
 		variant.SKU, variant.Title, variant.Price, variant.DiscountPrice,
-		variant.InventoryQty, now, variant.ID,
+		now, variant.ID,
 	)
 
 	if err != nil {
@@ -1153,7 +1127,7 @@ func (r *ProductRepository) GetByID(ctx context.Context, id string) (*models.Pro
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&product.ID, &product.Title, &product.Slug, &product.Description,
 		&product.ShortDescription, &price, &discountPrice,
-		&product.SKU, &product.InventoryQty, &product.Weight,
+		&product.SKU, &product.Weight,
 		&product.IsPublished, &product.CreatedAt, &product.UpdatedAt,
 		&product.BrandID,
 		&brand.ID, &brand.Name, &brand.Slug, &brand.Description,
@@ -1196,7 +1170,6 @@ func (r *ProductRepository) GetByID(ctx context.Context, id string) (*models.Pro
 	errs = append(errs, r.getProductTags(ctx, product))
 	errs = append(errs, r.getProductSEO(ctx, product))
 	errs = append(errs, r.getProductShipping(ctx, product))
-	errs = append(errs, r.getProductInventoryLocations(ctx, product))
 
 	for _, e := range errs {
 		// Log the specific error
@@ -1324,30 +1297,4 @@ func (r *ProductRepository) getProductShipping(ctx context.Context, product *mod
 	}
 
 	return nil
-}
-
-// getProductInventoryLocations fetches inventory locations for a product
-func (r *ProductRepository) getProductInventoryLocations(ctx context.Context, product *models.Product) error {
-	const query = `
-		SELECT warehouse_id, available_qty
-		FROM product_inventory_locations
-		WHERE product_id = $1
-		ORDER BY warehouse_id
-	`
-
-	rows, err := r.db.QueryContext(ctx, query, product.ID)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var loc models.InventoryLocation
-		if err := rows.Scan(&loc.WarehouseID, &loc.AvailableQty); err != nil {
-			return err
-		}
-		product.InventoryLocations = append(product.InventoryLocations, loc)
-	}
-
-	return rows.Err()
 }

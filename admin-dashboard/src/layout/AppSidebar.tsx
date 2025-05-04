@@ -17,6 +17,7 @@ import {
   TableIcon,
   UserCircleIcon,
   ShoppingBagIcon,
+  WarehouseIcon,
 } from "../icons/index";
 // import SidebarWidget from "./SidebarWidget";
 
@@ -41,6 +42,16 @@ const navItems: NavItem[] = [
       { name: "Add Product", path: "/products/create", pro: false },
       { name: "Categories", path: "/products/categories", pro: false },
       { name: "Brands", path: "/products/brands", pro: false },
+    ],
+  },
+  {
+    icon: <WarehouseIcon />,
+    name: "Inventory",
+    subItems: [
+      { name: "Dashboard", path: "/inventory", pro: false },
+      { name: "Inventory Items", path: "/inventory/items", pro: false },
+      { name: "Warehouses", path: "/inventory/warehouses", pro: false },
+      { name: "Transactions", path: "/inventory/transactions", pro: false },
     ],
   },
   {

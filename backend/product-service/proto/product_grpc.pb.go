@@ -19,19 +19,20 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ProductService_CreateProduct_FullMethodName  = "/product.ProductService/CreateProduct"
-	ProductService_GetProduct_FullMethodName     = "/product.ProductService/GetProduct"
-	ProductService_ListProducts_FullMethodName   = "/product.ProductService/ListProducts"
-	ProductService_UpdateProduct_FullMethodName  = "/product.ProductService/UpdateProduct"
-	ProductService_DeleteProduct_FullMethodName  = "/product.ProductService/DeleteProduct"
-	ProductService_CreateBrand_FullMethodName    = "/product.ProductService/CreateBrand"
-	ProductService_GetBrand_FullMethodName       = "/product.ProductService/GetBrand"
-	ProductService_ListBrands_FullMethodName     = "/product.ProductService/ListBrands"
-	ProductService_CreateCategory_FullMethodName = "/product.ProductService/CreateCategory"
-	ProductService_GetCategory_FullMethodName    = "/product.ProductService/GetCategory"
-	ProductService_ListCategories_FullMethodName = "/product.ProductService/ListCategories"
-	ProductService_UploadImage_FullMethodName    = "/product.ProductService/UploadImage"
-	ProductService_DeleteImage_FullMethodName    = "/product.ProductService/DeleteImage"
+	ProductService_CreateProduct_FullMethodName      = "/product.ProductService/CreateProduct"
+	ProductService_GetProduct_FullMethodName         = "/product.ProductService/GetProduct"
+	ProductService_ListProducts_FullMethodName       = "/product.ProductService/ListProducts"
+	ProductService_UpdateProduct_FullMethodName      = "/product.ProductService/UpdateProduct"
+	ProductService_DeleteProduct_FullMethodName      = "/product.ProductService/DeleteProduct"
+	ProductService_CreateBrand_FullMethodName        = "/product.ProductService/CreateBrand"
+	ProductService_GetBrand_FullMethodName           = "/product.ProductService/GetBrand"
+	ProductService_ListBrands_FullMethodName         = "/product.ProductService/ListBrands"
+	ProductService_CreateCategory_FullMethodName     = "/product.ProductService/CreateCategory"
+	ProductService_GetCategory_FullMethodName        = "/product.ProductService/GetCategory"
+	ProductService_ListCategories_FullMethodName     = "/product.ProductService/ListCategories"
+	ProductService_UploadImage_FullMethodName        = "/product.ProductService/UploadImage"
+	ProductService_DeleteImage_FullMethodName        = "/product.ProductService/DeleteImage"
+	ProductService_GenerateSKUPreview_FullMethodName = "/product.ProductService/GenerateSKUPreview"
 )
 
 // ProductServiceClient is the client API for ProductService service.
@@ -54,6 +55,8 @@ type ProductServiceClient interface {
 	// Image upload methods
 	UploadImage(ctx context.Context, in *UploadImageRequest, opts ...grpc.CallOption) (*UploadImageResponse, error)
 	DeleteImage(ctx context.Context, in *DeleteImageRequest, opts ...grpc.CallOption) (*DeleteImageResponse, error)
+	// SKU generation methods
+	GenerateSKUPreview(ctx context.Context, in *GenerateSKUPreviewRequest, opts ...grpc.CallOption) (*GenerateSKUPreviewResponse, error)
 }
 
 type productServiceClient struct {
@@ -194,6 +197,16 @@ func (c *productServiceClient) DeleteImage(ctx context.Context, in *DeleteImageR
 	return out, nil
 }
 
+func (c *productServiceClient) GenerateSKUPreview(ctx context.Context, in *GenerateSKUPreviewRequest, opts ...grpc.CallOption) (*GenerateSKUPreviewResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GenerateSKUPreviewResponse)
+	err := c.cc.Invoke(ctx, ProductService_GenerateSKUPreview_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ProductServiceServer is the server API for ProductService service.
 // All implementations must embed UnimplementedProductServiceServer
 // for forward compatibility.
@@ -214,6 +227,8 @@ type ProductServiceServer interface {
 	// Image upload methods
 	UploadImage(context.Context, *UploadImageRequest) (*UploadImageResponse, error)
 	DeleteImage(context.Context, *DeleteImageRequest) (*DeleteImageResponse, error)
+	// SKU generation methods
+	GenerateSKUPreview(context.Context, *GenerateSKUPreviewRequest) (*GenerateSKUPreviewResponse, error)
 	mustEmbedUnimplementedProductServiceServer()
 }
 
@@ -262,6 +277,9 @@ func (UnimplementedProductServiceServer) UploadImage(context.Context, *UploadIma
 }
 func (UnimplementedProductServiceServer) DeleteImage(context.Context, *DeleteImageRequest) (*DeleteImageResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteImage not implemented")
+}
+func (UnimplementedProductServiceServer) GenerateSKUPreview(context.Context, *GenerateSKUPreviewRequest) (*GenerateSKUPreviewResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GenerateSKUPreview not implemented")
 }
 func (UnimplementedProductServiceServer) mustEmbedUnimplementedProductServiceServer() {}
 func (UnimplementedProductServiceServer) testEmbeddedByValue()                        {}
@@ -518,6 +536,24 @@ func _ProductService_DeleteImage_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_GenerateSKUPreview_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GenerateSKUPreviewRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).GenerateSKUPreview(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_GenerateSKUPreview_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).GenerateSKUPreview(ctx, req.(*GenerateSKUPreviewRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ProductService_ServiceDesc is the grpc.ServiceDesc for ProductService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -576,6 +612,10 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteImage",
 			Handler:    _ProductService_DeleteImage_Handler,
+		},
+		{
+			MethodName: "GenerateSKUPreview",
+			Handler:    _ProductService_GenerateSKUPreview_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

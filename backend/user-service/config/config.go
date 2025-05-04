@@ -7,37 +7,37 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/viper"
 	"github.com/joho/godotenv"
+	"github.com/spf13/viper"
 )
 
 type Config struct {
 	Server struct {
 		Port        string
 		Environment string
-		TLS struct {
+		TLS         struct {
 			CertPath string
 			KeyPath  string
 		}
 	}
 	Database struct {
-		Host     string
-		Port     string
-		User     string
-		Password string
-		Name     string
-		SSLMode  string
+		Host            string
+		Port            string
+		User            string
+		Password        string
+		Name            string
+		SSLMode         string
 		MaxOpenConns    int
 		MaxIdleConns    int
 		ConnMaxLifetime time.Duration
 		ConnMaxIdleTime time.Duration
-		Replicas []struct {
-			Host     string
-			Port     string
-			User     string
-			Password string
-			Name     string
-			SSLMode  string
+		Replicas        []struct {
+			Host            string
+			Port            string
+			User            string
+			Password        string
+			Name            string
+			SSLMode         string
 			MaxOpenConns    int
 			MaxIdleConns    int
 			ConnMaxLifetime time.Duration
@@ -50,19 +50,19 @@ type Config struct {
 		Port string
 	}
 	RateLimiter struct {
-		Attempts  int
-		Duration  time.Duration
+		Attempts int
+		Duration time.Duration
 	}
 	Auth AuthConfig
 }
 
 type ServerConfig struct {
-	Port                  string    `mapstructure:"port"`
-	Environment           string    `mapstructure:"environment"`
-	ServiceName           string    `mapstructure:"serviceName"`
-	LogLevel              string    `mapstructure:"logLevel"`
+	Port                    string        `mapstructure:"port"`
+	Environment             string        `mapstructure:"environment"`
+	ServiceName             string        `mapstructure:"serviceName"`
+	LogLevel                string        `mapstructure:"logLevel"`
 	GracefulShutdownTimeout time.Duration `mapstructure:"gracefulShutdownTimeout"`
-	TLS                   *TLSConfig `mapstructure:"tls,omitempty"`
+	TLS                     *TLSConfig    `mapstructure:"tls,omitempty"`
 }
 
 type TLSConfig struct {
@@ -238,7 +238,3 @@ func validateConfig(config *Config) error {
 
 	return nil
 }
-
-
-
-

@@ -2,6 +2,10 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
+  eslint: {
+    // Enable linting during builds
+    ignoreDuringBuilds: false,
+  },
   images: {
     domains: [
       'example.com',
@@ -34,3 +38,4 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+

@@ -16,7 +16,7 @@ import Pagination from "@/components/ui/pagination";
 import Modal from "@/components/ui/modal/Modal";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
-import { ProductService } from "@/services/product.service";
+import { ProductService, Category } from "@/services/product.service"; // Import Category type
 import { toast } from "react-hot-toast";
 
 export default function CategoriesPage() {
@@ -27,7 +27,7 @@ export default function CategoriesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
-  const [selectedCategory, setSelectedCategory] = useState<any>(null);
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null); // Use Category type
   const [formData, setFormData] = useState({
     name: "",
     slug: "",
@@ -50,7 +50,7 @@ export default function CategoriesPage() {
     setIsModalOpen(true);
   };
 
-  const openEditModal = (category: any) => {
+  const openEditModal = (category: Category) => { // Use Category type
     setModalMode('edit');
     setSelectedCategory(category);
     setFormData({
@@ -94,17 +94,26 @@ export default function CategoriesPage() {
         // Create new category
         await ProductService.createCategory(formData);
         toast.success("Category created successfully");
-      } else {
+      } else if (selectedCategory) { // Add null check
         // Update existing category
         await ProductService.updateCategory(selectedCategory.id, formData);
         toast.success("Category updated successfully");
+      } else {
+        toast.error("Cannot update category: No category selected.");
       }
 
       setIsModalOpen(false);
       mutate(); // Refresh categories data
-    } catch (error: any) {
+    } catch (error: unknown) { // Use unknown type
       console.error("Error saving category:", error);
-      toast.error(error.error || `Failed to ${modalMode} category`);
+      // Type check before accessing properties
+      let errorMessage = `Failed to ${modalMode} category`;
+      if (typeof error === 'object' && error !== null && 'error' in error && typeof error.error === 'string') {
+        errorMessage = error.error;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -155,18 +164,25 @@ export default function CategoriesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {categories.map((category) => (
-                  <TableRow key={category.id}>
-                    <TableCell>
+                {categories.map((category) => {
+                  // Find parent category name
+                  const parentCategory = category.parent_id
+                    ? categories.find(cat => cat.id === category.parent_id)
+                    : null;
+                  const parentName = parentCategory ? parentCategory.name : "—";
+
+                  return (
+                    <TableRow key={category.id}>
+                      <TableCell>
                       <span className="font-medium text-gray-900 dark:text-white">
                         {category.name}
                       </span>
-                    </TableCell>
-                    <TableCell>{category.slug}</TableCell>
-                    <TableCell>{category.parent_name || "—"}</TableCell>
-                    <TableCell>
-                      {category.description?.substring(0, 50) || "—"}
-                      {category.description?.length > 50 ? "..." : ""}
+                      </TableCell>
+                      <TableCell>{category.slug}</TableCell>
+                      <TableCell>{parentName}</TableCell> {/* Display looked-up parent name */}
+                      <TableCell>
+                        {category.description ? category.description.substring(0, 50) : "—"}
+                        {category.description && category.description.length > 50 ? "..." : ""} {/* Check existence before length */}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-end gap-2">
@@ -186,9 +202,10 @@ export default function CategoriesPage() {
                           <TrashBinIcon className="h-4 w-4" />
                         </Button>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
                 {categories.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center py-8">

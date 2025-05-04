@@ -16,13 +16,12 @@ const Pagination: React.FC<PaginationProps> = ({
   showPageNumbers = true,
   maxPageButtons = 5,
 }) => {
-  // Generate page numbers to display
-  const getPageNumbers = () => {
-    const pageNumbers = [];
+  const getPageNumbers = (): number[] => {
+    const pageNumbers: number[] = [];
     
     // Calculate the range of page numbers to show
     let startPage = Math.max(1, currentPage - Math.floor(maxPageButtons / 2));
-    let endPage = Math.min(totalPages, startPage + maxPageButtons - 1);
+    const endPage = Math.min(totalPages, startPage + maxPageButtons - 1);
     
     // Adjust if we're near the end
     if (endPage - startPage + 1 < maxPageButtons) {
@@ -37,11 +36,27 @@ const Pagination: React.FC<PaginationProps> = ({
     return pageNumbers;
   };
 
+  const handlePreviousPage = (): void => {
+    if (currentPage > 1) {
+      onPageChange(currentPage - 1);
+    }
+  };
+
+  const handleNextPage = (): void => {
+    if (currentPage < totalPages) {
+      onPageChange(currentPage + 1);
+    }
+  };
+
+  const handlePageClick = (pageNumber: number): void => {
+    onPageChange(pageNumber);
+  };
+
   return (
     <div className="flex items-center justify-center gap-1">
       {/* Previous button */}
       <button
-        onClick={() => currentPage > 1 && onPageChange(currentPage - 1)}
+        onClick={handlePreviousPage}
         disabled={currentPage === 1}
         className={`flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 ${
           currentPage === 1
@@ -58,7 +73,7 @@ const Pagination: React.FC<PaginationProps> = ({
         getPageNumbers().map((pageNumber) => (
           <button
             key={pageNumber}
-            onClick={() => onPageChange(pageNumber)}
+            onClick={() => handlePageClick(pageNumber)}
             className={`flex h-9 min-w-[36px] items-center justify-center rounded-lg px-3 text-sm font-medium ${
               currentPage === pageNumber
                 ? "bg-brand-500 text-white"
@@ -73,7 +88,7 @@ const Pagination: React.FC<PaginationProps> = ({
 
       {/* Next button */}
       <button
-        onClick={() => currentPage < totalPages && onPageChange(currentPage + 1)}
+        onClick={handleNextPage}
         disabled={currentPage === totalPages}
         className={`flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 ${
           currentPage === totalPages

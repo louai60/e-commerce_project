@@ -1,53 +1,84 @@
 package integration
 
 import (
-    // "context"
-    "database/sql"
-    "os"
-    "testing"
-    // "time"
+	// "context"
+	"database/sql"
+	"fmt"
+	"os"
+	"testing"
 
-    // "github.com/louai60/e-commerce_project/backend/user-service/models"
-    // "github.com/louai60/e-commerce_project/backend/user-service/repository"
-    // "github.com/stretchr/testify/assert"
-    // "github.com/stretchr/testify/require"
-    _ "github.com/lib/pq"
+	// "time"
+
+	// "github.com/louai60/e-commerce_project/backend/user-service/models"
+	// "github.com/louai60/e-commerce_project/backend/user-service/repository"
+	// "github.com/stretchr/testify/assert"
+	// "github.com/stretchr/testify/require"
+	_ "github.com/lib/pq"
 )
 
 var testDB *sql.DB
 
 func TestMain(m *testing.M) {
-    // Set up test database connection
-    dsn := os.Getenv("TEST_DATABASE_URL")
-    if dsn == "" {
-        dsn = "postgres://postgres:postgres@localhost:5432/user_service_test?sslmode=disable"
-    }
+	// Set up test database connection using environment variables
+	host := os.Getenv("POSTGRES_HOST")
+	if host == "" {
+		host = "localhost"
+	}
 
-    var err error
-    testDB, err = sql.Open("postgres", dsn)
-    if err != nil {
-        panic(err)
-    }
-    defer testDB.Close()
+	port := os.Getenv("POSTGRES_PORT")
+	if port == "" {
+		port = "5432"
+	}
 
-    // Run migrations
-    err = setupTestDatabase(testDB)
-    if err != nil {
-        panic(err)
-    }
+	user := os.Getenv("POSTGRES_USER")
+	if user == "" {
+		user = "postgres"
+	}
 
-    // Run tests
-    code := m.Run()
+	password := os.Getenv("POSTGRES_PASSWORD")
+	if password == "" {
+		password = "root"
+	}
 
-    // Clean up
-    cleanupTestDatabase(testDB)
+	dbName := os.Getenv("POSTGRES_DB")
+	if dbName == "" {
+		dbName = "test_db"
+	}
 
-    os.Exit(code)
+	// Construct DSN from environment variables
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
+		user, password, host, port, dbName)
+
+	// Allow override with TEST_DATABASE_URL if set
+	if envDSN := os.Getenv("TEST_DATABASE_URL"); envDSN != "" {
+		dsn = envDSN
+	}
+
+	var err error
+	testDB, err = sql.Open("postgres", dsn)
+	if err != nil {
+		panic(err)
+	}
+	defer testDB.Close()
+
+	// Run migrations
+	err = setupTestDatabase(testDB)
+	if err != nil {
+		panic(err)
+	}
+
+	// Run tests
+	code := m.Run()
+
+	// Clean up
+	cleanupTestDatabase(testDB)
+
+	os.Exit(code)
 }
 
 func setupTestDatabase(db *sql.DB) error {
-    // Create users table
-    _, err := db.Exec(`
+	// Create users table
+	_, err := db.Exec(`
         CREATE TABLE IF NOT EXISTS users (
             id VARCHAR(36) PRIMARY KEY,
             email VARCHAR(255) UNIQUE NOT NULL,
@@ -61,19 +92,43 @@ func setupTestDatabase(db *sql.DB) error {
             is_active BOOLEAN DEFAULT true
         )
     `)
-    return err
+	return err
 }
 
 func cleanupTestDatabase(db *sql.DB) {
-    db.Exec("DROP TABLE IF EXISTS users")
+	db.Exec("DROP TABLE IF EXISTS users")
 }
 
 // func TestUserRepository_Integration(t *testing.T) {
 //     // Use the same connection string as TestMain
-//     dsn := os.Getenv("TEST_DATABASE_URL")
-//     if dsn == "" {
-//         dsn = "postgres://postgres:postgres@localhost:5432/user_service_test?sslmode=disable"
+//     host := os.Getenv("POSTGRES_HOST")
+//     if host == "" {
+//         host = "localhost"
 //     }
+//
+//     port := os.Getenv("POSTGRES_PORT")
+//     if port == "" {
+//         port = "5432"
+//     }
+//
+//     user := os.Getenv("POSTGRES_USER")
+//     if user == "" {
+//         user = "postgres"
+//     }
+//
+//     password := os.Getenv("POSTGRES_PASSWORD")
+//     if password == "" {
+//         password = "root"
+//     }
+//
+//     dbName := os.Getenv("POSTGRES_DB")
+//     if dbName == "" {
+//         dbName = "test_db"
+//     }
+//
+//     // Construct DSN from environment variables
+//     dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
+//         user, password, host, port, dbName)
 
 //     repo, err := repository.NewPostgresRepository(dsn)
 //     require.NoError(t, err)
