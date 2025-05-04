@@ -47,7 +47,7 @@ export default function SignInForm() {
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
-    
+
     if (!validateForm()) {
       return;
     }
@@ -55,16 +55,9 @@ export default function SignInForm() {
     setLoading(true);
 
     try {
-      console.log('Starting login process...');
       const response = await AuthService.login({
         email: email.trim(),
         password: password
-      });
-
-      console.log('Login successful:', {
-        hasToken: !!response.access_token,
-        hasUser: !!response.user,
-        userRole: response.user?.role
       });
 
       if (!response.user || !response.access_token) {
@@ -75,9 +68,13 @@ export default function SignInForm() {
         throw new Error("Access denied: Admin privileges required");
       }
 
-      // Success! Redirect to dashboard
-      router.push("/");
-      
+      // Get callback URL from query parameters if it exists
+      const searchParams = new URLSearchParams(window.location.search);
+      const callbackUrl = searchParams.get('callbackUrl') || '/';
+
+      // Success! Redirect to dashboard or callback URL
+      router.push(callbackUrl);
+
     } catch (err: any) {
       console.error('Login error in component:', err);
       setError(err.message || "An unexpected error occurred");
@@ -126,7 +123,7 @@ export default function SignInForm() {
 
           <div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-5">
-              <button 
+              <button
                 type="button"
                 className="inline-flex items-center justify-center gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
               >
@@ -156,7 +153,7 @@ export default function SignInForm() {
                 </svg>
                 Sign in with Google
               </button>
-              <button 
+              <button
                 type="button"
                 className="inline-flex items-center justify-center gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
               >

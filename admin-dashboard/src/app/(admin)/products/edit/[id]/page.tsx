@@ -11,6 +11,7 @@ import { ChevronDownIcon } from "@/icons";
 import { toast } from "react-hot-toast";
 import LoadingSpinner from "@/components/ui/loading/LoadingSpinner";
 import { ImageUpload } from "@/components/ui/image-upload/ImageUpload";
+import { Brand } from "@/services/product.service";
 
 export default function EditProductPage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -101,6 +102,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    await submitForm();
   };
 
   const submitForm = async () => {
@@ -122,9 +124,10 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
       await ProductService.updateProduct(params.id, productData);
       toast.success("Product updated successfully");
       mutate(); // Refresh product data
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { error?: string };
       console.error("Error updating product:", error);
-      toast.error(error.error || "Failed to update product");
+      toast.error(err.error || "Failed to update product");
     } finally {
       setIsSubmitting(false);
     }
@@ -251,14 +254,60 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
 
               <div>
                 <Label htmlFor="sku">SKU*</Label>
-                <Input
-                  id="sku"
-                  name="sku"
-                  type="text"
-                  placeholder="PROD-001"
-                  defaultValue={formData.sku}
-                  onChange={handleInputChange}
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="sku"
+                    name="sku"
+                    type="text"
+                    placeholder="PROD-001"
+                    defaultValue={formData.sku}
+                    onChange={handleInputChange}
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      if (!formData.brand_id) {
+                        toast.error("Brand is required to generate SKU");
+                        return;
+                      }
+
+                      try {
+                        // Find the brand name from the selected brand_id
+                        const selectedBrand = brands?.find(brand => brand.id === formData.brand_id);
+                        if (!selectedBrand) {
+                          toast.error("Selected brand not found");
+                          return;
+                        }
+
+                        // Use the product's category if available
+                        const categoryName = product.categories && product.categories.length > 0
+                          ? product.categories[0].name
+                          : "";
+
+                        if (!categoryName) {
+                          toast.error("Product must have a category to generate SKU");
+                          return;
+                        }
+
+                        // Call the API to generate a SKU preview
+                        const result = await ProductService.generateSKUPreview(
+                          selectedBrand.name,
+                          categoryName
+                        );
+
+                        // Update the SKU field with the generated SKU
+                        setFormData(prev => ({ ...prev, sku: result.sku }));
+                        toast.success("SKU generated successfully");
+                      } catch (error) {
+                        console.error("Failed to generate SKU:", error);
+                        toast.error("Failed to generate SKU");
+                      }
+                    }}
+                    disabled={!formData.brand_id || !product.categories || product.categories.length === 0}
+                  >
+                    Generate
+                  </Button>
+                </div>
               </div>
 
               <div>
@@ -310,7 +359,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
                     disabled={brandsLoading}
                   >
                     <option value="">Select a brand</option>
-                    {brands?.map((brand: any) => (
+                    {brands?.map((brand: Brand) => (
                       <option key={brand.id} value={brand.id}>
                         {brand.name}
                       </option>

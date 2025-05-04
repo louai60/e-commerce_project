@@ -53,6 +53,7 @@ import ChatIcon from "./chat.svg";
 import MoreDotIcon from "./more-dot.svg";
 import BellIcon from "./bell.svg";
 import ShoppingBagIcon from "./shopping-bag.svg";
+import WarehouseIcon from "./WarehouseIcon";
 
 export {
   DownloadIcon,
@@ -110,4 +111,5 @@ export {
   ChevronRightIcon,
   ChatIcon,
   ShoppingBagIcon,
+  WarehouseIcon,
 };

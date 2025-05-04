@@ -19,6 +19,57 @@ const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
 }) => {
   if (!product) return null;
 
+  const renderProductImage = (): React.ReactNode => {
+    if (product.images && product.images.length > 0) {
+      return (
+        <Image
+          src={product.images[0].url}
+          alt={product.images[0].alt_text || product.title}
+          width={300}
+          height={300}
+          className="w-full h-auto object-cover"
+          unoptimized={true}
+        />
+      );
+    }
+    return (
+      <div className="w-full h-64 bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+        <span className="text-gray-400">No image</span>
+      </div>
+    );
+  };
+
+  const renderAdditionalImages = (): React.ReactNode => {
+    if (!product.images || product.images.length <= 1) return null;
+
+    return (
+      <div className="mt-4 grid grid-cols-4 gap-2">
+        {product.images.slice(1, 5).map((image, index) => (
+          <div key={image.id || index} className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+            <Image
+              src={image.url}
+              alt={image.alt_text || `${product.title} - ${index + 2}`}
+              width={80}
+              height={80}
+              className="w-full h-auto object-cover"
+              unoptimized={true}
+            />
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const renderPrice = (): string => {
+    if (product.price?.current?.USD) {
+      return formatPrice(product.price.current.USD);
+    }
+    if (product.price?.value) {
+      return formatPrice(product.price.value);
+    }
+    return "N/A";
+  };
+
   return (
     <Modal
       isOpen={isOpen}
@@ -30,39 +81,9 @@ const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
           {/* Product Image */}
           <div className="w-full md:w-1/3">
             <div className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-              {product.images && product.images.length > 0 ? (
-                <Image
-                  src={product.images[0].url}
-                  alt={product.images[0].alt_text || product.title}
-                  width={300}
-                  height={300}
-                  className="w-full h-auto object-cover"
-                  unoptimized={true}
-                />
-              ) : (
-                <div className="w-full h-64 bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                  <span className="text-gray-400">No image</span>
-                </div>
-              )}
+              {renderProductImage()}
             </div>
-
-            {/* Additional Images */}
-            {product.images && product.images.length > 1 && (
-              <div className="mt-4 grid grid-cols-4 gap-2">
-                {product.images.slice(1, 5).map((image, index) => (
-                  <div key={image.id || index} className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-                    <Image
-                      src={image.url}
-                      alt={image.alt_text || `${product.title} - ${index + 2}`}
-                      width={80}
-                      height={80}
-                      className="w-full h-auto object-cover"
-                      unoptimized={true}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
+            {renderAdditionalImages()}
           </div>
 
           {/* Product Details */}
@@ -97,8 +118,7 @@ const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
               <div>
                 <span className="text-sm text-gray-500 dark:text-gray-400">Price:</span>
                 <span className="ml-2 font-semibold text-gray-900 dark:text-white">
-                  {product.price?.current?.USD ? formatPrice(product.price.current.USD) :
-                   product.price?.value ? formatPrice(product.price.value) : "N/A"}
+                  {renderPrice()}
                 </span>
               </div>
 
@@ -152,9 +172,9 @@ const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
               </h3>
               <div className="flex flex-wrap gap-2">
                 {product.categories.map((category) => (
-                   <Badge key={category.id} variant="default">
-                   {category.name}
-                 </Badge>
+                  <Badge key={category.id} variant="default">
+                    {category.name}
+                  </Badge>
                 ))}
               </div>
             </div>

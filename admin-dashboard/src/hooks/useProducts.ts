@@ -1,8 +1,12 @@
 "use client";
-import { ProductListResponse, ProductService } from '@/services/product.service';
+import { ProductListResponse, ProductService, BrandListResponse, CategoryListResponse } from '@/services/product.service';
 import useSWR from 'swr';
 
-const fetcher = async (url: string, page: number, limit: number, filters: any) => {
+interface FilterParams {
+  [key: string]: string | number | boolean | undefined;
+}
+
+const fetcher = async (url: string, page: number, limit: number, filters: FilterParams) => {
   // Extract the base endpoint from the URL
   const endpoint = url.split('?')[0];
 
@@ -30,17 +34,17 @@ const fetcher = async (url: string, page: number, limit: number, filters: any) =
         endpoint === '/products' ? `${result?.products?.length || 0} products` : 'data');
     }
     return result;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`Error fetching data from ${endpoint}:`, error);
     throw error;
   }
 };
 
-export function useProducts(page = 1, limit = 10, filters = {}) {
+export function useProducts(page = 1, limit = 10, filters: FilterParams = {}) {
   // Use stable key structure for SWR
   const { data, error, isLoading, mutate } = useSWR<ProductListResponse>(
     ['/products', page, limit, filters],
-    ([url, page, limit, filters]: [string, number, number, any]) => fetcher(url, page, limit, filters),
+    ([url, page, limit, filters]: [string, number, number, FilterParams]) => fetcher(url, page, limit, filters),
     {
       // Use consistent configuration
       revalidateOnFocus: false,
@@ -97,7 +101,7 @@ export function useProduct(id: string | null) {
 }
 
 export function useBrands(page = 1, limit = 10) {
-  const { data, error, isLoading, mutate } = useSWR(
+  const { data, error, isLoading, mutate } = useSWR<BrandListResponse>(
     ['/brands', page, limit, {}],
     ([url, page, limit, filters]) => fetcher(url, page, limit, filters),
     {
@@ -118,7 +122,7 @@ export function useBrands(page = 1, limit = 10) {
 }
 
 export function useCategories(page = 1, limit = 10) {
-  const { data, error, isLoading, mutate } = useSWR(
+  const { data, error, isLoading, mutate } = useSWR<CategoryListResponse>(
     ['/categories', page, limit, {}],
     ([url, page, limit, filters]) => fetcher(url, page, limit, filters),
     {

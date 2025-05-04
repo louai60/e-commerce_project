@@ -92,6 +92,55 @@ export interface ProductCreateRequest {
   }[];
 }
 
+export interface Brand {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  logo?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BrandListResponse {
+  brands: Brand[];
+  total: number;
+  pagination: {
+    current_page: number;
+    total_pages: number;
+    per_page: number;
+    total_items: number;
+  };
+}
+
+export interface Category {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  parent_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CategoryListResponse {
+  categories: Category[];
+  total: number;
+  pagination: {
+    current_page: number;
+    total_pages: number;
+    per_page: number;
+    total_items: number;
+  };
+}
+
+interface SKUPreviewParams {
+  brand: string;
+  category: string;
+  color?: string;
+  size?: string;
+}
+
 export class ProductService {
   static async getProducts(page = 1, limit = 10, filters = {}): Promise<ProductListResponse> {
     try {
@@ -132,9 +181,10 @@ export class ProductService {
 
       console.log('Returning structured product data:', result);
       return result;
-    } catch (error: any) {
-      console.error('Error fetching products:', error.response?.data || error);
-      throw error.response?.data || { error: 'Failed to fetch products' };
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: unknown } };
+      console.error('Error fetching products:', err.response?.data || error);
+      throw err.response?.data || { error: 'Failed to fetch products' };
     }
   }
 
@@ -170,9 +220,10 @@ export class ProductService {
       }
 
       return response.data;
-    } catch (error: any) {
-      console.error('Error fetching product:', error.response?.data || error);
-      throw error.response?.data || { error: 'Failed to fetch product' };
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: unknown } };
+      console.error('Error fetching product:', err.response?.data || error);
+      throw err.response?.data || { error: 'Failed to fetch product' };
     }
   }
 
@@ -205,14 +256,12 @@ export class ProductService {
       };
 
       console.log('Creating product with data:', JSON.stringify(transformedData, null, 2));
-      // IMPORTANT: We're not using this service method directly anymore
-      // The form component handles the API call directly with proper formatting
-      // This is kept for reference and potential future use
       const response = await api.post('/products', transformedData);
       return response.data;
-    } catch (error: any) {
-      console.error('Error creating product:', error.response?.data || error);
-      throw error.response?.data || { message: 'Failed to create product' };
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: unknown } };
+      console.error('Error creating product:', err.response?.data || error);
+      throw err.response?.data || { message: 'Failed to create product' };
     }
   }
 
@@ -220,8 +269,9 @@ export class ProductService {
     try {
       const response = await api.put(`/products/${id}`, { product: productData });
       return response.data;
-    } catch (error: any) {
-      throw error.response?.data || { error: 'Failed to update product' };
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: unknown } };
+      throw err.response?.data || { error: 'Failed to update product' };
     }
   }
 
@@ -229,36 +279,40 @@ export class ProductService {
     try {
       const response = await api.delete(`/products/${id}`);
       return response.data;
-    } catch (error: any) {
-      throw error.response?.data || { error: 'Failed to delete product' };
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: unknown } };
+      throw err.response?.data || { error: 'Failed to delete product' };
     }
   }
 
-  static async getBrands(page = 1, limit = 10): Promise<any> {
+  static async getBrands(page = 1, limit = 10): Promise<BrandListResponse> {
     try {
       const params = { page, limit };
       const response = await api.get('/brands', { params });
       return response.data;
-    } catch (error: any) {
-      throw error.response?.data || { error: 'Failed to fetch brands' };
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: unknown } };
+      throw err.response?.data || { error: 'Failed to fetch brands' };
     }
   }
 
-  static async createBrand(brandData: any): Promise<any> {
+  static async createBrand(brandData: Omit<Brand, 'id' | 'created_at' | 'updated_at'>): Promise<Brand> {
     try {
       const response = await api.post('/brands', { brand: brandData });
       return response.data;
-    } catch (error: any) {
-      throw error.response?.data || { error: 'Failed to create brand' };
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: unknown } };
+      throw err.response?.data || { error: 'Failed to create brand' };
     }
   }
 
-  static async updateBrand(id: string, brandData: any): Promise<any> {
+  static async updateBrand(id: string, brandData: Partial<Omit<Brand, 'id' | 'created_at' | 'updated_at'>>): Promise<Brand> {
     try {
       const response = await api.put(`/brands/${id}`, { brand: brandData });
       return response.data;
-    } catch (error: any) {
-      throw error.response?.data || { error: 'Failed to update brand' };
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: unknown } };
+      throw err.response?.data || { error: 'Failed to update brand' };
     }
   }
 
@@ -266,36 +320,40 @@ export class ProductService {
     try {
       const response = await api.delete(`/brands/${id}`);
       return response.data;
-    } catch (error: any) {
-      throw error.response?.data || { error: 'Failed to delete brand' };
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: unknown } };
+      throw err.response?.data || { error: 'Failed to delete brand' };
     }
   }
 
-  static async getCategories(page = 1, limit = 10): Promise<any> {
+  static async getCategories(page = 1, limit = 10): Promise<CategoryListResponse> {
     try {
       const params = { page, limit };
       const response = await api.get('/categories', { params });
       return response.data;
-    } catch (error: any) {
-      throw error.response?.data || { error: 'Failed to fetch categories' };
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: unknown } };
+      throw err.response?.data || { error: 'Failed to fetch categories' };
     }
   }
 
-  static async createCategory(categoryData: any): Promise<any> {
+  static async createCategory(categoryData: Omit<Category, 'id' | 'created_at' | 'updated_at'>): Promise<Category> {
     try {
       const response = await api.post('/categories', { category: categoryData });
       return response.data;
-    } catch (error: any) {
-      throw error.response?.data || { error: 'Failed to create category' };
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: unknown } };
+      throw err.response?.data || { error: 'Failed to create category' };
     }
   }
 
-  static async updateCategory(id: string, categoryData: any): Promise<any> {
+  static async updateCategory(id: string, categoryData: Partial<Omit<Category, 'id' | 'created_at' | 'updated_at'>>): Promise<Category> {
     try {
       const response = await api.put(`/categories/${id}`, { category: categoryData });
       return response.data;
-    } catch (error: any) {
-      throw error.response?.data || { error: 'Failed to update category' };
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: unknown } };
+      throw err.response?.data || { error: 'Failed to update category' };
     }
   }
 
@@ -303,8 +361,25 @@ export class ProductService {
     try {
       const response = await api.delete(`/categories/${id}`);
       return response.data;
-    } catch (error: any) {
-      throw error.response?.data || { error: 'Failed to delete category' };
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: unknown } };
+      throw err.response?.data || { error: 'Failed to delete category' };
+    }
+  }
+
+  static async generateSKUPreview(brandName: string, categoryName: string, color?: string, size?: string): Promise<{ sku: string }> {
+    try {
+      const params: SKUPreviewParams = {
+        brand: brandName,
+        category: categoryName,
+        ...(color ? { color } : {}),
+        ...(size ? { size } : {})
+      };
+      const response = await api.get('/products/sku/preview', { params });
+      return response.data;
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: unknown } };
+      throw err.response?.data || { error: 'Failed to generate SKU preview' };
     }
   }
 }

@@ -16,7 +16,7 @@ import Pagination from "@/components/ui/pagination";
 import Modal from "@/components/ui/modal/Modal";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
-import { ProductService } from "@/services/product.service";
+import { ProductService, Brand } from "@/services/product.service"; // Import Brand type
 import { toast } from "react-hot-toast";
 
 export default function BrandsPage() {
@@ -27,7 +27,7 @@ export default function BrandsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
-  const [selectedBrand, setSelectedBrand] = useState<any>(null);
+  const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null); // Use Brand type
   const [formData, setFormData] = useState({
     name: "",
     slug: "",
@@ -48,7 +48,7 @@ export default function BrandsPage() {
     setIsModalOpen(true);
   };
 
-  const openEditModal = (brand: any) => {
+  const openEditModal = (brand: Brand) => { // Use Brand type
     setModalMode('edit');
     setSelectedBrand(brand);
     setFormData({
@@ -91,17 +91,27 @@ export default function BrandsPage() {
         // Create new brand
         await ProductService.createBrand(formData);
         toast.success("Brand created successfully");
-      } else {
+      } else if (selectedBrand) { // Add null check for selectedBrand
         // Update existing brand
         await ProductService.updateBrand(selectedBrand.id, formData);
         toast.success("Brand updated successfully");
+      } else {
+        // Handle the unlikely case where selectedBrand is null in edit mode
+        toast.error("Cannot update brand: No brand selected.");
       }
 
       setIsModalOpen(false);
       mutate(); // Refresh brands data
-    } catch (error: any) {
+    } catch (error: unknown) { // Use unknown type
       console.error("Error saving brand:", error);
-      toast.error(error.error || `Failed to ${modalMode} brand`);
+      // Type check before accessing properties
+      let errorMessage = `Failed to ${modalMode} brand`;
+      if (typeof error === 'object' && error !== null && 'error' in error && typeof error.error === 'string') {
+        errorMessage = error.error;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -160,8 +170,8 @@ export default function BrandsPage() {
                     </TableCell>
                     <TableCell>{brand.slug}</TableCell>
                     <TableCell>
-                      {brand.description?.substring(0, 50) || "—"}
-                      {brand.description?.length > 50 ? "..." : ""}
+                      {brand.description ? brand.description.substring(0, 50) : "—"}
+                      {brand.description && brand.description.length > 50 ? "..." : ""} {/* Check existence before length */}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-end gap-2">
