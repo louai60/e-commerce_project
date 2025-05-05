@@ -1,8 +1,13 @@
 export function formatPrice(price: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(price);
+  // Format with Tunisian representation (199 DT or 99.90 DT)
+  // Check if the price has decimal places
+  const hasDecimal = price % 1 !== 0;
+
+  return new Intl.NumberFormat('fr-TN', {
+    style: 'decimal',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: hasDecimal ? 2 : 0, // Show up to 2 decimal places only if needed
+  }).format(price) + ' DT';
 }
 
 export function formatDate(dateString: string): string {

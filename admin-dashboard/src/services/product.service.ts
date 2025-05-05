@@ -39,10 +39,12 @@ export interface Product {
   sku: string;
   price: {
     current: {
-      USD: number;
+      USD?: number;
       EUR?: number;
+      TND?: number;
       USD_DISCOUNT?: number;
       EUR_DISCOUNT?: number;
+      TND_DISCOUNT?: number;
     };
     currency: string;
     value?: number;
@@ -238,9 +240,9 @@ export class ProductService {
           short_description: productData.short_description,
           price: {
             current: {
-              USD: Number(productData.price) // Ensure it's a number
+              TND: Number(productData.price) // Ensure it's a number
             },
-            currency: 'USD'
+            currency: 'TND'
           },
           sku: productData.sku,
           inventory: {

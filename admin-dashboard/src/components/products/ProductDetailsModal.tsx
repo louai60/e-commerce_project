@@ -61,6 +61,9 @@ const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
   };
 
   const renderPrice = (): string => {
+    if (product.price?.current?.TND) {
+      return formatPrice(product.price.current.TND);
+    }
     if (product.price?.current?.USD) {
       return formatPrice(product.price.current.USD);
     }

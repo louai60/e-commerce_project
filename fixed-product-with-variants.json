@@ -1,0 +1,83 @@
+{
+  "product": {
+    "title": "Test Product with Variants",
+    "slug": "test-product-with-variants",
+    "description": "This is a test product with variants",
+    "short_description": "Test product with variants",
+    "price": 99.99,
+    "sku": "TEST-MAIN-SKU",
+    "is_published": true,
+    "brand_id": "26da58ea-7ce4-4cd6-931f-bcb22ac8cbf2",
+    "category_ids": ["some-category-id"],
+    "images": [
+      {
+        "url": "https://via.placeholder.com/500",
+        "alt_text": "Test Product Image",
+        "position": 1
+      }
+    ],
+    "specifications": [
+      {
+        "name": "Dimensions",
+        "value": "10",
+        "unit": "cm"
+      },
+      {
+        "name": "Material",
+        "value": "Cotton"
+      }
+    ],
+    "tags": ["product", "test", "variants"],
+    "variants": [
+      {
+        "title": "Red - Small",
+        "sku": "TEST-RED-S",
+        "price": 89.99,
+        "inventory_qty": 10,
+        "attributes": [
+          {
+            "name": "Color",
+            "value": "Red"
+          },
+          {
+            "name": "Size",
+            "value": "Small"
+          }
+        ],
+        "images": [
+          {
+            "url": "https://via.placeholder.com/500/FF0000",
+            "alt_text": "Red Small Variant",
+            "position": 1
+          }
+        ]
+      },
+      {
+        "title": "Blue - Medium",
+        "sku": "TEST-BLUE-M",
+        "price": 94.99,
+        "inventory_qty": 15,
+        "attributes": [
+          {
+            "name": "Color",
+            "value": "Blue"
+          },
+          {
+            "name": "Size",
+            "value": "Medium"
+          }
+        ],
+        "images": [
+          {
+            "url": "https://via.placeholder.com/500/0000FF",
+            "alt_text": "Blue Medium Variant",
+            "position": 1
+          }
+        ]
+      }
+    ],
+    "inventory": {
+      "initial_quantity": 25
+    }
+  }
+}

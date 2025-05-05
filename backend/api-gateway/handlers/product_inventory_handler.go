@@ -38,9 +38,41 @@ func CreateProductWithInventory(
 			BrandID          string                   `json:"brand_id,omitempty"`
 			CategoryIDs      []string                 `json:"category_ids,omitempty"`
 			Images           []map[string]interface{} `json:"images,omitempty"`
-			Inventory        *struct {
+			Specifications   []struct {
+				Name  string `json:"name"`
+				Value string `json:"value"`
+				Unit  string `json:"unit"`
+			} `json:"specifications,omitempty"`
+			Tags       []string `json:"tags,omitempty"`
+			Attributes []struct {
+				Name  string `json:"name"`
+				Value string `json:"value"`
+			} `json:"attributes,omitempty"`
+			Variants []struct {
+				Title         string   `json:"title"`
+				SKU           string   `json:"sku"`
+				Price         float64  `json:"price"`
+				DiscountPrice *float64 `json:"discount_price,omitempty"`
+				InventoryQty  int      `json:"inventory_qty"`
+				Attributes    []struct {
+					Name  string `json:"name"`
+					Value string `json:"value"`
+				} `json:"attributes,omitempty"`
+				Images []map[string]interface{} `json:"images,omitempty"`
+			} `json:"variants,omitempty"`
+			Inventory *struct {
 				InitialQuantity int `json:"initial_quantity"`
 			} `json:"inventory,omitempty"`
+			SEO *struct {
+				MetaTitle       string   `json:"meta_title"`
+				MetaDescription string   `json:"meta_description"`
+				Keywords        []string `json:"keywords"`
+			} `json:"seo,omitempty"`
+			Shipping *struct {
+				FreeShipping     bool `json:"free_shipping"`
+				EstimatedDays    int  `json:"estimated_days"`
+				ExpressAvailable bool `json:"express_available"`
+			} `json:"shipping,omitempty"`
 		} `json:"product" binding:"required"`
 	}
 
@@ -99,9 +131,123 @@ func CreateProductWithInventory(
 		// Convert string IDs to Category objects
 		product.Categories = make([]*productpb.Category, len(req.Product.CategoryIDs))
 		for i, id := range req.Product.CategoryIDs {
+			// Create a complete Category object with the ID
+			// The repository needs the full Category object with ID to create the association
 			product.Categories[i] = &productpb.Category{
 				Id: id,
 			}
+
+			// Log the category ID being processed for debugging
+			logger.Info("Adding category to product",
+				zap.String("category_id", id),
+				zap.String("product_title", req.Product.Title))
+		}
+	}
+
+	// Handle specifications
+	if len(req.Product.Specifications) > 0 {
+		product.Specifications = make([]*productpb.ProductSpecification, len(req.Product.Specifications))
+		for i, spec := range req.Product.Specifications {
+			product.Specifications[i] = &productpb.ProductSpecification{
+				Name:  spec.Name,
+				Value: spec.Value,
+				Unit:  spec.Unit,
+			}
+		}
+	}
+
+	// Handle tags
+	if len(req.Product.Tags) > 0 {
+		product.Tags = make([]*productpb.ProductTag, len(req.Product.Tags))
+		for i, tag := range req.Product.Tags {
+			product.Tags[i] = &productpb.ProductTag{
+				Tag: tag,
+			}
+		}
+	}
+
+	// Handle attributes
+	if len(req.Product.Attributes) > 0 {
+		product.Attributes = make([]*productpb.ProductAttribute, len(req.Product.Attributes))
+		for i, attr := range req.Product.Attributes {
+			product.Attributes[i] = &productpb.ProductAttribute{
+				Name:  attr.Name,
+				Value: attr.Value,
+			}
+		}
+	}
+
+	// Handle variants
+	if len(req.Product.Variants) > 0 {
+		product.Variants = make([]*productpb.ProductVariant, len(req.Product.Variants))
+		for i, variant := range req.Product.Variants {
+			productVariant := &productpb.ProductVariant{
+				Title: variant.Title,
+				Sku:   variant.SKU,
+				Price: variant.Price,
+				// Note: inventory_qty is not in the proto definition
+				// It will be handled by the inventory service separately
+			}
+
+			// Handle variant discount price
+			if variant.DiscountPrice != nil {
+				productVariant.DiscountPrice = &wrapperspb.DoubleValue{Value: *variant.DiscountPrice}
+			}
+
+			// Handle variant attributes
+			if len(variant.Attributes) > 0 {
+				productVariant.Attributes = make([]*productpb.VariantAttributeValue, len(variant.Attributes))
+				for j, attr := range variant.Attributes {
+					productVariant.Attributes[j] = &productpb.VariantAttributeValue{
+						Name:  attr.Name,
+						Value: attr.Value,
+					}
+				}
+			}
+
+			// Handle variant images
+			if len(variant.Images) > 0 {
+				productVariant.Images = make([]*productpb.VariantImage, 0, len(variant.Images))
+				for _, img := range variant.Images {
+					url, _ := img["url"].(string)
+					altText, _ := img["alt_text"].(string)
+					position, ok := img["position"].(float64)
+					if !ok {
+						position = 0
+					}
+
+					if url != "" {
+						productVariant.Images = append(productVariant.Images, &productpb.VariantImage{
+							Url:      url,
+							AltText:  altText,
+							Position: int32(position),
+						})
+					}
+				}
+			}
+
+			product.Variants[i] = productVariant
+		}
+	}
+
+	// Handle SEO
+	if req.Product.SEO != nil {
+		product.Seo = &productpb.ProductSEO{
+			MetaTitle:       req.Product.SEO.MetaTitle,
+			MetaDescription: req.Product.SEO.MetaDescription,
+		}
+
+		if len(req.Product.SEO.Keywords) > 0 {
+			product.Seo.Keywords = req.Product.SEO.Keywords
+		}
+	}
+
+	// Handle Shipping
+	if req.Product.Shipping != nil {
+		product.Shipping = &productpb.ProductShipping{
+			FreeShipping:     req.Product.Shipping.FreeShipping,
+			EstimatedDays:    int32(req.Product.Shipping.EstimatedDays),
+			ExpressAvailable: req.Product.Shipping.ExpressAvailable,
 		}
 	}
 
@@ -131,7 +277,7 @@ func CreateProductWithInventory(
 		reorderPoint := 5
 		reorderQty := 20
 
-		// Create inventory item
+		// Create inventory item for the main product
 		var variantID *string
 		inventoryItem, err := inventoryClient.CreateInventoryItem(
 			c.Request.Context(),
@@ -153,6 +299,49 @@ func CreateProductWithInventory(
 				zap.String("product_id", resp.Id),
 				zap.Int("available_quantity", int(inventoryItem.AvailableQuantity)))
 			inventoryCreated = true
+		}
+
+		// Create inventory items for variants if any
+		if len(resp.Variants) > 0 && inventoryClient != nil {
+			for _, variant := range resp.Variants {
+				// Find the corresponding variant in the request to get the inventory quantity
+				var variantInventoryQty int = 0
+				for _, reqVariant := range req.Product.Variants {
+					if reqVariant.SKU == variant.Sku {
+						variantInventoryQty = reqVariant.InventoryQty
+						break
+					}
+				}
+
+				// Create a string pointer for variant ID
+				variantIDPtr := &variant.Id
+
+				// Create inventory item for the variant
+				variantInventoryItem, err := inventoryClient.CreateInventoryItem(
+					c.Request.Context(),
+					resp.Id,
+					variant.Sku,
+					variantIDPtr,
+					variantInventoryQty,
+					reorderPoint,
+					reorderQty,
+				)
+
+				if err != nil {
+					logger.Warn("Failed to create inventory item for variant in inventory service",
+						zap.Error(err),
+						zap.String("product_id", resp.Id),
+						zap.String("variant_id", variant.Id),
+						zap.String("variant_sku", variant.Sku))
+					// Continue even if inventory creation fails
+				} else {
+					logger.Info("Successfully created inventory item for variant in inventory service",
+						zap.String("product_id", resp.Id),
+						zap.String("variant_id", variant.Id),
+						zap.String("variant_sku", variant.Sku),
+						zap.Int("available_quantity", int(variantInventoryItem.AvailableQuantity)))
+				}
+			}
 		}
 	}
 

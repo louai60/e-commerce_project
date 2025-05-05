@@ -126,6 +126,32 @@ func (s *ProductService) CreateProduct(ctx context.Context, req *pb.CreateProduc
 		}
 	}
 
+	// Process categories if provided
+	if len(req.Product.Categories) > 0 {
+		product.Categories = make([]models.Category, len(req.Product.Categories))
+		for i, cat := range req.Product.Categories {
+			// Log the category being processed
+			s.logger.Info("Processing category for product",
+				zap.String("category_id", cat.Id),
+				zap.String("product_id", productID))
+
+			product.Categories[i] = models.Category{
+				ID: cat.Id,
+			}
+
+			// If we have more category details, add them
+			if cat.Name != "" {
+				product.Categories[i].Name = cat.Name
+			}
+			if cat.Slug != "" {
+				product.Categories[i].Slug = cat.Slug
+			}
+			if cat.Description != "" {
+				product.Categories[i].Description = cat.Description
+			}
+		}
+	}
+
 	// Create the product
 	if err := s.productRepo.CreateProduct(ctx, product); err != nil {
 		s.logger.Error("Failed to create product", zap.Error(err))
@@ -1625,9 +1651,29 @@ func convertProtoToModelForUpdate(proto *pb.Product, model *models.Product) *mod
 		model.BrandID = nil // Explicitly set to nil if not provided
 	}
 
-	// TODO: Handle updates for Categories and Images if needed
-	// This would involve comparing the incoming IDs/data with existing ones
-	// and calling appropriate repository methods (e.g., AddProductCategory, RemoveProductCategory)
+	// Handle categories if provided in the update
+	if len(proto.Categories) > 0 {
+		// Replace existing categories with the new ones
+		model.Categories = make([]models.Category, len(proto.Categories))
+		for i, cat := range proto.Categories {
+			// We don't need to log here as this is a helper function
+
+			model.Categories[i] = models.Category{
+				ID: cat.Id,
+			}
+
+			// If we have more category details, add them
+			if cat.Name != "" {
+				model.Categories[i].Name = cat.Name
+			}
+			if cat.Slug != "" {
+				model.Categories[i].Slug = cat.Slug
+			}
+			if cat.Description != "" {
+				model.Categories[i].Description = cat.Description
+			}
+		}
+	}
 
 	return model
 }

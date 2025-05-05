@@ -115,7 +115,8 @@ export default function ProductDetailPage() {
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-500 dark:text-gray-400">Price:</span>
                   <span className="text-xl font-semibold text-gray-900 dark:text-white">
-                    {product.price?.current?.USD ? formatPrice(product.price.current.USD) : "N/A"}
+                    {product.price?.current?.TND ? formatPrice(product.price.current.TND) :
+                     product.price?.current?.USD ? formatPrice(product.price.current.USD) : "N/A"}
                   </span>
                 </div>
 

@@ -204,7 +204,8 @@ export default function ProductsPage() {
                       </TableCell>
                       <TableCell>
                         <div className="cursor-pointer" onClick={() => handleProductClick(product)}>
-                          {product?.price?.current?.USD ? formatPrice(product.price.current.USD) :
+                          {product?.price?.current?.TND ? formatPrice(product.price.current.TND) :
+                           product?.price?.current?.USD ? formatPrice(product.price.current.USD) :
                            product?.price?.value ? formatPrice(product.price.value) : "N/A"}
                         </div>
                       </TableCell>
