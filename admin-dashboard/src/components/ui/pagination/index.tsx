@@ -18,37 +18,40 @@ const Pagination: React.FC<PaginationProps> = ({
 }) => {
   const getPageNumbers = (): number[] => {
     const pageNumbers: number[] = [];
-    
+
     // Calculate the range of page numbers to show
     let startPage = Math.max(1, currentPage - Math.floor(maxPageButtons / 2));
     const endPage = Math.min(totalPages, startPage + maxPageButtons - 1);
-    
+
     // Adjust if we're near the end
     if (endPage - startPage + 1 < maxPageButtons) {
       startPage = Math.max(1, endPage - maxPageButtons + 1);
     }
-    
+
     // Add page numbers
     for (let i = startPage; i <= endPage; i++) {
       pageNumbers.push(i);
     }
-    
+
     return pageNumbers;
   };
 
   const handlePreviousPage = (): void => {
     if (currentPage > 1) {
+      console.log(`Pagination component: Going to previous page ${currentPage - 1} from ${currentPage}`);
       onPageChange(currentPage - 1);
     }
   };
 
   const handleNextPage = (): void => {
     if (currentPage < totalPages) {
+      console.log(`Pagination component: Going to next page ${currentPage + 1} from ${currentPage}`);
       onPageChange(currentPage + 1);
     }
   };
 
   const handlePageClick = (pageNumber: number): void => {
+    console.log(`Pagination component: Clicked on page ${pageNumber}, current page is ${currentPage}`);
     onPageChange(pageNumber);
   };
 

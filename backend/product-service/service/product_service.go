@@ -126,6 +126,32 @@ func (s *ProductService) CreateProduct(ctx context.Context, req *pb.CreateProduc
 		}
 	}
 
+	// Process categories if provided
+	if len(req.Product.Categories) > 0 {
+		product.Categories = make([]models.Category, len(req.Product.Categories))
+		for i, cat := range req.Product.Categories {
+			// Log the category being processed
+			s.logger.Info("Processing category for product",
+				zap.String("category_id", cat.Id),
+				zap.String("product_id", productID))
+
+			product.Categories[i] = models.Category{
+				ID: cat.Id,
+			}
+
+			// If we have more category details, add them
+			if cat.Name != "" {
+				product.Categories[i].Name = cat.Name
+			}
+			if cat.Slug != "" {
+				product.Categories[i].Slug = cat.Slug
+			}
+			if cat.Description != "" {
+				product.Categories[i].Description = cat.Description
+			}
+		}
+	}
+
 	// Create the product
 	if err := s.productRepo.CreateProduct(ctx, product); err != nil {
 		s.logger.Error("Failed to create product", zap.Error(err))
@@ -422,9 +448,21 @@ func (s *ProductService) ListProducts(ctx context.Context, req *pb.ListProductsR
 	products, err := s.cacheManager.GetProductList(ctx, cacheKey)
 	if err == nil {
 		s.logger.Debug("Cache hit for product list", zap.String("key", cacheKey))
+
+		// Get the total count from the database to ensure accurate pagination
+		_, total, err := s.productRepo.List(ctx, 0, 1)
+		if err != nil {
+			s.logger.Error("Failed to get total product count", zap.Error(err))
+			// Fall back to using the cached products length
+			return &pb.ListProductsResponse{
+				Products: convertProductModelsToProtos(products),
+				Total:    int32(len(products)),
+			}, nil
+		}
+
 		return &pb.ListProductsResponse{
 			Products: convertProductModelsToProtos(products),
-			Total:    int32(len(products)),
+			Total:    int32(total),
 		}, nil
 	}
 
@@ -440,6 +478,14 @@ func (s *ProductService) ListProducts(ctx context.Context, req *pb.ListProductsR
 		s.logger.Error("Failed to list products", zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to list products")
 	}
+
+	// Log the total count for debugging
+	s.logger.Info("Product count from database",
+		zap.Int("total", total),
+		zap.Int("page", int(req.Page)),
+		zap.Int("limit", int(req.Limit)),
+		zap.Int("offset", int(offset)),
+		zap.Int("products_returned", len(products)))
 
 	// Enhance each product with complete data
 	enhancedProducts := make([]*models.Product, 0, len(products))
@@ -1625,9 +1671,29 @@ func convertProtoToModelForUpdate(proto *pb.Product, model *models.Product) *mod
 		model.BrandID = nil // Explicitly set to nil if not provided
 	}
 
-	// TODO: Handle updates for Categories and Images if needed
-	// This would involve comparing the incoming IDs/data with existing ones
-	// and calling appropriate repository methods (e.g., AddProductCategory, RemoveProductCategory)
+	// Handle categories if provided in the update
+	if len(proto.Categories) > 0 {
+		// Replace existing categories with the new ones
+		model.Categories = make([]models.Category, len(proto.Categories))
+		for i, cat := range proto.Categories {
+			// We don't need to log here as this is a helper function
+
+			model.Categories[i] = models.Category{
+				ID: cat.Id,
+			}
+
+			// If we have more category details, add them
+			if cat.Name != "" {
+				model.Categories[i].Name = cat.Name
+			}
+			if cat.Slug != "" {
+				model.Categories[i].Slug = cat.Slug
+			}
+			if cat.Description != "" {
+				model.Categories[i].Description = cat.Description
+			}
+		}
+	}
 
 	return model
 }

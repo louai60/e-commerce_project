@@ -1,8 +1,13 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useProductContext } from "@/contexts/ProductContext";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { useProducts } from "@/hooks/useProducts";
+import {
+  getInventoryStatusVariant,
+  getInventoryStatusDisplay,
+  getInventoryStatusClasses
+} from "@/utils/statusUtils";
 import {
   Table,
   TableBody,
@@ -28,6 +33,26 @@ export default function ProductsPage() {
   const [limit] = useState(10);
   const { products, pagination, isLoading, isError, mutate } = useProducts(page, limit);
   const { isRefreshing, deleteProduct } = useProductContext();
+
+  // Monitor page changes and product data
+  useEffect(() => {
+    console.log(`Products page: Current page state is ${page}`);
+    console.log(`Products pagination: Current page from API is ${pagination?.current_page}`);
+
+    // Log inventory status for debugging
+    if (products && products.length > 0) {
+      console.log('First product inventory data:', products[0].inventory);
+      console.log('First product is_published:', products[0].is_published);
+
+      // Check for inconsistent status formats
+      const statusFormats = products
+        .filter(p => p.inventory?.status)
+        .map(p => p.inventory.status);
+
+      const uniqueFormats = [...new Set(statusFormats)];
+      console.log('Unique inventory status formats:', uniqueFormats);
+    }
+  }, [page, pagination, products]);
 
   // State for delete modal
   const deleteModal = useModal();
@@ -97,6 +122,7 @@ export default function ProductsPage() {
 
   // Handle page change
   const handlePageChange = (newPage: number) => {
+    console.log(`Products page: Changing from page ${page} to page ${newPage}`);
     setPage(newPage);
   };
 
@@ -204,7 +230,8 @@ export default function ProductsPage() {
                       </TableCell>
                       <TableCell>
                         <div className="cursor-pointer" onClick={() => handleProductClick(product)}>
-                          {product?.price?.current?.USD ? formatPrice(product.price.current.USD) :
+                          {product?.price?.current?.TND ? formatPrice(product.price.current.TND) :
+                           product?.price?.current?.USD ? formatPrice(product.price.current.USD) :
                            product?.price?.value ? formatPrice(product.price.value) : "N/A"}
                         </div>
                       </TableCell>
@@ -215,12 +242,25 @@ export default function ProductsPage() {
                       </TableCell>
                       <TableCell>
                         <div className="cursor-pointer" onClick={() => handleProductClick(product)}>
-                          <Badge
-                            variant="success"
-                            className="bg-green-500 text-white px-3 py-1 rounded-full text-xs"
-                          >
-                            in_stock
-                          </Badge>
+                          {product?.inventory?.status ? (
+                            <Badge
+                              variant={getInventoryStatusVariant(product.inventory.status)}
+                              className={`px-3 py-1 rounded-full text-xs ${getInventoryStatusClasses(product.inventory.status)}`}
+                            >
+                              {getInventoryStatusDisplay(product.inventory.status)}
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant={product?.is_published ? 'success' : 'warning'}
+                              className={`px-3 py-1 rounded-full text-xs ${
+                                product?.is_published
+                                  ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                                  : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+                              }`}
+                            >
+                              {product?.is_published ? 'Published' : 'Draft'}
+                            </Badge>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -261,7 +301,7 @@ export default function ProductsPage() {
           {pagination && pagination.total_pages > 1 && (
             <div className="mt-6 flex justify-center">
               <Pagination
-                currentPage={pagination.current_page}
+                currentPage={page} // Use the page state directly instead of pagination.current_page
                 totalPages={pagination.total_pages}
                 onPageChange={handlePageChange}
               />

@@ -599,8 +599,8 @@ func (r *PostgresRepository) CreateVariant(ctx context.Context, tx *sql.Tx, prod
 	// Insert the variant
 	const variantQuery = `
 		INSERT INTO product_variants (
-			product_id, sku, title, price, discount_price, inventory_qty, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			product_id, sku, title, price, discount_price, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id
 	`
 

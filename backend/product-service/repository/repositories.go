@@ -126,10 +126,13 @@ func (r *PostgresProductRepository) CreateProduct(ctx context.Context, product *
 			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 			RETURNING id`
 
+			// Default inventory quantity to 0 if not set
+			inventoryQty := 0
+
 			err = tx.QueryRowContext(
 				ctx, variantQuery,
 				variant.ProductID, variant.SKU, variant.Title, variant.Price, variant.DiscountPrice,
-				now, now,
+				inventoryQty, now, now,
 			).Scan(&variant.ID)
 
 			if err != nil {
@@ -595,8 +598,8 @@ func (r *PostgresProductRepository) UpdateProduct(ctx context.Context, product *
 
 				variantQuery := `
 				INSERT INTO product_variants (
-					product_id, sku, title, price, discount_price, inventory_qty, created_at, updated_at
-				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+					product_id, sku, title, price, discount_price, created_at, updated_at
+				) VALUES ($1, $2, $3, $4, $5, $6, $7)
 				RETURNING id`
 
 				err = tx.QueryRowContext(

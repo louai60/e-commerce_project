@@ -591,6 +591,25 @@ func (r *ProductRepository) CreateProduct(ctx context.Context, product *models.P
 		}
 	}
 
+	// Handle categories if any
+	if len(product.Categories) > 0 {
+		const categoryQuery = `
+			INSERT INTO product_categories (product_id, category_id)
+			VALUES ($1, $2)
+		`
+
+		for _, category := range product.Categories {
+			_, err = tx.ExecContext(ctx, categoryQuery, product.ID, category.ID)
+			if err != nil {
+				r.logger.Error("failed to create product category association",
+					zap.Error(err),
+					zap.String("product_id", product.ID),
+					zap.String("category_id", category.ID))
+				return fmt.Errorf("failed to create product category association: %w", err)
+			}
+		}
+	}
+
 	if err = tx.Commit(); err != nil {
 		r.logger.Error("failed to commit transaction", zap.Error(err))
 		return fmt.Errorf("failed to commit transaction: %w", err)

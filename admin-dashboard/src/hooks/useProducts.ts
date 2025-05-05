@@ -72,28 +72,59 @@ export function useProducts(page = 1, limit = 10, filters: FilterParams = {}) {
     {
       // Use consistent configuration
       revalidateOnFocus: false,
-      dedupingInterval: 2000,
       revalidateOnMount: true,
       shouldRetryOnError: true,
       errorRetryCount: 3,
       revalidateIfStale: true,
-      keepPreviousData: true
+      keepPreviousData: false, // Don't keep previous data to ensure fresh data on page change
+      // Force revalidation on page change
+      revalidateOnReconnect: true,
+      // Reduce the cache time to ensure fresh data on page change
+      dedupingInterval: 0
     }
   );
 
-  // Only log data in development mode
+  // Enhanced logging for pagination debugging
   if (process.env.NODE_ENV === 'development') {
+    console.log(`useProducts hook - Page: ${page}, Limit: ${limit}`);
     console.log('useProducts hook data:', data ? `${data.products?.length || 0} products loaded` : 'No data');
+    if (data?.pagination) {
+      console.log('Pagination info from API:', {
+        current_page: data.pagination.current_page,
+        total_pages: data.pagination.total_pages,
+        per_page: data.pagination.per_page,
+        total_items: data.pagination.total_items
+      });
+    }
+
+    // Log the SWR cache key to help debug caching issues
+    console.log('SWR cache key:', ['products', page, limit, filters]);
   }
 
   // Ensure we have valid data
   const products = Array.isArray(data?.products) ? data?.products : [];
-  const pagination = data?.pagination || {
-    current_page: page,
-    total_pages: 1,
+
+  // Calculate pagination information
+  const totalItems = data?.total || products.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / limit));
+
+  // Create a consistent pagination object
+  const pagination = {
+    current_page: page, // Always use the requested page
+    total_pages: totalPages,
     per_page: limit,
-    total_items: products.length
+    total_items: totalItems
   };
+
+  // Log pagination details for debugging
+  console.log('useProducts pagination calculation:', {
+    page,
+    limit,
+    totalItems,
+    totalPages,
+    productsLength: products.length,
+    apiPagination: data?.pagination
+  });
 
   return {
     products,
@@ -130,15 +161,34 @@ export function useBrands(page = 1, limit = 10) {
     () => fetchBrands(page, limit),
     {
       revalidateOnFocus: false,
-      dedupingInterval: 2000,
+      dedupingInterval: 5000,
       revalidateOnMount: true,
-      keepPreviousData: true
+      keepPreviousData: true,
+      revalidateOnReconnect: true,
+      shouldRetryOnError: true,
+      errorRetryCount: 3,
+      revalidateIfStale: true
     }
   );
 
+  // Ensure we have valid data
+  const brands = Array.isArray(data?.brands) ? data?.brands : [];
+
+  // Calculate pagination information
+  const totalItems = data?.total || brands.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / limit));
+
+  // Create a consistent pagination object
+  const pagination = {
+    current_page: page, // Always use the requested page
+    total_pages: totalPages,
+    per_page: limit,
+    total_items: totalItems
+  };
+
   return {
-    brands: data?.brands || [],
-    pagination: data?.pagination || { current_page: 1, total_pages: 1, per_page: limit, total_items: 0 },
+    brands,
+    pagination,
     isLoading,
     isError: error,
     mutate,
@@ -151,15 +201,34 @@ export function useCategories(page = 1, limit = 10) {
     () => fetchCategories(page, limit),
     {
       revalidateOnFocus: false,
-      dedupingInterval: 2000,
+      dedupingInterval: 5000,
       revalidateOnMount: true,
-      keepPreviousData: true
+      keepPreviousData: true,
+      revalidateOnReconnect: true,
+      shouldRetryOnError: true,
+      errorRetryCount: 3,
+      revalidateIfStale: true
     }
   );
 
+  // Ensure we have valid data
+  const categories = Array.isArray(data?.categories) ? data?.categories : [];
+
+  // Calculate pagination information
+  const totalItems = data?.total || categories.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / limit));
+
+  // Create a consistent pagination object
+  const pagination = {
+    current_page: page, // Always use the requested page
+    total_pages: totalPages,
+    per_page: limit,
+    total_items: totalItems
+  };
+
   return {
-    categories: data?.categories || [],
-    pagination: data?.pagination || { current_page: 1, total_pages: 1, per_page: limit, total_items: 0 },
+    categories,
+    pagination,
     isLoading,
     isError: error,
     mutate,

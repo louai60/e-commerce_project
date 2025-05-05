@@ -53,22 +53,37 @@ export function useInventoryItems(page = 1, limit = 10, filters: FilterParams = 
     },
     {
       revalidateOnFocus: false,
-      dedupingInterval: 2000,
+      dedupingInterval: 5000,
       revalidateOnMount: true,
       shouldRetryOnError: true,
       errorRetryCount: 3,
       revalidateIfStale: true,
-      keepPreviousData: true
+      keepPreviousData: true,
+      revalidateOnReconnect: true
     }
   );
 
+  // Enhanced logging for pagination debugging
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`useInventoryItems hook - Page: ${page}, Limit: ${limit}`);
+    console.log('useInventoryItems hook data:', data ? `${data.items?.length || 0} items loaded` : 'No data');
+    if (data?.pagination) {
+      console.log('Pagination info:', data.pagination);
+    }
+  }
+
   // Ensure we have valid data
   const items = Array.isArray(data?.items) ? data?.items : [];
-  const pagination = data?.pagination || {
-    current_page: page,
-    total_pages: 1,
-    per_page: limit,
-    total_items: items.length
+
+  // Always use the current page from the request, not from the response
+  // This ensures consistency when navigating between pages
+  const pagination = {
+    ...(data?.pagination || {
+      total_pages: 1,
+      per_page: limit,
+      total_items: items.length
+    }),
+    current_page: page // Always use the requested page
   };
 
   return {
@@ -109,19 +124,27 @@ export function useWarehouses(page = 1, limit = 10, filters: FilterParams = {}) 
     },
     {
       revalidateOnFocus: false,
-      dedupingInterval: 2000,
+      dedupingInterval: 5000,
       revalidateOnMount: true,
-      keepPreviousData: true
+      keepPreviousData: true,
+      revalidateOnReconnect: true,
+      shouldRetryOnError: true,
+      errorRetryCount: 3,
+      revalidateIfStale: true
     }
   );
 
   // Ensure we have valid data
   const warehouses = Array.isArray(data?.warehouses) ? data?.warehouses : [];
-  const pagination = data?.pagination || {
-    current_page: page,
-    total_pages: 1,
-    per_page: limit,
-    total_items: warehouses.length
+
+  // Always use the current page from the request, not from the response
+  const pagination = {
+    ...(data?.pagination || {
+      total_pages: 1,
+      per_page: limit,
+      total_items: warehouses.length
+    }),
+    current_page: page // Always use the requested page
   };
 
   return {
@@ -162,19 +185,27 @@ export function useInventoryTransactions(page = 1, limit = 10, filters: FilterPa
     },
     {
       revalidateOnFocus: false,
-      dedupingInterval: 2000,
+      dedupingInterval: 5000,
       revalidateOnMount: true,
-      keepPreviousData: true
+      keepPreviousData: true,
+      revalidateOnReconnect: true,
+      shouldRetryOnError: true,
+      errorRetryCount: 3,
+      revalidateIfStale: true
     }
   );
 
   // Ensure we have valid data
   const transactions = Array.isArray(data?.transactions) ? data?.transactions : [];
-  const pagination = data?.pagination || {
-    current_page: page,
-    total_pages: 1,
-    per_page: limit,
-    total_items: transactions.length
+
+  // Always use the current page from the request, not from the response
+  const pagination = {
+    ...(data?.pagination || {
+      total_pages: 1,
+      per_page: limit,
+      total_items: transactions.length
+    }),
+    current_page: page // Always use the requested page
   };
 
   return {
