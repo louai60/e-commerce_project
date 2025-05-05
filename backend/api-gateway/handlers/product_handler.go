@@ -271,6 +271,8 @@ func (h *ProductHandler) ListProducts(c *gin.Context) {
 
 	pageStr := c.DefaultQuery("page", "1")
 	limitStr := c.DefaultQuery("limit", "10")
+	debugStr := c.DefaultQuery("debug", "false")
+	debug := debugStr == "true"
 
 	page, err := strconv.Atoi(pageStr)
 	if err != nil {
@@ -301,6 +303,32 @@ func (h *ProductHandler) ListProducts(c *gin.Context) {
 
 	// Log the number of products retrieved
 	h.logger.Info("Retrieved products", zap.Int("count", len(resp.Products)), zap.Int32("total", resp.Total))
+
+	// Calculate total pages based on the total count
+	totalPages := (int(resp.Total) + limit - 1) / limit
+	if totalPages < 1 {
+		totalPages = 1
+	}
+
+	// Add debug information if requested
+	if debug {
+		h.logger.Info("Debug mode enabled for product listing")
+		debugInfo := map[string]interface{}{
+			"requested_page":     page,
+			"requested_limit":    limit,
+			"actual_items_count": len(resp.Products),
+			"reported_total":     resp.Total,
+			"calculated_pages":   totalPages,
+			"pagination_metadata": map[string]interface{}{
+				"current_page": page,
+				"total_pages":  totalPages,
+				"per_page":     limit,
+				"total_items":  resp.Total,
+			},
+		}
+		c.JSON(http.StatusOK, debugInfo)
+		return
+	}
 
 	// Format the response
 	formattedResponse := formatters.FormatProductList(resp.Products, page, limit, int(resp.Total))

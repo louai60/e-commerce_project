@@ -83,15 +83,28 @@ export function useInventoryItemsGraphQL(page = 1, limit = 10, filters: { lowSto
       lowStockOnly: filters.lowStockOnly || false
     },
     fetchPolicy: 'cache-and-network',
+    nextFetchPolicy: 'cache-first',
   });
+
+  // Enhanced logging for pagination debugging
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`useInventoryItemsGraphQL hook - Page: ${page}, Limit: ${limit}`);
+    if (data?.inventoryItems?.pagination) {
+      console.log('GraphQL Pagination info:', data.inventoryItems.pagination);
+    }
+  }
 
   // Ensure we have valid data
   const items = data?.inventoryItems?.items || [];
-  const pagination = data?.inventoryItems?.pagination || {
-    current_page: page,
-    total_pages: 1,
-    per_page: limit,
-    total_items: items.length
+
+  // Always use the current page from the request, not from the response
+  const pagination = {
+    ...(data?.inventoryItems?.pagination || {
+      total_pages: 1,
+      per_page: limit,
+      total_items: items.length
+    }),
+    current_page: page // Always use the requested page
   };
 
   return {
@@ -124,15 +137,20 @@ export function useWarehousesGraphQL(page = 1, limit = 10) {
   const { data, loading, error, refetch } = useQuery(GET_WAREHOUSES, {
     variables: { page, limit },
     fetchPolicy: 'cache-and-network',
+    nextFetchPolicy: 'cache-first',
   });
 
   // Ensure we have valid data
   const warehouses = data?.warehouses?.warehouses || [];
-  const pagination = data?.warehouses?.pagination || {
-    current_page: page,
-    total_pages: 1,
-    per_page: limit,
-    total_items: warehouses.length
+
+  // Always use the current page from the request, not from the response
+  const pagination = {
+    ...(data?.warehouses?.pagination || {
+      total_pages: 1,
+      per_page: limit,
+      total_items: warehouses.length
+    }),
+    current_page: page // Always use the requested page
   };
 
   return {
@@ -192,15 +210,20 @@ export function useInventoryTransactionsGraphQL(
       dateTo: filters.dateTo || null
     },
     fetchPolicy: 'cache-and-network',
+    nextFetchPolicy: 'cache-first',
   });
 
   // Ensure we have valid data
   const transactions = data?.inventoryTransactions?.transactions || [];
-  const pagination = data?.inventoryTransactions?.pagination || {
-    current_page: page,
-    total_pages: 1,
-    per_page: limit,
-    total_items: transactions.length
+
+  // Always use the current page from the request, not from the response
+  const pagination = {
+    ...(data?.inventoryTransactions?.pagination || {
+      total_pages: 1,
+      per_page: limit,
+      total_items: transactions.length
+    }),
+    current_page: page // Always use the requested page
   };
 
   return {

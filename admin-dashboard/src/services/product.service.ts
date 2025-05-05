@@ -169,15 +169,26 @@ export class ProductService {
       // Ensure we have a valid response structure
       const data = response.data || {};
 
+      // Calculate total pages based on total items and limit
+      const totalItems = data.total || 0;
+      const totalPages = Math.max(1, Math.ceil(totalItems / limit));
+
+      console.log('Pagination calculation:', {
+        totalItems,
+        limit,
+        calculatedTotalPages: totalPages,
+        apiTotalPages: data.pagination?.total_pages
+      });
+
       // Create a properly structured response
       const result = {
         products: data.products || [],
-        total: data.total || 0,
-        pagination: data.pagination || {
+        total: totalItems,
+        pagination: {
           current_page: page,
-          total_pages: 1,
+          total_pages: totalPages,
           per_page: limit,
-          total_items: 0
+          total_items: totalItems
         }
       };
 

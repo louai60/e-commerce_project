@@ -448,9 +448,21 @@ func (s *ProductService) ListProducts(ctx context.Context, req *pb.ListProductsR
 	products, err := s.cacheManager.GetProductList(ctx, cacheKey)
 	if err == nil {
 		s.logger.Debug("Cache hit for product list", zap.String("key", cacheKey))
+
+		// Get the total count from the database to ensure accurate pagination
+		_, total, err := s.productRepo.List(ctx, 0, 1)
+		if err != nil {
+			s.logger.Error("Failed to get total product count", zap.Error(err))
+			// Fall back to using the cached products length
+			return &pb.ListProductsResponse{
+				Products: convertProductModelsToProtos(products),
+				Total:    int32(len(products)),
+			}, nil
+		}
+
 		return &pb.ListProductsResponse{
 			Products: convertProductModelsToProtos(products),
-			Total:    int32(len(products)),
+			Total:    int32(total),
 		}, nil
 	}
 
@@ -466,6 +478,14 @@ func (s *ProductService) ListProducts(ctx context.Context, req *pb.ListProductsR
 		s.logger.Error("Failed to list products", zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to list products")
 	}
+
+	// Log the total count for debugging
+	s.logger.Info("Product count from database",
+		zap.Int("total", total),
+		zap.Int("page", int(req.Page)),
+		zap.Int("limit", int(req.Limit)),
+		zap.Int("offset", int(offset)),
+		zap.Int("products_returned", len(products)))
 
 	// Enhance each product with complete data
 	enhancedProducts := make([]*models.Product, 0, len(products))

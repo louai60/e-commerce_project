@@ -5,6 +5,11 @@ import { Product } from '@/services/product.service';
 import { formatPrice } from '@/lib/utils';
 import Image from 'next/image';
 import Badge from '@/components/ui/badge/Badge';
+import {
+  getInventoryStatusVariant,
+  getInventoryStatusDisplay,
+  getInventoryStatusClasses
+} from "@/utils/statusUtils";
 
 interface ProductDetailsModalProps {
   isOpen: boolean;
@@ -102,12 +107,21 @@ const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
                 {product.is_published ? "Published" : "Draft"}
               </Badge>
 
-              <Badge
-                variant="success"
-                className="bg-green-500 text-white px-3 py-1 rounded-full text-xs"
-              >
-                in_stock
-              </Badge>
+              {product?.inventory?.status ? (
+                <Badge
+                  variant={getInventoryStatusVariant(product.inventory.status)}
+                  className={`px-3 py-1 rounded-full text-xs ${getInventoryStatusClasses(product.inventory.status)}`}
+                >
+                  {getInventoryStatusDisplay(product.inventory.status)}
+                </Badge>
+              ) : (
+                <Badge
+                  variant="success"
+                  className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 px-3 py-1 rounded-full text-xs"
+                >
+                  In Stock
+                </Badge>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
